@@ -1,0 +1,500 @@
+// @mine — Translation layer: Supabase (normalized Postgres) <-> the record shapes
+// the existing UI/API contract uses (which were designed around SQLite JSON blobs).
+//
+// Correlation (app concept -> Supabase):
+//   App "LocalRoad" record  -> public.projects joined to roads + barangays +
+//                              project_categories + contractors (id = projects.id)
+//   App Inspection          -> public.inspections + inspection_items (id = inspections.id,
+//                              localRoadId = inspections.project_id)
+//   App Maintenance         -> public.maintenance_records (localRoadId = project_id)
+//   App User                -> auth.users + public.profiles
+//   Activity log            -> public.activity_logs (also auto-written by DB triggers)
+//
+// Known mappings/losses (documented in docs/SUPABASE-MIGRATION.md):
+//   conditionRating 0-10 <-> overall_score; item ratings Good/Fair/... <-> good/fair/...
+//   validation 'Validated' <-> approved, 'Return for Revision' <-> rejected
+//   maintenance 'Deferred' <-> deferred (enum value added by migration)
+//   attachments (dataUrls) are NOT moved to Storage yet; metadata rows only.
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { ROLE_FROM_DB, ROLE_TO_DB } from '@/lib/supabase';
+
+export type StoredRecord = Record<string, unknown> & { id: string };
+
+const cap = (v: unknown): string => {
+  const s = String(v ?? '');
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+};
+const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v));
+const numStr = (v: unknown): string => (v === null || v === undefined ? '' : String(v));
+
+/* ---------------------------------- roads/projects ---------------------------------- */
+
+type Joined = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+function mapProject(p: Joined): StoredRecord {
+  const road = (p.roads ?? {}) as Joined;
+  const contractor = (p.contractors ?? {}) as Joined;
+  const validation =
+    p.validation_status === 'approved' ? 'Validated' : p.validation_status === 'rejected' ? 'Return for Revision' : undefined;
+  return {
+    id: p.id,
+    roadId: p.road_id,
+    name: road.road_name ?? p.project_name ?? '',
+    roadName: road.road_name ?? '',
+    projectName: p.project_name ?? '',
+    type: p.project_categories?.name ?? p.category_other ?? '',
+    projectCategory: p.project_categories?.name ?? p.category_other ?? '',
+    location: p.barangays?.name ?? '',
+    barangay: p.barangays?.name ?? '',
+    dateBuilt: str(road.date_built),
+    condition: cap(road.current_condition) || 'Good',
+    lastInspection: str(road.last_inspection_date) || undefined,
+    projectDescription: p.description ?? '',
+    description: p.description ?? '',
+    dateStarted: str(p.date_started),
+    targetCompletionDate: str(p.target_completion_date),
+    noOfExtensions: numStr(p.extensions_count ?? 0),
+    actualCompletionDate: str(p.actual_completion_date),
+    roadNetworkId: road.road_network_id ?? '',
+    components: road.components ?? '',
+    contractorName: contractor.name ?? '',
+    contractorAddress: contractor.address ?? '',
+    contactInformation: contractor.contact_information ?? '',
+    pcadLicenseNo: contractor.pcab_license_no ?? '',
+    sourceOfFunds: p.source_of_funds ?? '',
+    appropriation: numStr(p.appropriation),
+    contractedAmount: numStr(p.contracted_amount),
+    adjustProjectCost: numStr(p.adjusted_project_cost),
+    completionDate: str(p.completion_date),
+    completionPercentage: numStr(p.completion_percentage ?? 0),
+    turnoverDate: str(p.turnover_date),
+    projectStatus: p.status ?? 'planned',
+    ...(validation ? { validationResult: validation } : {}),
+    validationRemarks: p.validation_remarks ?? '',
+    archivedAt: p.archived_at ?? undefined,
+  };
+}
+
+const PROJECT_SELECT =
+  '*, roads!projects_road_id_fkey(*), barangays!projects_barangay_id_fkey(name), project_categories(name), contractors!projects_contractor_id_fkey(*)';
+
+export async function listRoads(db: SupabaseClient): Promise<StoredRecord[]> {
+  const { data, error } = await db.from('projects').select(PROJECT_SELECT).is('archived_at', null).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapProject);
+}
+
+export async function listArchivedRoads(db: SupabaseClient): Promise<StoredRecord[]> {
+  const { data, error } = await db.from('projects').select(PROJECT_SELECT).not('archived_at', 'is', null).order('archived_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapProject);
+}
+
+async function resolveBarangayId(db: SupabaseClient, name: string): Promise<number | null> {
+  const clean = name.trim();
+  if (!clean) return null;
+  const { data } = await db.from('barangays').select('id').ilike('name', clean).maybeSingle();
+  if (data) return data.id as number;
+  const { data: created, error } = await db.from('barangays').insert({ name: clean }).select('id').single();
+  if (error) return null;
+  return created.id as number;
+}
+
+async function resolveCategoryId(db: SupabaseClient, name: string): Promise<number | null> {
+  const clean = name.trim();
+  if (!clean) return null;
+  const { data } = await db.from('project_categories').select('id').ilike('name', clean).maybeSingle();
+  if (data) return data.id as number;
+  const { data: created, error } = await db.from('project_categories').insert({ name: clean }).select('id').single();
+  if (error) return null;
+  return created.id as number;
+}
+
+async function resolveContractorId(db: SupabaseClient, rec: StoredRecord): Promise<string | null> {
+  const name = str(rec.contractorName).trim();
+  if (!name) return null;
+  const payload = {
+    name,
+    address: str(rec.contractorAddress) || null,
+    contact_information: str(rec.contactInformation) || null,
+    pcab_license_no: str(rec.pcadLicenseNo) || null,
+  };
+  const { data } = await db.from('contractors').select('id').ilike('name', name).maybeSingle();
+  if (data) {
+    await db.from('contractors').update(payload).eq('id', data.id);
+    return data.id as string;
+  }
+  const { data: created, error } = await db.from('contractors').insert(payload).select('id').single();
+  if (error) return null;
+  return created.id as string;
+}
+
+function deriveProjectStatus(rec: StoredRecord): string {
+  const explicit = str(rec.projectStatus);
+  if (['planned', 'on_track', 'delayed', 'completed', 'turned_over'].includes(explicit)) return explicit;
+  if (str(rec.turnoverDate)) return 'turned_over';
+  if (str(rec.actualCompletionDate)) return 'completed';
+  const pct = Number(rec.completionPercentage ?? 0);
+  if (pct >= 100) return 'completed';
+  if (pct > 0) return 'on_track';
+  return 'planned';
+}
+
+const VALIDATION_TO_DB: Record<string, string> = {
+  Validated: 'approved',
+  'Return for Revision': 'rejected',
+  'Pending Validation': 'pending',
+  Pending: 'pending',
+};
+
+/** Create or update a road+project pair from the app's combined record. Returns the mapped record. */
+export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: string): Promise<StoredRecord> {
+  const barangayId = await resolveBarangayId(db, str(rec.barangay || rec.location));
+  const categoryId = await resolveCategoryId(db, str(rec.projectCategory || rec.type));
+  const contractorId = await resolveContractorId(db, rec);
+
+  const existing = rec.id
+    ? (await db.from('projects').select('id, road_id').eq('id', rec.id).maybeSingle()).data
+    : null;
+
+  const roadPayload = {
+    road_name: str(rec.roadName || rec.name) || 'Unnamed Road',
+    road_network_id: str(rec.roadNetworkId) || null,
+    barangay_id: barangayId,
+    components: str(rec.components) || null,
+    description: str(rec.description || rec.projectDescription) || null,
+    date_built: str(rec.dateBuilt) || null,
+    current_condition: (str(rec.condition).toLowerCase() || 'good') as string,
+  };
+
+  let roadId = (existing?.road_id as string) || str(rec.roadId);
+  if (roadId) {
+    const { error } = await db.from('roads').update(roadPayload).eq('id', roadId);
+    if (error) throw error;
+  } else {
+    const { data, error } = await db.from('roads').insert({ ...roadPayload, created_by: userId }).select('id').single();
+    if (error) throw error;
+    roadId = data.id as string;
+  }
+
+  const projectPayload = {
+    project_name: str(rec.projectName || rec.name) || roadPayload.road_name,
+    road_id: roadId,
+    category_id: categoryId,
+    category_other: null,
+    description: str(rec.projectDescription || rec.description) || null,
+    barangay_id: barangayId,
+    date_started: str(rec.dateStarted) || null,
+    target_completion_date: str(rec.targetCompletionDate) || null,
+    extensions_count: Number(rec.noOfExtensions ?? 0) || 0,
+    actual_completion_date: str(rec.actualCompletionDate) || null,
+    status: deriveProjectStatus(rec),
+    contractor_id: contractorId,
+    source_of_funds: str(rec.sourceOfFunds) || null,
+    appropriation: rec.appropriation === '' || rec.appropriation == null ? null : Number(rec.appropriation),
+    contracted_amount: rec.contractedAmount === '' || rec.contractedAmount == null ? null : Number(rec.contractedAmount),
+    adjusted_project_cost: rec.adjustProjectCost === '' || rec.adjustProjectCost == null ? null : Number(rec.adjustProjectCost),
+    completion_date: str(rec.completionDate) || null,
+    completion_percentage: Number(rec.completionPercentage ?? 0) || 0,
+    turnover_date: str(rec.turnoverDate) || null,
+    ...(rec.validationResult
+      ? {
+          validation_status: VALIDATION_TO_DB[str(rec.validationResult)] ?? 'pending',
+          validation_remarks: str(rec.validationRemarks) || null,
+        }
+      : {}),
+  };
+
+  let projectId = existing?.id as string | undefined;
+  if (projectId) {
+    const { error } = await db.from('projects').update(projectPayload).eq('id', projectId);
+    if (error) throw error;
+  } else {
+    const { data, error } = await db.from('projects').insert({ ...projectPayload, created_by: userId }).select('id').single();
+    if (error) throw error;
+    projectId = data.id as string;
+  }
+
+  const { data: joined, error } = await db.from('projects').select(PROJECT_SELECT).eq('id', projectId!).single();
+  if (error) throw error;
+  return mapProject(joined as Joined);
+}
+
+export async function archiveRoad(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('projects').update({ archived_at: new Date().toISOString() }, { count: 'exact' }).eq('id', id).is('archived_at', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+export async function restoreRoad(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('projects').update({ archived_at: null }, { count: 'exact' }).eq('id', id).not('archived_at', 'is', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+export async function permanentlyDeleteRoad(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('projects').delete({ count: 'exact' }).eq('id', id).not('archived_at', 'is', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+/* ---------------------------------- inspections ---------------------------------- */
+
+const INSPECTION_TYPE_TO_DB: Record<string, string> = {
+  'Acceptance Inspection': 'type_acceptance',
+  Routine: 'routine', 'Routine Inspection': 'routine',
+  'Follow-up': 'follow_up', 'Follow-Up Inspection': 'follow_up', 'Annual Follow-Up': 'follow_up',
+  Initial: 'initial', 'Initial Inspection': 'initial',
+};
+const INSPECTION_TYPE_FROM_DB: Record<string, string> = {
+  type_acceptance: 'Acceptance Inspection', routine: 'Routine', follow_up: 'Follow-up', initial: 'Initial',
+};
+const RATING_TO_DB: Record<string, string> = { Good: 'good', Fair: 'fair', Poor: 'poor', Bad: 'bad', 'N/A': 'n/a' };
+const COMPONENT_TO_DB: Record<string, string> = {
+  Concrete: 'concrete', Asphalt: 'asphalt', Gravel: 'gravel', Earth: 'earth',
+  Shoulder: 'shoulder', 'Side Drain': 'side_drain', Sidewalk: 'sidewalk',
+};
+const COMPONENT_FROM_DB: Record<string, string> = Object.fromEntries(Object.entries(COMPONENT_TO_DB).map(([a, b]) => [b, a]));
+
+function mapInspection(i: Joined): StoredRecord {
+  const items = (i.inspection_items ?? []) as Joined[];
+  const conditionRatings: Record<string, string> = {};
+  for (const item of items) {
+    const label = COMPONENT_FROM_DB[item.component] ?? item.component;
+    conditionRatings[label] = cap(item.rating);
+  }
+  return {
+    id: i.id,
+    localRoadId: i.project_id,
+    localRoadName: i.projects?.project_name ?? i.projects?.roads?.road_name ?? '',
+    projectName: i.projects?.project_name ?? '',
+    projectCategory: '',
+    location: '',
+    date: str(i.inspection_date),
+    conditionRating: i.overall_score == null ? 0 : Number(i.overall_score),
+    conditionRatings,
+    remarks: i.remarks ?? '',
+    inspector: i.profiles?.full_name ?? i.profiles?.name ?? '',
+    inspectorId: i.inspector_id ?? undefined,
+    inspectionType: INSPECTION_TYPE_FROM_DB[i.inspection_type] ?? 'Routine',
+    validationStatus:
+      i.validation_status === 'approved' ? 'Validated' : i.validation_status === 'rejected' ? 'Return for Revision' : 'Pending Validation',
+    archivedAt: i.archived_at ?? undefined,
+  };
+}
+
+const INSPECTION_SELECT = '*, inspection_items(*), profiles!inspections_inspector_id_fkey(full_name, name), projects!inspections_project_id_fkey(project_name)';
+
+async function listInspectionsWhere(db: SupabaseClient, archived: boolean): Promise<StoredRecord[]> {
+  let q = db.from('inspections').select(INSPECTION_SELECT).order('inspection_date', { ascending: false });
+  q = archived ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(mapInspection);
+}
+export const listInspections = (db: SupabaseClient) => listInspectionsWhere(db, false);
+export const listArchivedInspections = (db: SupabaseClient) => listInspectionsWhere(db, true);
+
+export async function saveInspection(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
+  const payload = {
+    project_id: projectId,
+    inspection_date: str(rec.date) || new Date().toISOString().slice(0, 10),
+    inspection_type: INSPECTION_TYPE_TO_DB[str(rec.inspectionType)] ?? 'routine',
+    inspector_id: userId,
+    overall_score: rec.conditionRating == null || rec.conditionRating === '' ? null : Number(rec.conditionRating),
+    remarks: str(rec.remarks) || null,
+    validation_status: VALIDATION_TO_DB[str(rec.validationStatus)] ?? 'pending',
+  };
+  let id = str(rec.id);
+  const existing = id ? (await db.from('inspections').select('id').eq('id', id).maybeSingle()).data : null;
+  if (existing) {
+    const { error } = await db.from('inspections').update(payload).eq('id', id);
+    if (error) throw error;
+  } else {
+    const { data, error } = await db.from('inspections').insert(payload).select('id').single();
+    if (error) throw error;
+    id = data.id as string;
+  }
+  const ratings = (rec.conditionRatings ?? {}) as Record<string, string>;
+  const entries = Object.entries(ratings);
+  if (entries.length) {
+    await db.from('inspection_items').delete().eq('inspection_id', id);
+    const rows = entries
+      .filter(([component]) => COMPONENT_TO_DB[component])
+      .map(([component, rating]) => ({
+        inspection_id: id,
+        component: COMPONENT_TO_DB[component],
+        rating: RATING_TO_DB[rating] ?? 'n/a',
+      }));
+    if (rows.length) {
+      const { error } = await db.from('inspection_items').insert(rows);
+      if (error) throw error;
+    }
+  }
+  const { data, error } = await db.from('inspections').select(INSPECTION_SELECT).eq('id', id).single();
+  if (error) throw error;
+  return mapInspection(data as Joined);
+}
+
+export async function archiveInspection(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('inspections').update({ archived_at: new Date().toISOString() }, { count: 'exact' }).eq('id', id).is('archived_at', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+export async function restoreInspection(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('inspections').update({ archived_at: null }, { count: 'exact' }).eq('id', id).not('archived_at', 'is', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+export async function permanentlyDeleteInspection(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('inspections').delete({ count: 'exact' }).eq('id', id).not('archived_at', 'is', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+/* ---------------------------------- maintenance ---------------------------------- */
+
+const MAINT_STATUS_TO_DB: Record<string, string> = {
+  Scheduled: 'scheduled', 'In Progress': 'in_progress', Completed: 'completed', Deferred: 'deferred',
+};
+const MAINT_STATUS_FROM_DB: Record<string, string> = {
+  scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Completed', deferred: 'Deferred',
+};
+const MAINT_TYPE_TO_DB: Record<string, string> = {
+  Corrective: 'corrective', Preventive: 'preventive', Routine: 'routine', Emergency: 'emergency',
+};
+const MAINT_TYPE_FROM_DB: Record<string, string> = Object.fromEntries(Object.entries(MAINT_TYPE_TO_DB).map(([a, b]) => [b, a]));
+
+function mapMaintenance(m: Joined): StoredRecord {
+  return {
+    id: m.id,
+    localRoadId: m.project_id,
+    localRoadName: m.projects?.project_name ?? '',
+    type: MAINT_TYPE_FROM_DB[m.maintenance_type] ?? cap(m.maintenance_type),
+    scheduledDate: str(m.scheduled_date),
+    completedDate: str(m.completed_date) || undefined,
+    cost: m.cost == null ? 0 : Number(m.cost),
+    status: MAINT_STATUS_FROM_DB[m.status] ?? 'Scheduled',
+    description: m.activities ?? m.remarks ?? '',
+    archivedAt: m.archived_at ?? undefined,
+  };
+}
+
+const MAINT_SELECT = '*, projects!maintenance_records_project_id_fkey(project_name)';
+async function listMaintenanceWhere(db: SupabaseClient, archived: boolean): Promise<StoredRecord[]> {
+  let q = db.from('maintenance_records').select(MAINT_SELECT).order('scheduled_date', { ascending: false });
+  q = archived ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(mapMaintenance);
+}
+export const listMaintenance = (db: SupabaseClient) => listMaintenanceWhere(db, false);
+export const listArchivedMaintenance = (db: SupabaseClient) => listMaintenanceWhere(db, true);
+
+export async function saveMaintenance(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
+  const payload = {
+    project_id: projectId,
+    maintenance_type: MAINT_TYPE_TO_DB[str(rec.type)] ?? 'routine',
+    activities: str(rec.description) || null,
+    scheduled_date: str(rec.scheduledDate) || new Date().toISOString().slice(0, 10),
+    completed_date: str(rec.completedDate) || null,
+    cost: Number(rec.cost ?? 0) || 0,
+    status: MAINT_STATUS_TO_DB[str(rec.status)] ?? 'scheduled',
+    created_by: userId,
+  };
+  let id = str(rec.id);
+  const existing = id ? (await db.from('maintenance_records').select('id').eq('id', id).maybeSingle()).data : null;
+  if (existing) {
+    const { created_by: _ignored, ...update } = payload;
+    const { error } = await db.from('maintenance_records').update(update).eq('id', id);
+    if (error) throw error;
+  } else {
+    const { data, error } = await db.from('maintenance_records').insert(payload).select('id').single();
+    if (error) throw error;
+    id = data.id as string;
+  }
+  const { data, error } = await db.from('maintenance_records').select(MAINT_SELECT).eq('id', id).single();
+  if (error) throw error;
+  return mapMaintenance(data as Joined);
+}
+
+export async function archiveMaintenance(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('maintenance_records').update({ archived_at: new Date().toISOString() }, { count: 'exact' }).eq('id', id).is('archived_at', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+export async function restoreMaintenance(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('maintenance_records').update({ archived_at: null }, { count: 'exact' }).eq('id', id).not('archived_at', 'is', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+export async function permanentlyDeleteMaintenance(db: SupabaseClient, id: string): Promise<boolean> {
+  const { error, count } = await db.from('maintenance_records').delete({ count: 'exact' }).eq('id', id).not('archived_at', 'is', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+/* ---------------------------------- users / activity ---------------------------------- */
+
+export interface AppUser {
+  userId: string;
+  name: string;
+  email: string;
+  username: string;
+  role: string;
+  status: 'Active' | 'Inactive';
+  createdDate?: string;
+  archivedAt?: string;
+}
+
+export function mapProfile(p: Joined): AppUser {
+  return {
+    userId: p.id,
+    name: p.full_name || p.name || p.username,
+    email: p.email,
+    username: p.username,
+    role: ROLE_FROM_DB[p.role] ?? p.role,
+    status: p.status === 'inactive' || p.status === 'locked' ? 'Inactive' : 'Active',
+    createdDate: str(p.created_at).slice(0, 10),
+    ...(p.archived_at ? { archivedAt: p.archived_at } : {}),
+  };
+}
+
+export async function listUsers(admin: SupabaseClient): Promise<AppUser[]> {
+  const { data, error } = await admin.from('profiles').select('*').is('archived_at', null).order('created_at');
+  if (error) throw error;
+  return (data ?? []).map(mapProfile);
+}
+export async function listArchivedUsers(admin: SupabaseClient): Promise<AppUser[]> {
+  const { data, error } = await admin.from('profiles').select('*').not('archived_at', 'is', null).order('archived_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapProfile);
+}
+
+export async function addActivityLog(
+  admin: SupabaseClient,
+  input: { userId?: string; user: string; action: string; details: string },
+): Promise<void> {
+  await admin.from('activity_logs').insert({
+    user_id: input.userId ?? null,
+    user_name: input.user,
+    action: input.action,
+    entity_type: 'app',
+    details: { message: input.details },
+  });
+}
+
+export async function listActivityLogs(admin: SupabaseClient): Promise<Array<{ id: string; user: string; action: string; timestamp: string; details: string }>> {
+  const { data, error } = await admin.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(500);
+  if (error) throw error;
+  return (data ?? []).map((row: Joined) => ({
+    id: String(row.id),
+    user: row.user_name ?? 'system',
+    action: row.action,
+    timestamp: row.created_at,
+    details:
+      typeof row.details === 'string'
+        ? row.details
+        : str((row.details as Joined)?.message ?? JSON.stringify(row.details ?? {})),
+  }));
+}
+
+export { ROLE_TO_DB, ROLE_FROM_DB };

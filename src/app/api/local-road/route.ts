@@ -1,163 +1,115 @@
+// @mine — rewritten for Supabase (was SQLite). App "road" records are
+// projects joined to roads; see src/lib/supabase-data.ts for the mapping.
 import { NextResponse } from 'next/server';
-import { addActivityLog, deleteRoad, listArchivedInspections, listArchivedRoads, listInspections, listRoads, permanentlyDeleteRoad, restoreRoad, saveInspection, saveRoad, syncAnnualFollowUps } from '@/lib/local-database';
+import { requireAuth, unauthorized, withRefresh } from '@/lib/api';
+import {
+  addActivityLog, archiveRoad, listArchivedRoads, listRoads,
+  permanentlyDeleteRoad, restoreRoad, saveRoad, type StoredRecord,
+} from '@/lib/supabase-data';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-function getValidationStartDate(value: unknown): Date | null {
-  if (typeof value !== 'string') return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-  const [, yearText, monthText, dayText] = match;
-  const date = new Date(Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)));
-  if (
-    date.getUTCFullYear() !== Number(yearText) ||
-    date.getUTCMonth() !== Number(monthText) - 1 ||
-    date.getUTCDate() !== Number(dayText)
-  ) return null;
-  date.setUTCDate(date.getUTCDate() - 30);
-  return date;
-}
-
-export async function GET() {
-  syncAnnualFollowUps();
-  return NextResponse.json({ data: listRoads(), archived: listArchivedRoads() });
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  try {
+    const [data, archived] = await Promise.all([listRoads(auth.db), listArchivedRoads(auth.db)]);
+    return withRefresh(NextResponse.json({ data, archived }), auth);
+  } catch (error) {
+    console.error('Failed to list roads/projects.', error);
+    return NextResponse.json({ message: 'Unable to load projects.' }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json();
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  const payload = (await request.json().catch(() => null)) as StoredRecord | null;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return NextResponse.json({ message: 'A road record is required.' }, { status: 400 });
   }
-
-  const newItem = {
-    ...payload,
-    id: typeof payload.id === 'string' && payload.id ? payload.id : crypto.randomUUID(),
-  };
-  saveRoad(newItem);
-  syncAnnualFollowUps();
-  addActivityLog({ user: 'admin', action: 'Project Created', details: `Created project ${String(newItem.projectName || newItem.name || newItem.id)}` });
-
-  return NextResponse.json({ success: true, data: listRoads().find((road) => road.id === newItem.id) ?? newItem });
+  try {
+    const saved = await saveRoad(auth.db, { ...payload, id: '' }, auth.userId);
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Project Created', details: `Created project ${String(saved.projectName || saved.name || saved.id)}` });
+    return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
+  } catch (error) {
+    console.error('Failed to create project.', error);
+    return NextResponse.json({ message: 'Unable to create this project. Your role may not permit it.' }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request) {
-  const payload = await request.json();
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  const payload = (await request.json().catch(() => null)) as StoredRecord | null;
   if (!payload || typeof payload.id !== 'string' || !payload.id) {
     return NextResponse.json({ message: 'A road ID is required.' }, { status: 400 });
   }
+  try {
+    const roads = await listRoads(auth.db);
+    const current = roads.find((road) => road.id === payload.id);
+    if (!current) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
 
-  const current = listRoads().find((road) => road.id === payload.id);
-  if (!current) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
-  if (payload.annualValidationYear === undefined && payload.validationResult !== undefined) {
-    const validationStartDate = getValidationStartDate(current.actualCompletionDate);
-    const now = new Date();
-    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    if (!validationStartDate || today < validationStartDate.getTime()) {
-      return NextResponse.json({ message: 'This project is available for validation starting 30 days before its actual completion date.' }, { status: 400 });
+    // Validation submissions (non-annual) keep the original gate: remarks required.
+    if (payload.validationResult !== undefined && payload.annualValidationYear === undefined) {
+      if (
+        !['Validated', 'Return for Revision'].includes(String(payload.validationResult)) ||
+        typeof payload.validationRemarks !== 'string' ||
+        !payload.validationRemarks.trim()
+      ) {
+        return NextResponse.json({ message: 'A valid validation result and remarks are required.' }, { status: 400 });
+      }
+      // Annual-validation entries are not stored in Supabase (see migration doc);
+      // a validated project records the result on projects.validation_status.
     }
-  }
-  if (
-    payload.annualValidationYear === undefined &&
-    payload.validationResult !== undefined &&
-    (!['Validated', 'Return for Revision'].includes(payload.validationResult) ||
-      typeof payload.validationRemarks !== 'string' ||
-      !payload.validationRemarks.trim())
-  ) {
-    return NextResponse.json({ message: 'A valid validation result and remarks are required.' }, { status: 400 });
-  }
-  let updated = { ...current, ...payload, id: current.id };
-  if (payload.annualValidationYear !== undefined) {
-    if (
-      !Number.isInteger(payload.annualValidationYear) ||
-      !['Validated', 'Return for Revision'].includes(payload.validationResult) ||
-      typeof payload.validationRemarks !== 'string' ||
-      !payload.validationRemarks.trim()
-    ) {
-      return NextResponse.json({ message: 'A valid annual validation year and result are required.' }, { status: 400 });
+    if (payload.annualValidationYear !== undefined) {
+      return NextResponse.json(
+        { message: 'Annual validation entries are not available in the Supabase schema yet.' },
+        { status: 400 },
+      );
     }
-    const entries = Array.isArray(current.annualValidationEntries) ? current.annualValidationEntries as Array<Record<string, unknown>> : [];
-    const entryIndex = entries.findIndex((entry) => entry.year === payload.annualValidationYear);
-    if (entryIndex < 0) return NextResponse.json({ message: 'Annual validation entry not found.' }, { status: 404 });
-    const annualValidationEntries = entries.map((entry, index) => index === entryIndex
-      ? {
-          ...entry,
-          result: payload.validationResult,
-          remarks: payload.validationRemarks.trim(),
-          resolvedAt: new Date().toISOString(),
-        }
-      : entry
-    );
-    updated = { ...current, annualValidationEntries, id: current.id };
+
+    const saved = await saveRoad(auth.db, { ...current, ...payload, id: current.id }, auth.userId);
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Project Updated', details: `Updated project ${String(saved.projectName || saved.name || saved.id)}` });
+    return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
+  } catch (error) {
+    console.error('Failed to update project.', error);
+    return NextResponse.json({ message: 'Unable to update this project. Your role may not permit it.' }, { status: 500 });
   }
-  saveRoad(updated);
-  let createdInspection: Record<string, unknown> & { id: string } | undefined;
-  if (
-    payload.annualValidationYear === undefined &&
-    payload.validationResult === 'Validated' &&
-    typeof current.actualCompletionDate === 'string' &&
-    current.actualCompletionDate
-  ) {
-    const inspections = [...listInspections(), ...listArchivedInspections()];
-    const hasValidationInspection = inspections.some((inspection) =>
-      inspection.localRoadId === current.id && inspection.isValidationInspection === true
-    );
-    if (!hasValidationInspection) {
-      createdInspection = {
-        id: `validation-inspection-${current.id}`,
-        localRoadId: current.id,
-        localRoadName: String(current.name || current.projectName || current.roadName || ''),
-        projectName: String(current.projectName || current.name || ''),
-        projectCategory: String(current.projectCategory || current.type || ''),
-        location: String(current.location || ''),
-        date: current.actualCompletionDate,
-        conditionRating: 0,
-        conditionRatings: {
-          Concrete: 'N/A',
-          Asphalt: 'N/A',
-          Gravel: 'N/A',
-          Earth: 'N/A',
-          Shoulder: 'N/A',
-          'Side Drain': 'N/A',
-          Sidewalk: 'N/A',
-        },
-        remarks: '',
-        inspector: '',
-        inspectionType: 'Acceptance Inspection',
-        validationStatus: 'Validated',
-        isAnnualFollowUp: false,
-        isScheduledAnnualFollowUp: false,
-        isValidationInspection: true,
-        isPendingValidationInspection: true,
-      };
-      saveInspection(createdInspection, current.id);
-    }
-  }
-  syncAnnualFollowUps();
-  addActivityLog({ user: 'admin', action: 'Project Updated', details: `Updated project ${String(updated.projectName || updated.name || updated.id)}` });
-  return NextResponse.json({
-    success: true,
-    data: listRoads().find((road) => road.id === updated.id) ?? updated,
-    ...(createdInspection ? { inspection: createdInspection } : {}),
-  });
 }
 
 export async function DELETE(request: Request) {
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return NextResponse.json({ message: 'A road ID is required.' }, { status: 400 });
   const permanent = new URL(request.url).searchParams.get('permanent') === 'true';
-  const changed = permanent ? permanentlyDeleteRoad(id) : deleteRoad(id);
-  if (!changed) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
-  addActivityLog({ user: 'admin', action: permanent ? 'Project Permanently Deleted' : 'Project Archived', details: `${permanent ? 'Permanently deleted' : 'Archived'} project ${id}` });
-  return NextResponse.json({ success: true });
+  try {
+    const changed = permanent ? await permanentlyDeleteRoad(auth.db, id) : await archiveRoad(auth.db, id);
+    if (!changed) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: permanent ? 'Project Permanently Deleted' : 'Project Archived', details: `${permanent ? 'Permanently deleted' : 'Archived'} project ${id}` });
+    return withRefresh(NextResponse.json({ success: true }), auth);
+  } catch (error) {
+    console.error('Failed to delete project.', error);
+    return NextResponse.json({ message: 'Unable to delete this project. Your role may not permit it.' }, { status: 500 });
+  }
 }
 
 export async function PUT(request: Request) {
-  const { id, action } = await request.json();
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  const { id, action } = (await request.json().catch(() => ({}))) as { id?: unknown; action?: unknown };
   if (typeof id !== 'string' || (action !== 'restore' && action !== 'archive')) {
     return NextResponse.json({ message: 'A valid road ID and action are required.' }, { status: 400 });
   }
-  const changed = action === 'restore' ? restoreRoad(id) : deleteRoad(id);
-  if (!changed) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
-  addActivityLog({ user: 'admin', action: action === 'restore' ? 'Project Restored' : 'Project Archived', details: `${action === 'restore' ? 'Restored' : 'Archived'} project ${id}` });
-  return NextResponse.json({ success: true });
+  try {
+    const changed = action === 'restore' ? await restoreRoad(auth.db, id) : await archiveRoad(auth.db, id);
+    if (!changed) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: action === 'restore' ? 'Project Restored' : 'Project Archived', details: `${action === 'restore' ? 'Restored' : 'Archived'} project ${id}` });
+    return withRefresh(NextResponse.json({ success: true }), auth);
+  } catch (error) {
+    console.error('Failed to change project archive state.', error);
+    return NextResponse.json({ message: 'Unable to change this project.' }, { status: 500 });
+  }
 }
