@@ -46,6 +46,14 @@ so you can `grep -rn "@mine" src/` and find my fingerprints.
 
 ## 📋 Change Log
 
+### 2026-11-09 — [mine] Opened pull request #1 for the Supabase migration
+- **Type:** Docs (this entry only)
+- **Files:** `MY-CHANGES.md` (this entry)
+- **What & why:** Pushed branch `arena/7f3b570f-mabini-meo` and opened **PR #1** → https://github.com/mendozagabii/Mabini-MEO/pull/1 ("[mine] Migrate SQLite to Supabase (data + Auth) + change tracking", 30 files, +2219/−743 vs `main`). Waiting for the owner's review/smoke test on the Vercel preview before merging.
+- **Status:** 🧪 Open — not yet merged
+- **Original code affected:** none (this entry)
+
+
 ### 2026-11-09 — [mine] Set Supabase environment variables in Vercel + Supabase redirect allow-list
 - **Type:** Config (Vercel + Supabase dashboards; no code change)
 - **Files:** none in repo (`.env.local` restored locally, gitignored)
