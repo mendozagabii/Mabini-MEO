@@ -285,15 +285,38 @@ export default function App() {
     };
   }, [isLoggedIn]);
 
+  // @mine — restore an existing Supabase session (httpOnly cookies) on load/refresh.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/auth/me')
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (cancelled || !payload?.role) return;
+        setUserRole(payload.role);
+        setUserName(payload.name || payload.username || '');
+        setUserEmail(payload.email || '');
+        setActiveTab(payload.role === 'Staff - Inspector' ? 'inspection-management' : 'dashboard');
+        setIsLoggedIn(true);
+        window.dispatchEvent(new Event('local-road-records-changed'));
+      })
+      .catch(() => { /* no session — stay on the login page */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const handleLogin = (role: string, username: string, email: string) => {
     setUserRole(role);
     setUserName(username);
     setUserEmail(email);
     setActiveTab(role === 'Staff - Inspector' ? 'inspection-management' : 'dashboard');
     setIsLoggedIn(true);
+    // @mine — data now requires a session, so (re)load it after signing in.
+    window.dispatchEvent(new Event('local-road-records-changed'));
   };
 
   const handleLogout = () => {
+    // @mine — end the Supabase session server-side (clears httpOnly cookies).
+    void fetch('/api/auth/logout', { method: 'POST' }).catch(() => { /* still log out locally */ });
     void fetch('/api/activity-logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

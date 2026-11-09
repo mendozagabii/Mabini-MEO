@@ -7,7 +7,11 @@ import municipalityImage from '../../imports/Municipality of Mabini.jpg';
 
 function ResetPasswordForm() {
   const params = useSearchParams();
-  const token = params.get('token') || '';
+  // @mine — Supabase recovery links carry the session in the URL hash
+  // (#access_token=...&type=recovery) or a PKCE ?code= instead of ?token=.
+  const hashParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.replace(/^#/, '')) : null;
+  const token = params.get('token') || hashParams?.get('access_token') || '';
+  const code = params.get('code') || '';
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -23,7 +27,7 @@ function ResetPasswordForm() {
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token, code, password }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -59,7 +63,7 @@ function ResetPasswordForm() {
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
-          <button type="submit" disabled={saving || !token} className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 font-semibold text-white shadow-lg disabled:opacity-50">
+          <button type="submit" disabled={saving || (!token && !code)} className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 font-semibold text-white shadow-lg disabled:opacity-50">
             {saving ? 'Saving...' : 'Reset password'}
           </button>
         </form>

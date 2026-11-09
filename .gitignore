@@ -1,0 +1,27 @@
+# @mine — added by me (repo had no .gitignore at baseline). See MY-CHANGES.md.
+
+# dependencies / build
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# env & secrets
+.env
+.env.local
+.env.*.local
+
+# local data (SQLite DB is auto-created at runtime by src/lib/local-database.ts)
+data/
+*.sqlite
+*.sqlite-journal
+
+# logs / OS / editor
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# @mine — build artifact
+tsconfig.tsbuildinfo

@@ -1,125 +1,126 @@
+// @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { NextResponse } from 'next/server';
+import { requireAuth, unauthorized, withRefresh } from '@/lib/api';
 import {
-  listMaintenanceRecords,
-  listRoads,
-  deleteMaintenanceRecord,
-  addActivityLog,
-  listArchivedMaintenanceRecords,
-  permanentlyDeleteMaintenanceRecord,
-  restoreMaintenanceRecord,
-  saveMaintenanceRecord,
-} from '@/lib/local-database';
+  addActivityLog, archiveMaintenance, listArchivedMaintenance, listMaintenance, listRoads,
+  permanentlyDeleteMaintenance, restoreMaintenance, saveMaintenance, type StoredRecord,
+} from '@/lib/supabase-data';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  return NextResponse.json({ data: listMaintenanceRecords(), archived: listArchivedMaintenanceRecords() });
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  try {
+    const [data, archived] = await Promise.all([listMaintenance(auth.db), listArchivedMaintenance(auth.db)]);
+    return withRefresh(NextResponse.json({ data, archived }), auth);
+  } catch (error) {
+    console.error('Failed to list maintenance records.', error);
+    return NextResponse.json({ message: 'Unable to load maintenance records.' }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json();
-  if (
-    !payload ||
-    typeof payload !== 'object' ||
-    Array.isArray(payload) ||
-    typeof payload.localRoadId !== 'string' ||
-    !payload.localRoadId
-  ) {
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  const payload = (await request.json().catch(() => null)) as StoredRecord | null;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
   }
-
-  const road = listRoads().find((item) => item.id === payload.localRoadId);
+  const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
-
-  const record = { ...payload, id: crypto.randomUUID() };
-  saveMaintenanceRecord(record, road.id);
-  addActivityLog({ user: 'admin', action: 'Maintenance Created', details: `Created maintenance record ${record.id}` });
-  return NextResponse.json({ success: true, data: record });
+  try {
+    const record = await saveMaintenance(auth.db, { ...payload, id: '' }, road.id, auth.userId);
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Maintenance Created', details: `Created maintenance record ${record.id}` });
+    return withRefresh(NextResponse.json({ success: true, data: record }), auth);
+  } catch (error) {
+    console.error('Failed to create maintenance record.', error);
+    return NextResponse.json({ message: 'Unable to create this maintenance record. Your role may not permit it.' }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request) {
-  const payload = await request.json();
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  const payload = (await request.json().catch(() => null)) as StoredRecord | null;
   if (!payload || typeof payload.id !== 'string' || !payload.id) {
     return NextResponse.json({ message: 'A valid maintenance record ID is required.' }, { status: 400 });
   }
-
-  const record = listMaintenanceRecords().find((item) => item.id === payload.id);
+  const record = (await listMaintenance(auth.db)).find((item) => item.id === payload.id);
   if (!record) return NextResponse.json({ message: 'Maintenance record not found.' }, { status: 404 });
 
   const isStatusOnlyUpdate =
-    payload.status !== undefined &&
-    payload.localRoadId === undefined &&
-    payload.type === undefined &&
-    payload.scheduledDate === undefined &&
-    payload.description === undefined &&
-    payload.cost === undefined;
-
-  if (isStatusOnlyUpdate) {
-    if (!['Scheduled', 'In Progress', 'Completed', 'Deferred'].includes(payload.status)) {
-      return NextResponse.json({ message: 'A valid maintenance status is required.' }, { status: 400 });
+    payload.status !== undefined && payload.localRoadId === undefined && payload.type === undefined &&
+    payload.scheduledDate === undefined && payload.description === undefined && payload.cost === undefined;
+  try {
+    if (isStatusOnlyUpdate) {
+      if (!['Scheduled', 'In Progress', 'Completed', 'Deferred'].includes(String(payload.status))) {
+        return NextResponse.json({ message: 'A valid maintenance status is required.' }, { status: 400 });
+      }
+      const updated = await saveMaintenance(auth.db, {
+        ...record, status: payload.status,
+        ...(payload.completedDate !== undefined ? { completedDate: payload.completedDate } : {}),
+      }, String(record.localRoadId), auth.userId);
+      await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Maintenance Updated', details: `Updated maintenance record ${updated.id}` });
+      return withRefresh(NextResponse.json({ success: true, data: updated }), auth);
     }
-    const updated = {
+
+    if (typeof payload.localRoadId !== 'string' || typeof payload.type !== 'string' || typeof payload.scheduledDate !== 'string' || typeof payload.description !== 'string' || !Number.isFinite(Number(payload.cost))) {
+      return NextResponse.json({ message: 'Valid maintenance details are required.' }, { status: 400 });
+    }
+    const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
+    if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+    const updated = await saveMaintenance(auth.db, {
       ...record,
-      status: payload.status,
-      ...(payload.completedDate !== undefined ? { completedDate: payload.completedDate } : {}),
-    };
-    saveMaintenanceRecord(updated, String(record.localRoadId));
-      addActivityLog({ user: 'admin', action: 'Maintenance Updated', details: `Updated maintenance record ${updated.id}` });
-    return NextResponse.json({ success: true, data: updated });
+      localRoadId: road.id,
+      type: payload.type,
+      scheduledDate: payload.scheduledDate,
+      status: record.status === 'Deferred' && payload.scheduledDate !== record.scheduledDate ? 'Scheduled' : record.status,
+      cost: Number(payload.cost),
+      description: payload.description,
+    }, road.id, auth.userId);
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Maintenance Updated', details: `Updated maintenance record ${updated.id}` });
+    return withRefresh(NextResponse.json({ success: true, data: updated }), auth);
+  } catch (error) {
+    console.error('Failed to update maintenance record.', error);
+    return NextResponse.json({ message: 'Unable to update this maintenance record. Your role may not permit it.' }, { status: 500 });
   }
-
-  if (
-    typeof payload.localRoadId !== 'string' ||
-    typeof payload.type !== 'string' ||
-    typeof payload.scheduledDate !== 'string' ||
-    typeof payload.description !== 'string' ||
-    !Number.isFinite(Number(payload.cost))
-  ) {
-    return NextResponse.json({ message: 'Valid maintenance details are required.' }, { status: 400 });
-  }
-
-  const road = listRoads().find((item) => item.id === payload.localRoadId);
-  if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
-
-  const updated = {
-    ...record,
-    localRoadId: road.id,
-    localRoadName: String(road.name || road.roadName || ''),
-    type: payload.type,
-    scheduledDate: payload.scheduledDate,
-    status: record.status === 'Deferred' && payload.scheduledDate !== record.scheduledDate
-      ? 'Scheduled'
-      : record.status,
-    cost: Number(payload.cost),
-    description: payload.description,
-  };
-  saveMaintenanceRecord(updated, road.id);
-  addActivityLog({ user: 'admin', action: 'Maintenance Updated', details: `Updated maintenance record ${updated.id}` });
-  return NextResponse.json({ success: true, data: updated });
 }
 
 export async function DELETE(request: Request) {
-  const payload = await request.json();
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  const payload = (await request.json().catch(() => null)) as { id?: unknown } | null;
   if (!payload || typeof payload.id !== 'string' || !payload.id) {
     return NextResponse.json({ message: 'A valid maintenance record ID is required.' }, { status: 400 });
   }
-
   const permanent = new URL(request.url).searchParams.get('permanent') === 'true';
-  const changed = permanent ? permanentlyDeleteMaintenanceRecord(payload.id) : deleteMaintenanceRecord(payload.id);
-  if (!changed) {
-    return NextResponse.json({ message: 'Maintenance record not found.' }, { status: 404 });
+  try {
+    const changed = permanent ? await permanentlyDeleteMaintenance(auth.db, payload.id) : await archiveMaintenance(auth.db, payload.id);
+    if (!changed) return NextResponse.json({ message: 'Maintenance record not found.' }, { status: 404 });
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: permanent ? 'Maintenance Permanently Deleted' : 'Maintenance Archived', details: `${permanent ? 'Permanently deleted' : 'Archived'} maintenance record ${payload.id}` });
+    return withRefresh(NextResponse.json({ success: true }), auth);
+  } catch (error) {
+    console.error('Failed to delete maintenance record.', error);
+    return NextResponse.json({ message: 'Unable to delete this maintenance record.' }, { status: 500 });
   }
-  addActivityLog({ user: 'admin', action: permanent ? 'Maintenance Permanently Deleted' : 'Maintenance Archived', details: `${permanent ? 'Permanently deleted' : 'Archived'} maintenance record ${payload.id}` });
-  return NextResponse.json({ success: true });
 }
 
 export async function PUT(request: Request) {
-  const { id, action } = await request.json();
+  const auth = await requireAuth(request);
+  if (!auth) return unauthorized();
+  const { id, action } = (await request.json().catch(() => ({}))) as { id?: unknown; action?: unknown };
   if (typeof id !== 'string' || (action !== 'restore' && action !== 'archive')) {
     return NextResponse.json({ message: 'A valid maintenance ID and action are required.' }, { status: 400 });
   }
-  const changed = action === 'restore' ? restoreMaintenanceRecord(id) : deleteMaintenanceRecord(id);
-  if (!changed) return NextResponse.json({ message: 'Maintenance record not found.' }, { status: 404 });
-  addActivityLog({ user: 'admin', action: action === 'restore' ? 'Maintenance Restored' : 'Maintenance Archived', details: `${action === 'restore' ? 'Restored' : 'Archived'} maintenance record ${id}` });
-  return NextResponse.json({ success: true });
+  try {
+    const changed = action === 'restore' ? await restoreMaintenance(auth.db, id) : await archiveMaintenance(auth.db, id);
+    if (!changed) return NextResponse.json({ message: 'Maintenance record not found.' }, { status: 404 });
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: action === 'restore' ? 'Maintenance Restored' : 'Maintenance Archived', details: `${action === 'restore' ? 'Restored' : 'Archived'} maintenance record ${id}` });
+    return withRefresh(NextResponse.json({ success: true }), auth);
+  } catch (error) {
+    console.error('Failed to change maintenance archive state.', error);
+    return NextResponse.json({ message: 'Unable to change this maintenance record.' }, { status: 500 });
+  }
 }
