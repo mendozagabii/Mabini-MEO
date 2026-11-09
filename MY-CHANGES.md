@@ -46,6 +46,15 @@ so you can `grep -rn "@mine" src/` and find my fingerprints.
 
 ## 📋 Change Log
 
+### 2026-11-09 — [mine] AI integration check + demo-data cleanup plan (PREPARED, not executed)
+- **Type:** Docs + prepared SQL (no data changed anywhere)
+- **Files:** `docs/DEMO-DATA-PLAN.md` (new), `supabase/demo/seed-demo-data.sql` (new), `MY-CHANGES.md` (this entry)
+- **What & why:**
+  1. **AI check:** The app *does* include AI features — `src/lib/ai.ts` + `AIPredictionModule` call **Vercel AI Gateway** (`meta/llama-4-scout`) for road maintenance prioritization, but `AI_GATEWAY_API_KEY` is **not set** in the repo or in Vercel (verified via `list_env_vars` — only the 4 Supabase/site vars exist), so "Generate AI Priorities" currently fails with 503. Noted for later; the owner will add the key in Vercel. Also noted: AI results are stored only in browser localStorage, never in the DB.
+  2. **Demo-data prep:** Did a read-only inventory of WBLRMS (roads 10, projects 10, inspections 17, items 0, maintenance 0, activity logs 62, AI 1 run/10 results). Prepared (but did **NOT** run) a wipe+seed plan: on the owner's signal, back up current rows, delete all transactional/test data **except the 4 accounts** (and keep barangays/categories/contractors/role access), then seed 10 synthetic-but-realistic roads/projects with inspections (+126 auto-generated items), 10 maintenance records, 8 progress updates, and 10 AI priority results.
+- **Status:** ⏸️ Prepared — **waiting for the owner's go signal** before any delete/insert is executed
+- **Original code affected:** none
+
 ### 2026-11-09 — [mine] Opened pull request #1 for the Supabase migration
 - **Type:** Docs (this entry only)
 - **Files:** `MY-CHANGES.md` (this entry)
