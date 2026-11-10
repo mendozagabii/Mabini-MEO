@@ -12,11 +12,17 @@ function ResetPasswordForm() {
   const hashParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.replace(/^#/, '')) : null;
   const token = params.get('token') || hashParams?.get('access_token') || '';
   const code = params.get('code') || '';
+  // @mine — when GoTrue rejects a link it redirects here with
+  // #error_code=otp_expired&error_description=... and no token; that used to be
+  // swallowed, leaving a dead form with no explanation.
+  const hashErrorRaw = hashParams?.get('error_description') || hashParams?.get('error_code') || '';
+  const hashError = hashErrorRaw ? decodeURIComponent(hashErrorRaw.replace(/\+/g, ' ')) : '';
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const shownError = error || hashError;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -55,10 +61,10 @@ function ResetPasswordForm() {
         <h1 className="text-2xl font-bold">Reset your password</h1>
         <p className="mt-2 text-sm text-blue-100/75">Choose a new password for your account.</p>
         <form onSubmit={submit} className="mt-6 space-y-4">
-          {error && <p role="alert" className="rounded-lg bg-red-950/30 p-3 text-sm text-red-100">{error}</p>}
+          {shownError && <p role="alert" className="rounded-lg bg-red-950/30 p-3 text-sm text-red-100">{shownError}</p>}
           {message && <p role="status" className="rounded-lg bg-emerald-950/30 p-3 text-sm text-emerald-100">{message}</p>}
           <div className="relative">
-            <input type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="New password" className="h-12 w-full rounded-lg border border-white/80 bg-white px-3 pr-12 text-slate-900 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-300/25" />
+            <input type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="New password" className="h-12 w-full rounded-lg border border-white/80 bg-white px-3 pr-12 text-slate-900 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-300/25" />
             <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-blue-600">
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -66,6 +72,11 @@ function ResetPasswordForm() {
           <button type="submit" disabled={saving || (!token && !code)} className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 font-semibold text-white shadow-lg disabled:opacity-50">
             {saving ? 'Saving...' : 'Reset password'}
           </button>
+          {!token && !code && !hashError && (
+            <p className="text-xs text-blue-100/70">
+              This page needs the link from your e-mail. Open the most recent reset e-mail, or request a new link from the login screen.
+            </p>
+          )}
         </form>
         </div>
       </section>

@@ -86,7 +86,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +267 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +275 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -122,7 +122,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 | `src/app/api/auth/lock-status/route.ts` | modified | +18 / -6 | Fixed + moved to Supabase: this route was statically prerendered … |
 | `src/app/api/auth/login/route.ts` | modified | +91 / -63 | Rewritten: Supabase Auth sign-in (was SQLite password check). … |
 | `src/app/api/auth/request-password-reset/route.ts` | modified | +24 / -43 | Rewritten: delegates to Supabase Auth email reset (was custom Gmail … |
-| `src/app/api/auth/reset-password/route.ts` | modified | +36 / -17 | Rewritten for Supabase Auth recovery sessions. Accepts either the … |
+| `src/app/api/auth/reset-password/route.ts` | modified | +81 / -17 | Rewritten for Supabase Auth recovery sessions. Accepts either the … |
 | `src/app/api/auth/status/route.ts` | modified | +154 / -62 | Rewritten for Supabase (was SQLite users table). User administration … |
 | `src/app/api/auth/unlock/route.ts` | modified | +121 / -46 | Rewritten for Supabase. Previously, non-admin accounts could be … |
 | `src/app/api/health/route.ts` | modified | +11 / -8 | Was hardcoded to 'development'/'local-nextjs-sqlite'. |
@@ -148,7 +148,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 
 | File | Type | Δ lines | Note (from the `@mine` marker) |
 |---|---|---|---|
-| `src/app/reset-password/page.tsx` | modified | +8 / -4 | Supabase recovery links carry the session in the URL hash … |
+| `src/app/reset-password/page.tsx` | modified | +21 / -6 | Supabase recovery links carry the session in the URL hash … |
 
 #### Root config & assets
 
@@ -283,6 +283,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 | PR | Branch merged | Merge commit |
 |---|---|---|
+| [#5](https://github.com/mendozagabii/Mabini-MEO/pull/5) | `arena/d405d1b2-mabini-meo` | `af8ad92` |
 | [#4](https://github.com/mendozagabii/Mabini-MEO/pull/4) | `arena/c5868898-mabini-meo` | `faee7e6` |
 | [#3](https://github.com/mendozagabii/Mabini-MEO/pull/3) | `arena/08607812-mabini-meo` | `8d603dd` |
 | [#2](https://github.com/mendozagabii/Mabini-MEO/pull/2) | `arena/3f13779c-mabini-meo` | `427be76` |
@@ -303,6 +304,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Fix master code endpoint (service role + first-run setup), de-duplicate annual follow-ups, add walkthrough | 7 |
 | 2026-11-10 | [mine] Add Mabini seal as web icon; bootstrap master code (DB, value not recorded) | 5 |
 | 2026-11-10 | [mine] Account editing: apply email + password to the Supabase Auth identity | 4 |
+| 2026-11-10 | [mine] Fix password reset: links never applied because updateUser needs a session | 4 |
 
 ---
 
