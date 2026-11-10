@@ -462,7 +462,12 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || 'Unable to update the user account.');
       await refreshUserAccounts();
-      void recordActivity('User Updated', `Updated user ${formData.name}`);
+      // @mine — record whether the sign-in email changed (never the password).
+      const detail =
+        editingUser.email.toLowerCase() !== formData.email.trim().toLowerCase()
+          ? `Updated user ${formData.name} (email ${editingUser.email} → ${formData.email.trim()})`
+          : `Updated user ${formData.name}`;
+      void recordActivity('User Updated', detail);
     } catch (error) {
       setDialog({
         isOpen: true,
@@ -1390,6 +1395,13 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                     {showUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {editingUser && (
+                  // @mine — editing used to ignore this field entirely; the server now
+                  // writes it to auth.users, so say so (and that blank keeps the old one).
+                  <p className="mt-1 text-xs text-slate-500">
+                    Leave blank to keep the current password. If you set one, it must be at least 8 characters.
+                  </p>
+                )}
               </div>
 
               <div className="sm:col-span-2">
