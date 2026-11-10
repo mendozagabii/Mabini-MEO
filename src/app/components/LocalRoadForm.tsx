@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { formatProjectCurrency, formatSavedProjectCurrency, hasFourDigitYear, isValidProjectCurrency } from '@/lib/project-form-validation';
+import { attachmentError } from '@/lib/attachment-validation';
+import { startProjectSaveDelay } from '@/lib/project-save-delay';
 
 interface ProjectAttachment {
   name: string;
@@ -11,6 +13,8 @@ interface ProjectAttachment {
   // @mine — Supabase Storage path for the file (Phase 2, 2026-11-09);
   // optional so records created before Storage still type-check.
   storagePath?: string;
+  staged?: boolean;
+  size?: number;
 }
 
 interface LocalRoad {
@@ -24,6 +28,7 @@ interface LocalRoad {
   projectName?: string;
   projectCategory?: string;
   projectDescription?: string;
+  dateStarted?: string;
   targetCompletionDate?: string;
   noOfExtensions?: string;
   actualCompletionDate?: string;
@@ -55,7 +60,6 @@ interface ProjectFormData {
   targetCompletionDate: string;
   noOfExtensions: string;
   actualCompletionDate: string;
-  attachment: File[];
   roadNetworkId: string;
   roadName: string;
   barangay: string;
@@ -78,7 +82,7 @@ interface ProjectFormData {
 interface LocalRoadFormProps {
   item?: LocalRoad | null;
   editId?: string;
-  onSave: (item: Omit<LocalRoad, 'id'> & { id?: string }) => void;
+  onSave: (item: Omit<LocalRoad, 'id'> & { id?: string }) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -104,11 +108,10 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   projectCategory: road?.projectCategory || road?.type || '',
   projectDescription: road?.projectDescription || road?.description || '',
   location: road?.location || '',
-  dateStarted: road?.dateBuilt || '',
+  dateStarted: road?.dateStarted || road?.dateBuilt || '',
   targetCompletionDate: road?.targetCompletionDate || '',
   noOfExtensions: road?.noOfExtensions || '',
   actualCompletionDate: road?.actualCompletionDate || '',
-  attachment: [],
   roadNetworkId: road?.roadNetworkId || '',
   roadName: road?.roadName || road?.name || '',
   barangay: road?.barangay || '',
@@ -119,9 +122,9 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   contactInformation: road?.contactInformation || '',
   pcadLicenseNo: road?.pcadLicenseNo || '',
   sourceOfFunds: road?.sourceOfFunds || '',
-  appropriation: road?.appropriation || '',
-  contractedAmount: road?.contractedAmount || '',
-  adjustProjectCost: road?.adjustProjectCost || '',
+  appropriation: formatSavedProjectCurrency(road?.appropriation),
+  contractedAmount: formatSavedProjectCurrency(road?.contractedAmount),
+  adjustProjectCost: formatSavedProjectCurrency(road?.adjustProjectCost),
   completionDate: road?.completionDate || '',
   completionPercentage: road?.completionPercentage || '',
   turnoverDate: road?.turnoverDate || '',
@@ -131,11 +134,22 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
 export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormProps) {
   const [activeFormTab, setActiveFormTab] = useState<(typeof localRoadFormTabs)[number]['id']>('project');
   const [formData, setFormData] = useState<ProjectFormData>(() => getInitialFormData(item));
-  const [requiredFieldsError, setRequiredFieldsError] = useState('');
+  const [attachmentNotice, setAttachmentNotice] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [otherCategorySelected, setOtherCategorySelected] = useState(() => Boolean(item?.projectCategory && !projectCategories.includes(item.projectCategory)));
 
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
 
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const pendingCurrencyCursor = useRef<{ input: HTMLInputElement; position: number } | null>(null);
+  useLayoutEffect(() => {
+    const pending = pendingCurrencyCursor.current;
+    if (pending && document.activeElement === pending.input) {
+      pending.input.setSelectionRange(pending.position, pending.position);
+    }
+    pendingCurrencyCursor.current = null;
+  }, [formData]);
+
   const attachmentsInputRef = useRef<HTMLInputElement>(null);
   const formScrollRef = useRef<HTMLFormElement>(null);
   const projectSectionRef = useRef<HTMLElement>(null);
@@ -148,6 +162,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
   useEffect(() => {
     if (item) {
       setFormData(getInitialFormData(item));
+      setOtherCategorySelected(Boolean(item.projectCategory && !projectCategories.includes(item.projectCategory)));
     }
   }, [item, editId]);
 
@@ -167,109 +182,111 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const requiredFields = [
-      { label: 'Project / Program / Activity Name', value: formData.projectName, tab: 'project' },
-      { label: 'Project Category', value: formData.projectCategory, tab: 'project' },
-      { label: 'Project Description', value: formData.projectDescription, tab: 'project' },
-      { label: 'Location', value: formData.location, tab: 'project' },
-      { label: 'Date Started', value: formData.dateStarted, tab: 'project' },
-      { label: 'Target Completion Date', value: formData.targetCompletionDate, tab: 'project' },
-      { label: 'No. of Extensions', value: formData.noOfExtensions, tab: 'project' },
-      { label: 'Actual Completion Date', value: formData.actualCompletionDate, tab: 'project' },
-      { label: 'Road Network ID No.', value: formData.roadNetworkId, tab: 'road' },
-      { label: 'Road Name', value: formData.roadName, tab: 'road' },
-      { label: 'Barangay', value: formData.barangay, tab: 'road' },
-      { label: 'Components', value: formData.components, tab: 'road' },
-      { label: 'Description', value: formData.description, tab: 'road' },
-      { label: 'Contractor Name', value: formData.contractorName, tab: 'contractor' },
-      { label: 'Contractor Address', value: formData.contractorAddress, tab: 'contractor' },
-      { label: 'Contact Information', value: formData.contactInformation, tab: 'contractor' },
-      { label: 'PCAD License No.', value: formData.pcadLicenseNo, tab: 'contractor' },
-      { label: 'Source of Funds', value: formData.sourceOfFunds, tab: 'financial' },
-      { label: 'Appropriation', value: formData.appropriation, tab: 'financial' },
-      { label: 'Contracted Amount', value: formData.contractedAmount, tab: 'financial' },
-      { label: 'Adjust Project Cost', value: formData.adjustProjectCost, tab: 'financial' },
-      { label: 'Completion Date', value: formData.completionDate, tab: 'turnover' },
-      { label: 'Completion Percentage', value: formData.completionPercentage, tab: 'turnover' },
-      { label: 'Turnover and Acceptance Date', value: formData.turnoverDate, tab: 'turnover' },
-    ] as const;
-    const missingFields = requiredFields.filter(({ label, value }) =>
-      !value.trim() || (label === 'Project Category' && value.trim() === 'Other Specify')
-    );
-
-    if (missingFields.length > 0) {
-      setRequiredFieldsError(`Complete all required fields: ${missingFields.map(({ label }) => label).join(', ')}.`);
-      const firstMissing = missingFields[0];
-      const tabIndex = localRoadFormTabs.findIndex(tab => tab.id === firstMissing.tab);
-      setActiveFormTab(firstMissing.tab);
-      const section = formSectionRefs[tabIndex]?.current;
-      const scrollContainer = formScrollRef.current;
-      if (section && scrollContainer) {
-        const top = section.getBoundingClientRect().top
-          - scrollContainer.getBoundingClientRect().top
-          + scrollContainer.scrollTop;
-        scrollContainer.scrollTo({ top, behavior: 'smooth' });
-      }
-      window.setTimeout(() => {
-        const focusTarget = firstMissing.label === 'Project Category'
-          ? section?.querySelector<HTMLElement>('[aria-label="Project category"]')
-          : section?.querySelector<HTMLElement>('input[required]:not(:disabled), textarea[required]');
-        focusTarget?.focus();
-      }, 0);
+    // Native constraint validation displays the browser's message at the first invalid field.
+    // Keep whitespace-only text, four-digit years and incomplete amounts invalid too.
+    const whitespaceField = Array.from(e.currentTarget.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[required]:not([type="file"]), textarea[required]'))
+      .find(field => !field.disabled && field.value && !field.value.trim());
+    if (whitespaceField) {
+      whitespaceField.setCustomValidity('Please fill out this field.');
+      whitespaceField.reportValidity();
       return;
     }
-    setRequiredFieldsError('');
+    const invalidDate = [
+      ['Date Started', formData.dateStarted], ['Target Completion Date', formData.targetCompletionDate],
+      ['Actual Completion Date', formData.actualCompletionDate], ['Completion Date', formData.completionDate],
+      ['Turnover and Acceptance Date', formData.turnoverDate],
+    ].find(([, value]) => !hasFourDigitYear(value));
+    const invalidCurrency = [
+      ['Appropriation', formData.appropriation], ['Contracted Amount', formData.contractedAmount],
+      ['Adjust Project Cost', formData.adjustProjectCost],
+    ].find(([, value]) => !isValidProjectCurrency(value));
+    const invalidField = invalidDate || invalidCurrency;
+    if (invalidField) {
+      const input = e.currentTarget.querySelector<HTMLInputElement>(`[data-field="${invalidField[0]}"]`);
+      input?.setCustomValidity(invalidDate ? 'Enter a date with a four-digit year.' : 'Enter a valid amount.');
+      input?.reportValidity();
+      return;
+    }
 
-    const uploadedAttachments = await Promise.all([
-      ...formData.attachment.map(file => ({ file, category: 'Project Attachment' })),
-      ...formData.attachments.map(file => ({ file, category: 'Turnover Certificate' })),
-    ].map(({ file, category }) => new Promise<ProjectAttachment>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({
-        name: file.name,
-        type: file.type,
-        dataUrl: String(reader.result),
-        category,
-      });
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    })));
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setAttachmentNotice('');
+    setIsSubmitting(true);
+    const minimumDelay = startProjectSaveDelay();
+    try {
+      const uploadedAttachments: ProjectAttachment[] = [];
+      for (const file of formData.attachments) {
+        const problem = attachmentError(file);
+        if (problem) throw new Error(problem);
+        const response = await fetch('/api/local-road/attachment-upload', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
+        });
+        const upload = await response.json().catch(() => ({}));
+        if (!response.ok || !upload.signedUrl || !upload.path) throw new Error(upload.message || 'Unable to prepare the attachment.');
+        const body = new FormData();
+        body.append('cacheControl', '3600');
+        body.append('file', new Blob([file], { type: upload.type }), file.name);
+        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+        const storageResponse = await fetch(upload.signedUrl, {
+          method: 'PUT', headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` }, body,
+        });
+        if (!storageResponse.ok) throw new Error(`Could not upload ${file.name}. Please try again.`);
+        uploadedAttachments.push({ name: file.name, type: upload.type, size: file.size, dataUrl: '', category: 'Turnover Certificate', storagePath: upload.path, staged: true });
+      }
 
-    const localRoadData = {
-      name: formData.projectName,
-      type: formData.projectCategory,
-      location: formData.location,
-      dateBuilt: formData.dateStarted,
-      condition: 'Good',
-      projectName: formData.projectName,
-      projectCategory: formData.projectCategory,
-      projectDescription: formData.projectDescription,
-      targetCompletionDate: formData.targetCompletionDate,
-      noOfExtensions: formData.noOfExtensions,
-      actualCompletionDate: formData.actualCompletionDate,
-      roadNetworkId: formData.roadNetworkId,
-      roadName: formData.roadName,
-      barangay: formData.barangay,
-      components: formData.components,
-      description: formData.description,
-      contractorName: formData.contractorName,
-      contractorAddress: formData.contractorAddress,
-      contactInformation: formData.contactInformation,
-      pcadLicenseNo: formData.pcadLicenseNo,
-      sourceOfFunds: formData.sourceOfFunds,
-      appropriation: formData.appropriation,
-      contractedAmount: formData.contractedAmount,
-      adjustProjectCost: formData.adjustProjectCost,
-      completionDate: formData.completionDate,
-      completionPercentage: formData.completionPercentage,
-      turnoverDate: formData.turnoverDate,
-      attachments: [...(item?.attachments || []), ...uploadedAttachments],
-    };
-    onSave(editId ? { ...localRoadData, id: editId } : localRoadData);
+      const localRoadData = {
+        name: formData.projectName,
+        type: formData.projectCategory,
+        location: formData.location,
+        dateBuilt: formData.dateStarted,
+        dateStarted: formData.dateStarted,
+        condition: 'Good',
+        projectName: formData.projectName,
+        projectCategory: formData.projectCategory,
+        projectDescription: formData.projectDescription,
+        targetCompletionDate: formData.targetCompletionDate,
+        noOfExtensions: formData.noOfExtensions,
+        actualCompletionDate: formData.actualCompletionDate,
+        roadNetworkId: formData.roadNetworkId,
+        roadName: formData.roadName,
+        barangay: formData.barangay,
+        components: formData.components,
+        description: formData.description,
+        contractorName: formData.contractorName,
+        contractorAddress: formData.contractorAddress,
+        contactInformation: formData.contactInformation,
+        pcadLicenseNo: formData.pcadLicenseNo,
+        sourceOfFunds: formData.sourceOfFunds,
+        appropriation: formData.appropriation.replace(/,/g, ''),
+        contractedAmount: formData.contractedAmount.replace(/,/g, ''),
+        adjustProjectCost: formData.adjustProjectCost.replace(/,/g, ''),
+        completionDate: formData.completionDate,
+        completionPercentage: formData.completionPercentage,
+        turnoverDate: formData.turnoverDate,
+        attachments: [...(item?.attachments || []), ...uploadedAttachments],
+      };
+      await onSave(editId ? { ...localRoadData, id: editId } : localRoadData);
+      await minimumDelay;
+      onClose();
+    } catch (error) {
+      await minimumDelay;
+      setAttachmentNotice(error instanceof Error ? error.message : 'Unable to save the project. Please try again.');
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'attachment' | 'attachments') => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'attachments') => {
     const newFiles = Array.from(e.target.files || []);
+    const problem = newFiles.map(attachmentError).find(Boolean);
+    if (problem) {
+      setAttachmentNotice(problem);
+      e.target.value = '';
+      return;
+    }
+    setAttachmentNotice('');
     setFormData(prev => ({
       ...prev,
       [field]: [...prev[field], ...newFiles],
@@ -278,22 +295,19 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     e.target.value = '';
   };
 
-  const removeFile = (field: 'attachment' | 'attachments', index: number) => {
+  const removeFile = (field: 'attachments', index: number) => {
     setFormData(prev => ({
       ...prev,
       [field]: prev[field].filter((_, i) => i !== index),
     }));
   };
 
-  const formatCurrency = (value: string) => {
-    return value.split('\n').map(line => {
-      const digits = line.replace(/\D/g, '');
-      return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    }).join('\n');
-  };
-
-  const handleCurrencyChange = (field: 'appropriation' | 'contractedAmount' | 'adjustProjectCost', value: string) => {
-    const formatted = formatCurrency(value);
+  const handleCurrencyChange = (field: 'appropriation' | 'contractedAmount' | 'adjustProjectCost', input: HTMLInputElement) => {
+    const { value, selectionStart } = input;
+    const formatted = formatProjectCurrency(value);
+    if (selectionStart !== null) {
+      pendingCurrencyCursor.current = { input, position: formatProjectCurrency(value.slice(0, selectionStart)).length };
+    }
     setFormData(prev => ({ ...prev, [field]: formatted }));
   };
 
@@ -348,7 +362,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
             </h2>
             <p className="text-sm text-blue-100">Municipal Engineering Office · Infrastructure Encoder Entry</p>
           </div>
-          <button type="button" onClick={onClose} className="text-gray-300 hover:text-white" aria-label="Close form">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="text-gray-300 hover:text-white disabled:opacity-50" aria-label="Close form">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -372,15 +386,25 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         <form
           ref={formScrollRef}
           onSubmit={handleSubmit}
-          onChange={() => setRequiredFieldsError('')}
+          onInvalidCapture={(event) => {
+            const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+            if (field.validity.valueMissing) field.setCustomValidity('Please fill out this field.');
+          }}
+          onInputCapture={(event) => {
+            const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+            if (!('setCustomValidity' in field)) return;
+            const textField = field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && field.type === 'text');
+            field.setCustomValidity(field.required && textField && field.value && !field.value.trim()
+              ? 'Please fill out this field.' : '');
+          }}
+          onChangeCapture={(event) => {
+            const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+            if (field instanceof HTMLSelectElement || (field instanceof HTMLInputElement && field.type === 'file')) field.setCustomValidity('');
+          }}
           onScroll={updateActiveFormTab}
           className="form-modal-fields min-h-0 flex-1 overflow-y-auto px-6 py-5"
         >
-          {requiredFieldsError && (
-            <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {requiredFieldsError}
-            </p>
-          )}
+          <fieldset disabled={isSubmitting}>
           {/* Project Information */}
           <section ref={projectSectionRef} className="scroll-mt-4 border-b pb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h3>
@@ -391,6 +415,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   Project / Program / Activity Name *
                 </label>
                 <AutoGrowTextarea
+                  data-field="Project / Program / Activity Name"
                   value={formData.projectName}
                   onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
                   rows={2}
@@ -402,49 +427,25 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Project Category *
                 </label>
-                <Select
-                  value={
-                    projectCategories.includes(formData.projectCategory)
-                      ? formData.projectCategory
-                      : formData.projectCategory
-                        ? 'Other Specify'
-                        : ''
-                  }
-                  onValueChange={(value) => {
+                <select
+                  data-field="Project Category"
+                  aria-label="Project category"
+                  value={otherCategorySelected ? 'Other Specify' : formData.projectCategory}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setOtherCategorySelected(value === 'Other Specify');
                     setFormData({ ...formData, projectCategory: value });
-                    setRequiredFieldsError('');
                   }}
+                  className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   required
                 >
-                  <SelectTrigger
-                    aria-label="Project category"
-                    aria-invalid={Boolean(
-                      requiredFieldsError &&
-                      (!formData.projectCategory.trim() || formData.projectCategory.trim() === 'Other Specify')
-                    )}
-                    aria-describedby={
-                      requiredFieldsError &&
-                      (!formData.projectCategory.trim() || formData.projectCategory.trim() === 'Other Specify')
-                        ? 'project-category-error'
-                        : undefined
-                    }
-                  >
-                    <SelectValue placeholder="-- Select a Project Category --" />
-                  </SelectTrigger>
-                  <SelectContent>
-                  {!projectCategories.includes(formData.projectCategory) && formData.projectCategory && (
-                    <SelectItem value={formData.projectCategory}>{formData.projectCategory}</SelectItem>
-                  )}
-                  {projectCategories.map((category) => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
-                  ))}
-                  </SelectContent>
-                </Select>
-                {(formData.projectCategory === 'Other Specify' ||
-                  (formData.projectCategory !== '' && !projectCategories.includes(formData.projectCategory))) && (
+                  <option value="">-- Select a Project Category --</option>
+                  {projectCategories.map(category => <option key={category} value={category}>{category}</option>)}
+                </select>
+                {otherCategorySelected && (
                   <textarea
                     value={formData.projectCategory === 'Other Specify' ? '' : formData.projectCategory}
-                    onChange={(e) => setFormData({ ...formData, projectCategory: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, projectCategory: e.target.value || 'Other Specify' })}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && e.shiftKey) {
                         e.preventDefault();
@@ -464,14 +465,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                     required
                   />
                 )}
-                {requiredFieldsError &&
-                  (!formData.projectCategory.trim() || formData.projectCategory.trim() === 'Other Specify') && (
-                  <p id="project-category-error" role="alert" className="mt-2 text-sm text-red-600">
-                    {formData.projectCategory.trim() === 'Other Specify'
-                      ? 'Enter a category when Other Specify is selected.'
-                      : 'Select a project category before submitting.'}
-                  </p>
-                )}
               </div>
             </div>
 
@@ -480,6 +473,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Project Description *
               </label>
               <AutoGrowTextarea
+                data-field="Project Description"
                 value={formData.projectDescription}
                 onChange={(e) => setFormData({ ...formData, projectDescription: e.target.value })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -490,14 +484,15 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Location (Mabini, Batangas Barangay) *
+                Location *
               </label>
               <AutoGrowTextarea
+                data-field="Location"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 rows={2}
                 className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                aria-label="Location (Mabini, Batangas Barangay)"
+                aria-label="Location"
                 required
               />
             </div>
@@ -509,6 +504,9 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <input
                   type="date"
+                  min="1000-01-01"
+                  max="9999-12-31"
+                  data-field="Date Started"
                   value={formData.dateStarted}
                   onChange={(e) => setFormData({ ...formData, dateStarted: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -521,6 +519,9 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <input
                   type="date"
+                  min="1000-01-01"
+                  max="9999-12-31"
+                  data-field="Target Completion Date"
                   value={formData.targetCompletionDate}
                   onChange={(e) => setFormData({ ...formData, targetCompletionDate: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -529,14 +530,13 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  No. of Extensions *
+                  No. of Extensions
                 </label>
                 <input
                   type="number"
                   value={formData.noOfExtensions}
                   onChange={(e) => setFormData({ ...formData, noOfExtensions: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                  required
                 />
               </div>
               <div>
@@ -545,6 +545,9 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <input
                   type="date"
+                  min="1000-01-01"
+                  max="9999-12-31"
+                  data-field="Actual Completion Date"
                   value={formData.actualCompletionDate}
                   onChange={(e) => setFormData({ ...formData, actualCompletionDate: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -553,67 +556,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Attachment {formData.attachment.length > 0 && `(${formData.attachment.length} file${formData.attachment.length > 1 ? 's' : ''} selected)`}
-              </label>
-              
-              {formData.attachment.length === 0 ? (
-                <>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={(e) => handleFileChange(e, 'attachment')}
-                    accept=".pdf,.jpg,.png"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Supported File Format: PDF, JPG, PNG | Max File Size: 10 MB
-                  </p>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => attachmentInputRef.current?.click()}
-                  className="w-full px-4 py-3 bg-blue-50 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium"
-                >
-                  + Add More Files
-                </button>
-              )}
-              
-              <input
-                ref={attachmentInputRef}
-                type="file"
-                multiple
-                onChange={(e) => handleFileChange(e, 'attachment')}
-                accept=".pdf,.jpg,.png"
-                className="hidden"
-              />
-
-              {formData.attachment.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Selected Files:</p>
-                  {formData.attachment.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between bg-gray-100 p-2 rounded">
-                      <button
-                        type="button"
-                        onClick={() => handleFilePreview(file)}
-                        className="text-left flex-1 text-sm text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                      >
-                        {isImageFile(file) && '🖼️ '}{file.name}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeFile('attachment', index)}
-                        className="text-red-600 hover:text-red-800 text-sm ml-2"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </section>
 
           {/* Road Information */}
@@ -626,6 +568,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   Road Network ID No. *
                 </label>
                 <AutoGrowTextarea
+                  data-field="Road Network ID No."
                   value={formData.roadNetworkId}
                   onChange={(e) => setFormData({ ...formData, roadNetworkId: e.target.value })}
                   rows={2}
@@ -635,10 +578,11 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Road Name * (Dependent on the Location Field)
+                  Road Name *
                 </label>
                 <input
                   type="text"
+                  data-field="Road Name"
                   value={formData.roadName}
                   disabled
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed opacity-75"
@@ -652,6 +596,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Barangay *
               </label>
               <AutoGrowTextarea
+                data-field="Barangay"
                 value={formData.barangay}
                 onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
                 rows={2}
@@ -665,6 +610,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Components *
               </label>
               <AutoGrowTextarea
+                data-field="Components"
                 value={formData.components}
                 onChange={(e) => setFormData({ ...formData, components: e.target.value })}
                 rows={2}
@@ -678,6 +624,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Description *
               </label>
               <AutoGrowTextarea
+                data-field="Description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -696,6 +643,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Contractor Name *
               </label>
               <AutoGrowTextarea
+                data-field="Contractor Name"
                 value={formData.contractorName}
                 onChange={(e) => setFormData({ ...formData, contractorName: e.target.value })}
                 rows={2}
@@ -709,6 +657,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Contractor Address *
               </label>
               <AutoGrowTextarea
+                data-field="Contractor Address"
                 value={formData.contractorAddress}
                 onChange={(e) => setFormData({ ...formData, contractorAddress: e.target.value })}
                 rows={2}
@@ -722,6 +671,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Contact Information *
               </label>
               <AutoGrowTextarea
+                data-field="Contact Information"
                 value={formData.contactInformation}
                 onChange={(e) => setFormData({ ...formData, contactInformation: e.target.value })}
                 rows={2}
@@ -735,6 +685,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 PCAD License No. *
               </label>
               <AutoGrowTextarea
+                data-field="PCAD License No."
                 value={formData.pcadLicenseNo}
                 onChange={(e) => setFormData({ ...formData, pcadLicenseNo: e.target.value })}
                 rows={2}
@@ -753,6 +704,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 Source of Funds *
               </label>
               <AutoGrowTextarea
+                data-field="Source of Funds"
                 value={formData.sourceOfFunds}
                 onChange={(e) => setFormData({ ...formData, sourceOfFunds: e.target.value })}
                 rows={2}
@@ -768,10 +720,12 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0ea5e9]">
                   <span className="px-4 py-3 bg-gray-100 text-gray-700 font-medium">Php</span>
-                  <AutoGrowTextarea
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    data-field="Appropriation"
                     value={formData.appropriation}
-                    onChange={(e) => handleCurrencyChange('appropriation', e.target.value)}
-                    rows={2}
+                    onChange={(e) => handleCurrencyChange('appropriation', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
                     required
                   />
@@ -783,10 +737,12 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0ea5e9]">
                   <span className="px-4 py-3 bg-gray-100 text-gray-700 font-medium">Php</span>
-                  <AutoGrowTextarea
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    data-field="Contracted Amount"
                     value={formData.contractedAmount}
-                    onChange={(e) => handleCurrencyChange('contractedAmount', e.target.value)}
-                    rows={2}
+                    onChange={(e) => handleCurrencyChange('contractedAmount', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
                     required
                   />
@@ -798,10 +754,12 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0ea5e9]">
                   <span className="px-4 py-3 bg-gray-100 text-gray-700 font-medium">Php</span>
-                  <AutoGrowTextarea
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    data-field="Adjust Project Cost"
                     value={formData.adjustProjectCost}
-                    onChange={(e) => handleCurrencyChange('adjustProjectCost', e.target.value)}
-                    rows={2}
+                    onChange={(e) => handleCurrencyChange('adjustProjectCost', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
                     required
                   />
@@ -821,6 +779,9 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <input
                   type="date"
+                  min="1000-01-01"
+                  max="9999-12-31"
+                  data-field="Completion Date"
                   value={formData.completionDate}
                   onChange={(e) => setFormData({ ...formData, completionDate: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -835,6 +796,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   type="number"
                   min="0"
                   max="100"
+                  data-field="Completion Percentage"
                   value={formData.completionPercentage}
                   onChange={(e) => setFormData({ ...formData, completionPercentage: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -847,6 +809,9 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 </label>
                 <input
                   type="date"
+                  min="1000-01-01"
+                  max="9999-12-31"
+                  data-field="Turnover and Acceptance Date"
                   value={formData.turnoverDate}
                   onChange={(e) => setFormData({ ...formData, turnoverDate: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
@@ -857,16 +822,23 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Attachment {formData.attachments.length > 0 && `(${formData.attachments.length} file${formData.attachments.length > 1 ? 's' : ''} selected)`}
+                Attachment * {formData.attachments.length > 0 && `(${formData.attachments.length} file${formData.attachments.length > 1 ? 's' : ''} selected)`}
               </label>
               
+              {item?.attachments?.filter(attachment => attachment.category === 'Turnover Certificate').map((attachment, index) => (
+                <p key={`${attachment.storagePath || attachment.name}-${index}`} className="mb-2 text-sm text-gray-600">Existing attachment: {attachment.name}</p>
+              ))}
+              {attachmentNotice && <p role="alert" className="mb-2 text-sm text-red-600">{attachmentNotice}</p>}
               {formData.attachments.length === 0 ? (
                 <>
                   <input
                     type="file"
+                    data-field="Turnover Attachment"
+                    aria-required={true}
+                    required={!item?.attachments?.some(attachment => attachment.category === 'Turnover Certificate')}
                     multiple
                     onChange={(e) => handleFileChange(e, 'attachments')}
-                    accept=".pdf,.jpg,.png"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
                   />
                   <p className="text-xs text-gray-500 mt-1">
@@ -888,7 +860,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 type="file"
                 multiple
                 onChange={(e) => handleFileChange(e, 'attachments')}
-                accept=".pdf,.jpg,.png"
+                accept=".pdf,.jpg,.jpeg,.png"
                 className="hidden"
               />
 
@@ -929,11 +901,13 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              disabled={isSubmitting}
+              className="disabled:opacity-50 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
-              Submit
+              <span aria-live="polite">{isSubmitting ? (editId ? 'Updating…' : 'Saving…') : 'Submit'}</span>
             </button>
           </div>
+          </fieldset>
         </form>
 
         {/* File Preview Modal */}

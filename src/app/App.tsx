@@ -1,4 +1,5 @@
 'use client';
+import { loadRecords } from '@/lib/load-records';
 
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Clock3 } from 'lucide-react';
@@ -38,6 +39,7 @@ interface LocalRoad {
   projectName?: string;
   projectCategory?: string;
   projectDescription?: string;
+  dateStarted?: string;
   targetCompletionDate?: string;
   noOfExtensions?: string;
   actualCompletionDate?: string;
@@ -209,71 +211,38 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    Promise.all([
-      fetch('/api/local-road'),
-      fetch('/api/inspections'),
-      fetch('/api/maintenance'),
-    ])
-      .then(async ([roadsResponse, inspectionsResponse, maintenanceResponse]) => {
-        if (!roadsResponse.ok || !inspectionsResponse.ok || !maintenanceResponse.ok) {
-          throw new Error('Unable to load local road records.');
-        }
-        return Promise.all([
-          roadsResponse.json(),
-          inspectionsResponse.json(),
-          maintenanceResponse.json(),
-        ]);
-      })
-      .then(([roadsPayload, inspectionsPayload, maintenancePayload]) => {
-        if (!isMounted) return;
-        setLocalRoadData(roadsPayload?.data ?? []);
-        setInspections(inspectionsPayload?.data ?? []);
-        setMaintenanceRecords(maintenancePayload?.data ?? []);
-        setLoading(false);
-      })
-      .catch((error: unknown) => {
-        if (!isMounted) return;
-        console.error('Failed to load local road data.', error);
-        setLocalRoadData([]);
-        setInspections([]);
-        setMaintenanceRecords([]);
-        setLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
+    if (!isLoggedIn) return;
+    let active = true;
+    let generation = 0;
     const refreshRecords = async () => {
-      try {
-        const [roadsResponse, inspectionsResponse, maintenanceResponse] = await Promise.all([
-          fetch('/api/local-road'),
-          fetch('/api/inspections'),
-          fetch('/api/maintenance'),
-        ]);
-        const [roadsPayload, inspectionsPayload, maintenancePayload] = await Promise.all([
-          roadsResponse.json(),
-          inspectionsResponse.json(),
-          maintenanceResponse.json(),
-        ]);
-        setLocalRoadData(roadsPayload?.data ?? []);
-        setInspections(inspectionsPayload?.data ?? []);
-        setMaintenanceRecords(maintenancePayload?.data ?? []);
-      } catch (error) {
-        console.error('Failed to refresh records after archive action.', error);
-      }
+      const current = ++generation;
+      const load = async (url: string, apply: (data: any[]) => void) => {
+        try {
+          const records = await loadRecords(url);
+          if (active && current === generation) apply(records);
+        } catch (error) {
+          // Never erase a successful project save because another module failed to refresh.
+          console.error(`Failed to load ${url}; keeping existing records.`, error);
+        }
+      };
+      await Promise.all([
+        load('/api/local-road', setLocalRoadData),
+        load('/api/inspections', setInspections),
+        load('/api/maintenance', setMaintenanceRecords),
+      ]);
+      if (active && current === generation) setLoading(false);
     };
-    window.addEventListener('local-road-records-changed', refreshRecords);
-    const refreshInterval = window.setInterval(refreshRecords, 60 * 60 * 1000);
+    setLoading(true);
+    void refreshRecords();
+    const onChange = () => { void refreshRecords(); };
+    window.addEventListener('local-road-records-changed', onChange);
+    const refreshInterval = window.setInterval(onChange, 60 * 60 * 1000);
     return () => {
-      window.removeEventListener('local-road-records-changed', refreshRecords);
+      active = false;
+      window.removeEventListener('local-road-records-changed', onChange);
       window.clearInterval(refreshInterval);
     };
-  }, []);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -399,6 +368,7 @@ export default function App() {
       type: data.type || data.projectCategory || '',
       location: data.location || '',
       dateBuilt: data.dateBuilt || '',
+      dateStarted: data.dateStarted || data.dateBuilt || '',
       condition: data.condition || 'Good',
       lastInspection: data.lastInspection,
       projectName: data.projectName || data.name || '',
@@ -432,8 +402,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(normalizedData),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.message || 'Unable to save this road.');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.message || `Unable to save this road (HTTP ${response.status}).`);
       const savedRoad = payload.data as LocalRoad;
       setLocalRoadData((previous) => recordId
         ? previous.map((item) => (item.id === recordId ? savedRoad : item))
@@ -449,12 +419,11 @@ export default function App() {
             : prediction
         ));
       }
-      setShowLocalRoadForm(false);
-      setEditingLocalRoad(null);
+      if (typeof payload.data?.attachmentWarning === 'string') window.alert(payload.data.attachmentWarning);
       window.dispatchEvent(new Event('local-road-records-changed'));
     } catch (error) {
       console.error('Failed to save local road record.', error);
-      window.alert(error instanceof Error ? error.message : 'Unable to save this road.');
+      throw error;
     }
   };
 

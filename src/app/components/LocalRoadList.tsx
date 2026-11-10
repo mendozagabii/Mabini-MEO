@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
+import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
   name: string;
@@ -99,7 +100,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Project / Program / Activity Name', value: item.projectName || item.name, width: 'half' },
           { label: 'Project Category', value: item.projectCategory || item.type, width: 'half' },
           { label: 'Project Description', value: item.projectDescription || item.description, width: 'full' },
-          { label: 'Location (Mabini, Batangas Barangay)', value: item.location, width: 'full' },
+          { label: 'Location', value: item.location, width: 'full' },
           { label: 'Date Started', value: item.dateBuilt, width: 'quarter' },
           { label: 'Target Completion Date', value: item.targetCompletionDate, width: 'quarter' },
           { label: 'No. of Extensions', value: item.noOfExtensions, width: 'quarter' },
@@ -129,9 +130,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
         title: 'Financial Information',
         fields: [
           { label: 'Source of Funds', value: item.sourceOfFunds, width: 'full' },
-          { label: 'Appropriation', value: item.appropriation ? `Php ${item.appropriation}` : undefined, width: 'third' },
-          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${item.contractedAmount}` : undefined, width: 'third' },
-          { label: 'Adjust Project Cost', value: item.adjustProjectCost ? `Php ${item.adjustProjectCost}` : undefined, width: 'third' },
+          { label: 'Appropriation', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'third' },
+          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: 'third' },
+          { label: 'Adjust Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' },
         ],
       },
       {
@@ -251,14 +252,14 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               </p>
             </div>
             <div className="mb-4 mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Location (Mabini, Batangas Barangay) *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Location *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.location || 'N/A'}</p>
             </div>
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
               {[
                 ['Date Started *', selectedItem.dateBuilt],
                 ['Target Completion Date *', selectedItem.targetCompletionDate],
-                ['No. of Extensions *', selectedItem.noOfExtensions],
+                ['No. of Extensions', selectedItem.noOfExtensions],
                 ['Actual Completion Date *', selectedItem.actualCompletionDate],
               ].map(([label, value]) => (
                 <div key={label}>
@@ -266,12 +267,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                   <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{value || 'N/A'}</p>
                 </div>
               ))}
-            </div>
-            <div className="mb-1">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Attachment</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
-                {selectedItem.attachments?.length ? `${selectedItem.attachments.length} file${selectedItem.attachments.length > 1 ? 's' : ''} submitted` : 'No file chosen'}
-              </p>
             </div>
             </section>
             <section className="border-b pb-6 pt-5">
@@ -282,7 +277,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadNetworkId || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name * (Dependent on the Location Field)</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadName || selectedItem.location || 'N/A'}</p>
             </div>
               </div>
@@ -329,15 +324,15 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Appropriation *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {selectedItem.appropriation || 'N/A'}</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.appropriation) || 'N/A'}</p>
             </div>
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {selectedItem.contractedAmount || 'N/A'}</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.contractedAmount) || 'N/A'}</p>
             </div>
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Adjust Project Cost *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {selectedItem.adjustProjectCost || 'N/A'}</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.adjustProjectCost) || 'N/A'}</p>
             </div>
             </div>
             </section>
@@ -355,7 +350,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.turnoverDate || 'N/A'}</p>
             </div>
-            </section>
             <div className="project-attachments-section mt-5 border-t border-slate-200 pb-5 pt-5">
               <p className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <Paperclip className="h-3.5 w-3.5" />
@@ -401,6 +395,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                 )) : <p className="text-gray-800">No attachments available</p>}
               </div>
             </div>
+            </section>
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Condition</p>

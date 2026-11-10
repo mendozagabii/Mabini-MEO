@@ -20,6 +20,7 @@
 //   Storage attachments, and AI run persistence were added on 2026-11-09.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ROLE_FROM_DB, ROLE_TO_DB } from '@/lib/supabase';
+import { attachmentError, attachmentMime, matchesAttachmentSignature } from '@/lib/attachment-validation';
 
 export type StoredRecord = Record<string, unknown> & { id: string };
 
@@ -99,7 +100,7 @@ const ATTACH_CATEGORY_FROM_DB: Record<string, string> = Object.fromEntries(
 );
 
 interface AttachmentInput {
-  name?: unknown; type?: unknown; dataUrl?: unknown; category?: unknown; storagePath?: unknown;
+  name?: unknown; type?: unknown; dataUrl?: unknown; category?: unknown; storagePath?: unknown; staged?: unknown; size?: unknown;
 }
 
 /** Upload one base64 data URL to Storage and record it in public.attachments. Best-effort. */
@@ -114,6 +115,9 @@ async function storeAttachment(
   if (!match) return;
   const mime = str(input.type) || match[1] || 'application/octet-stream';
   const bytes = match[2] ? Buffer.from(match[3], 'base64') : Buffer.from(decodeURIComponent(match[3]), 'utf8');
+  const problem = attachmentError({ name: str(input.name), type: mime, size: bytes.length });
+  if (problem) throw new Error(problem);
+  if (!matchesAttachmentSignature(str(input.name), bytes)) throw new Error('The attachment content does not match its file type.');
   const safeName = (str(input.name) || 'file').replace(/[^A-Za-z0-9._-]+/g, '_');
   const folder = link.project_id ?? link.inspection_id ?? link.maintenance_id ?? 'misc';
   const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
@@ -147,6 +151,41 @@ async function syncAttachments(
       console.error('Failed to store attachment; continuing without it.', error);
     }
   }
+}
+
+/** Check staged project files before writing a road/project; never trust client metadata. */
+async function prepareProjectAttachments(db: SupabaseClient, inputs: AttachmentInput[], userId: string) {
+  const staged = inputs.filter(input => input.staged === true);
+  const paths = new Set<string>();
+  const prepared: Array<{ name: string; type: string; size: number; path: string }> = [];
+  for (const input of staged) {
+    const path = str(input.storagePath);
+    const name = str(input.name);
+    const type = str(input.type);
+    const prefix = `project-uploads/${userId}/`;
+    if (!path.startsWith(prefix) || !/^[0-9a-f-]{36}\.(pdf|jpg|jpeg|png)$/.test(path.slice(prefix.length)) || paths.has(path) || input.category !== 'Turnover Certificate') {
+      throw new Error('Invalid project attachment upload.');
+    }
+    paths.add(path);
+    const { data: info, error } = await db.storage.from(ATTACHMENT_BUCKET).info(path);
+    if (error || !info || typeof info.size !== 'number') throw new Error('Attachment upload could not be verified. Please upload it again.');
+    const problem = attachmentError({ name, type, size: info.size });
+    if (problem || attachmentMime(name, type) !== info.contentType || info.size !== input.size || !path.endsWith(`.${name.split('.').pop()?.toLowerCase()}`)) {
+      throw new Error(problem || 'Attachment type or size could not be verified.');
+    }
+    const { data: blob, error: downloadError } = await db.storage.from(ATTACHMENT_BUCKET).download(path);
+    if (downloadError || !blob || !matchesAttachmentSignature(name, new Uint8Array(await blob.slice(0, 8).arrayBuffer()))) {
+      throw new Error('The attachment content does not match its file type.');
+    }
+    const { data: linked, error: lookupError } = await db.from('attachments').select('id').eq('storage_path', path).limit(1);
+    if (lookupError || linked?.length) throw new Error('Attachment has already been used or could not be verified.');
+    prepared.push({ name, type, size: info.size, path });
+  }
+  // Project uploads must use the size-checked direct upload path, not an unbounded JSON body.
+  if (inputs.some(input => !input.storagePath && str(input.dataUrl).startsWith('data:'))) {
+    throw new Error('Please upload the project attachment again.');
+  }
+  return prepared;
 }
 
 /** Map an attachments row to the UI shape (signed URL in place of the old dataUrl). */
@@ -324,7 +363,7 @@ async function resolveCategoryId(db: SupabaseClient, name: string): Promise<numb
   const { data } = await db.from('project_categories').select('id').ilike('name', clean).maybeSingle();
   if (data) return data.id as number;
   const { data: created, error } = await db.from('project_categories').insert({ name: clean }).select('id').single();
-  if (error) return null;
+  if (error || !created) throw new Error('Could not save the project category.');
   return created.id as number;
 }
 
@@ -339,11 +378,12 @@ async function resolveContractorId(db: SupabaseClient, rec: StoredRecord): Promi
   };
   const { data } = await db.from('contractors').select('id').ilike('name', name).maybeSingle();
   if (data) {
-    await db.from('contractors').update(payload).eq('id', data.id);
+    const { data: updated, error: updateError } = await db.from('contractors').update(payload).eq('id', data.id).select('id').maybeSingle();
+    if (updateError || !updated) throw new Error('Could not update the contractor information.');
     return data.id as string;
   }
   const { data: created, error } = await db.from('contractors').insert(payload).select('id').single();
-  if (error) return null;
+  if (error || !created) throw new Error('Could not save the contractor information.');
   return created.id as string;
 }
 
@@ -367,6 +407,7 @@ const VALIDATION_TO_DB: Record<string, string> = {
 
 /** Create or update a road+project pair from the app's combined record. Returns the mapped record. */
 export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: string): Promise<StoredRecord> {
+  const stagedAttachments = await prepareProjectAttachments(db, Array.isArray(rec.attachments) ? rec.attachments as AttachmentInput[] : [], userId);
   const barangayId = await resolveBarangayId(db, str(rec.barangay || rec.location));
   const categoryId = await resolveCategoryId(db, str(rec.projectCategory || rec.type));
   const contractorId = await resolveContractorId(db, rec);
@@ -392,8 +433,9 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
 
   let roadId = (existing?.road_id as string) || str(rec.roadId);
   if (roadId) {
-    const { error } = await db.from('roads').update(roadPayload).eq('id', roadId);
+    const { data, error } = await db.from('roads').update(roadPayload).eq('id', roadId).select('id').maybeSingle();
     if (error) throw error;
+    if (!data) throw new Error('Could not update this road. Check your permissions.');
   } else {
     const { data, error } = await db.from('roads').insert({ ...roadPayload, created_by: userId }).select('id').single();
     if (error) throw error;
@@ -430,17 +472,29 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
 
   let projectId = existing?.id as string | undefined;
   if (projectId) {
-    const { error } = await db.from('projects').update(projectPayload).eq('id', projectId);
+    const { data, error } = await db.from('projects').update(projectPayload).eq('id', projectId).select('id').maybeSingle();
     if (error) throw error;
+    if (!data) throw new Error('Could not update this project. Check your permissions.');
   } else {
     const { data, error } = await db.from('projects').insert({ ...projectPayload, created_by: userId }).select('id').single();
     if (error) throw error;
     projectId = data.id as string;
   }
 
-  // @mine — persist any newly uploaded project files to Storage (best-effort).
-  if (Array.isArray(rec.attachments)) {
-    await syncAttachments(db, { project_id: projectId! }, rec.attachments as AttachmentInput[], userId);
+  // The project already exists here; report attachment failures without inviting a duplicate create.
+  let attachmentWarning = '';
+  const linkedRows: Joined[] = [];
+  for (const attachment of stagedAttachments) {
+    const { error } = await db.from('attachments').insert({
+      project_id: projectId, category: 'turnover_certificate', file_name: attachment.name,
+      storage_path: attachment.path, mime_type: attachment.type, file_size: attachment.size, uploaded_by: userId,
+    });
+    if (error) {
+      console.error('Project saved but attachment registration failed.', error);
+      attachmentWarning = 'The project was saved, but an attachment could not be linked. Please edit the project and upload it again.';
+    } else {
+      linkedRows.push({ file_name: attachment.name, mime_type: attachment.type, storage_path: attachment.path, category: 'turnover_certificate' });
+    }
   }
 
   // @mine — the road and the project are already committed at this point. A failure in this
@@ -450,15 +504,23 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     const { data: joined, error } = await db.from('projects').select(PROJECT_SELECT).eq('id', projectId!).single();
     if (error) throw error;
     const [mapped] = await attachRoadExtras(db, [mapProject(joined as Joined)]);
-    return mapped;
+    return { ...mapped, ...(attachmentWarning ? { attachmentWarning } : {}) };
   } catch (error) {
     console.error('Project was saved but could not be re-read; returning the stored values.', error);
+    const existingAttachments = Array.isArray(rec.attachments)
+      ? (rec.attachments as AttachmentInput[]).filter(attachment => attachment.staged !== true) : [];
+    const linkedAttachments = await Promise.all(linkedRows.map(async row => {
+      try { return await mapAttachmentRow(db, row); }
+      catch { return { name: row.file_name, type: row.mime_type, storagePath: row.storage_path, category: 'Turnover Certificate', dataUrl: '' }; }
+    }));
     return {
       ...rec,
+      attachments: [...existingAttachments, ...linkedAttachments],
       id: projectId,
       roadId: roadId ?? rec.roadId,
       projectName: projectPayload.project_name,
       name: projectPayload.project_name,
+      ...(attachmentWarning ? { attachmentWarning } : {}),
     } as StoredRecord;
   }
 }

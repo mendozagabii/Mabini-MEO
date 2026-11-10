@@ -78,6 +78,38 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Undo multi-barangay location task
+- **What & why:** Reverted the location filter, persistence guard, tests and unapplied migration at the user's request. Earlier currency and save-progress changes remain intact.
+- **Verification:** 42 local tests and TypeScript passed. The location migration was never applied; no database changes were made.
+
+
+### 2026-11-10 — [mine] Whole-peso decimals and project save progress
+- **What & why:** Show at least two decimal places, including `.00`, for saved project amounts in details, print and edit without rounding additional digits. During both add and edit, show saving/updating for at least three seconds while waiting for the actual request, prevent duplicate submissions or dismissal, and keep the form open on errors.
+- **Files:** `src/app/App.tsx`, `src/app/components/LocalRoadForm.tsx`, `src/lib/{project-form-validation,project-save-delay}.ts`, `tests/{project-form,project-save-delay}.test.cjs`, `MY-CHANGES.md`.
+- **Verification:** 42 local tests, including mocked-timer checks and save/update failure cases, and TypeScript passed. No live database changes or live CRUD testing.
+
+
+### 2026-11-10 — [mine] Project currency viewing and editing
+- **What & why:** Group the three project amounts with commas when viewing, printing and opening an edit form, preserving decimal digits without rounding. Keep the cursor in place while editing and send ungrouped numeric strings when saving. Invalid legacy values are displayed unchanged rather than silently rewritten.
+- **Files:** `src/app/components/{LocalRoadForm,LocalRoadList}.tsx`, `src/lib/project-form-validation.ts`, `tests/{project-form,role-crud}.test.cjs`, `MY-CHANGES.md`.
+- **Verification:** 37 local tests, including edit/save, details and print formatting, and TypeScript passed; no live database writes or end-to-end Supabase testing.
+
+
+### 2026-11-10 — [mine] Encoder project saves and attachment validation
+- **What & why:** Keep project data when another module fails to refresh and load records after sign-in. Upload encoder project attachments directly to Storage through encoder-only signed URLs instead of embedding large files in the project request. Verify ownership, stored size, type and file signature before saving; report any post-save link failure explicitly. Require an existing or new turnover attachment during edit, preserve existing files, validate file type and 10 MiB size, and simplify location and road-name labels. Inspection selection and legacy server uploads also reject invalid types and oversized files.
+- **Files:** `src/app/App.tsx`, `src/app/api/local-road/{route.ts,attachment-upload/route.ts}`, `src/app/components/{LocalRoadForm,LocalRoadList,InspectionModule}.tsx`, `src/lib/{attachment-validation,load-records,supabase-data}.ts`, tests, `MY-CHANGES.md`.
+- **Verification:** Read-only policy and storage-bucket metadata show encoder insert/update and Storage upload/read policies; the bucket limit is 10 MiB. Local mocked route/storage and DOM tests, TypeScript and build passed. No live data was written; actual encoder create/edit and signed uploads have not been tested against Supabase. Inspection uploads still use the older JSON path and may hit Vercel's request-size limit below 10 MiB. Failed staged uploads can leave unlinked objects; cleanup is not automated.
+
+### 2026-11-10 — [mine] Native required-field prompts for local road entry
+- **What & why:** Replace the required-field summary with the browser's "Please fill out this field." prompt at each missing field, including the category and turnover attachment. Use a native category select for focusable browser validation; preserve optional extensions, whitespace checks, decimal amounts and date bounds.
+- **Files:** `src/app/components/LocalRoadForm.tsx`, `tests/project-form.test.cjs`, `MY-CHANGES.md`.
+- **Verification:** Local DOM validation tests and role tests; no production database access.
+
+### 2026-11-10 — [mine] Encoder local road form validation
+- **What & why:** Require all add-project fields including the turnover attachment, but leave No. of Extensions optional; show a category-specific prompt, preserve existing edit attachments, and remove the duplicate project-information attachment control/display. Accept decimal money amounts and strip grouping before saving. Require four-digit years in all five date fields and carry Date Started through the project payload.
+- **Files:** `src/app/components/LocalRoadForm.tsx`, `LocalRoadList.tsx`, `src/app/App.tsx`, `src/lib/project-form-validation.ts`, `tests/project-form.test.cjs`, `package.json`, `package-lock.json`, `MY-CHANGES.md`.
+- **Verification:** Local DOM form tests, mocked role tests, TypeScript and production build. A separate database-free form preview was used; no database or production deployment was changed. Real-account CRUD remains unverified.
+
 ### 2026-11-10 — [mine] Icon-only project, maintenance and inspection actions
 - **Type:** Modified (`src/app/components/LocalRoadList.tsx`, `MaintenanceModule.tsx`, `InspectionModule.tsx`) and tests (`tests/role-crud.test.cjs`).
 - **What & why:** Display Edit and Delete as neutral icon buttons, with blue and red hover/focus styling respectively; the deferred maintenance Continue action also uses a blue-hover icon. Accessible names and title tooltips identify the controls. Removed the inspection Details button; the card itself still opens the details modal.
