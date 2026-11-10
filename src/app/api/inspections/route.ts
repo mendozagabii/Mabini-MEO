@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const auth = await requireAuth(request);
   if (!auth) return unauthorized();
   try {
-    const [data, archived] = await Promise.all([listInspections(auth.db), listArchivedInspections(auth.db)]);
+    const [data, archived] = await Promise.all([listInspections(auth.db, auth.admin), listArchivedInspections(auth.db)]);
     return withRefresh(NextResponse.json({ data, archived }), auth);
   } catch (error) {
     console.error('Failed to list inspections.', error);

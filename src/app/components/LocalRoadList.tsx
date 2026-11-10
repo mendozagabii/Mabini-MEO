@@ -12,6 +12,7 @@ interface ProjectAttachment {
   type: string;
   dataUrl: string;
   category: string;
+  storagePath?: string;
 }
 
 interface LocalRoad {

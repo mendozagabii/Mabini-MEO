@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveRoad, listArchivedRoads, listRoads,
-  permanentlyDeleteRoad, restoreRoad, saveRoad, type StoredRecord,
+  permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, saveRoad, type StoredRecord,
 } from '@/lib/supabase-data';
 
 export const runtime = 'nodejs';
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const auth = await requireAuth(request);
   if (!auth) return unauthorized();
   try {
-    const [data, archived] = await Promise.all([listRoads(auth.db), listArchivedRoads(auth.db)]);
+    const [data, archived] = await Promise.all([listRoads(auth.db, auth.admin), listArchivedRoads(auth.db)]);
     return withRefresh(NextResponse.json({ data, archived }), auth);
   } catch (error) {
     console.error('Failed to list roads/projects.', error);
@@ -47,12 +47,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: 'A road ID is required.' }, { status: 400 });
   }
   try {
-    const roads = await listRoads(auth.db);
+    const roads = await listRoads(auth.db, auth.admin);
     const current = roads.find((road) => road.id === payload.id);
     if (!current) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
 
-    // Validation submissions (non-annual) keep the original gate: remarks required.
-    if (payload.validationResult !== undefined && payload.annualValidationYear === undefined) {
+    // Validation submissions (annual and non-annual) keep the original gate: remarks required.
+    if (payload.validationResult !== undefined) {
       if (
         !['Validated', 'Return for Revision'].includes(String(payload.validationResult)) ||
         typeof payload.validationRemarks !== 'string' ||
@@ -60,14 +60,19 @@ export async function PATCH(request: Request) {
       ) {
         return NextResponse.json({ message: 'A valid validation result and remarks are required.' }, { status: 400 });
       }
-      // Annual-validation entries are not stored in Supabase (see migration doc);
-      // a validated project records the result on projects.validation_status.
     }
+
+    // @mine — annual validation entries are now stored in
+    // public.annual_validation_entries (Phase 2.1); the project itself is untouched.
     if (payload.annualValidationYear !== undefined) {
-      return NextResponse.json(
-        { message: 'Annual validation entries are not available in the Supabase schema yet.' },
-        { status: 400 },
-      );
+      const year = Number(payload.annualValidationYear);
+      if (!Number.isInteger(year)) {
+        return NextResponse.json({ message: 'A valid annual validation year is required.' }, { status: 400 });
+      }
+      await saveAnnualValidation(auth.db, payload.id, year, String(payload.validationResult), String(payload.validationRemarks), auth.userId);
+      await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Annual Validation Saved', details: `Saved ${year} annual validation for project ${String(current.projectName || current.name || payload.id)}` });
+      const [updated] = (await listRoads(auth.db, auth.admin)).filter((road) => road.id === payload.id);
+      return withRefresh(NextResponse.json({ success: true, data: updated ?? current }), auth);
     }
 
     const saved = await saveRoad(auth.db, { ...current, ...payload, id: current.id }, auth.userId);

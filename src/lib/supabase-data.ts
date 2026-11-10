@@ -14,7 +14,10 @@
 //   conditionRating 0-10 <-> overall_score; item ratings Good/Fair/... <-> good/fair/...
 //   validation 'Validated' <-> approved, 'Return for Revision' <-> rejected
 //   maintenance 'Deferred' <-> deferred (enum value added by migration)
-//   attachments (dataUrls) are NOT moved to Storage yet; metadata rows only.
+//   attachments: files are uploaded to the `wblrms-files` Storage bucket and
+//   tracked in public.attachments; reads return 1-hour signed URLs as dataUrl.
+//   @mine (Phase 2): annual validation entries, annual follow-up generation,
+//   Storage attachments, and AI run persistence were added on 2026-11-09.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ROLE_FROM_DB, ROLE_TO_DB } from '@/lib/supabase';
 
@@ -72,22 +75,232 @@ function mapProject(p: Joined): StoredRecord {
     ...(validation ? { validationResult: validation } : {}),
     validationRemarks: p.validation_remarks ?? '',
     archivedAt: p.archived_at ?? undefined,
+    // @mine — filled in by attachRoadExtras() in the list functions below.
+    attachments: [] as StoredRecord[],
+    annualValidationEntries: [] as StoredRecord[],
+    annualInspectionYears: [] as number[],
   };
 }
 
 const PROJECT_SELECT =
   '*, roads!projects_road_id_fkey(*), barangays!projects_barangay_id_fkey(name), project_categories(name), contractors!projects_contractor_id_fkey(*)';
 
-export async function listRoads(db: SupabaseClient): Promise<StoredRecord[]> {
+/* --------------------- @mine: attachments (Supabase Storage) --------------------- */
+
+const ATTACHMENT_BUCKET = 'wblrms-files';
+const ATTACH_CATEGORY_TO_DB: Record<string, string> = {
+  'Project Attachment': 'project_attachment',
+  'Turnover Certificate': 'turnover_certificate',
+  'Inspection Photo': 'inspection_photo',
+  'Maintenance Document': 'maintenance_document',
+};
+const ATTACH_CATEGORY_FROM_DB: Record<string, string> = Object.fromEntries(
+  Object.entries(ATTACH_CATEGORY_TO_DB).map(([a, b]) => [b, a]),
+);
+
+interface AttachmentInput {
+  name?: unknown; type?: unknown; dataUrl?: unknown; category?: unknown; storagePath?: unknown;
+}
+
+/** Upload one base64 data URL to Storage and record it in public.attachments. Best-effort. */
+async function storeAttachment(
+  db: SupabaseClient,
+  link: { project_id?: string; inspection_id?: string; maintenance_id?: string },
+  input: AttachmentInput,
+  userId: string,
+): Promise<void> {
+  const dataUrl = str(input.dataUrl);
+  const match = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(dataUrl);
+  if (!match) return;
+  const mime = str(input.type) || match[1] || 'application/octet-stream';
+  const bytes = match[2] ? Buffer.from(match[3], 'base64') : Buffer.from(decodeURIComponent(match[3]), 'utf8');
+  const safeName = (str(input.name) || 'file').replace(/[^A-Za-z0-9._-]+/g, '_');
+  const folder = link.project_id ?? link.inspection_id ?? link.maintenance_id ?? 'misc';
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+  const { error: uploadError } = await db.storage.from(ATTACHMENT_BUCKET).upload(path, bytes, { contentType: mime });
+  if (uploadError) throw uploadError;
+  const { error } = await db.from('attachments').insert({
+    ...link,
+    category: ATTACH_CATEGORY_TO_DB[str(input.category)] ?? 'project_attachment',
+    file_name: str(input.name) || safeName,
+    storage_path: path,
+    mime_type: mime,
+    file_size: bytes.length,
+    uploaded_by: userId,
+  });
+  if (error) throw error;
+}
+
+/** Persist any newly-added (dataUrl, not yet stored) attachments of a project/inspection. */
+async function syncAttachments(
+  db: SupabaseClient,
+  link: { project_id?: string; inspection_id?: string },
+  inputs: AttachmentInput[] | undefined,
+  userId: string,
+): Promise<void> {
+  for (const input of inputs ?? []) {
+    if (str(input.storagePath)) continue; // already in Storage
+    if (!str(input.dataUrl).startsWith('data:')) continue;
+    try {
+      await storeAttachment(db, link, input, userId);
+    } catch (error) {
+      console.error('Failed to store attachment; continuing without it.', error);
+    }
+  }
+}
+
+/** Map an attachments row to the UI shape (signed URL in place of the old dataUrl). */
+async function mapAttachmentRow(db: SupabaseClient, row: Joined): Promise<StoredRecord> {
+  const { data } = await db.storage.from(ATTACHMENT_BUCKET).createSignedUrl(str(row.storage_path), 60 * 60);
+  return {
+    name: row.file_name ?? '',
+    type: row.mime_type ?? '',
+    dataUrl: data?.signedUrl ?? '',
+    category: ATTACH_CATEGORY_FROM_DB[row.category] ?? 'Project Attachment',
+    storagePath: row.storage_path,
+  } as unknown as StoredRecord;
+}
+
+/* ----------------- @mine: annual follow-ups & validation entries ----------------- */
+
+const ANNUAL_RESULT_FROM_DB: Record<string, string> = {
+  approved: 'Validated', rejected: 'Return for Revision', pending: 'Pending',
+};
+
+function anniversaryDueDate(completionIso: string, year: number): string | null {
+  const d = new Date(`${completionIso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const due = new Date(Date.UTC(year, d.getUTCMonth(), d.getUTCDate()));
+  due.setUTCDate(due.getUTCDate() - 30);
+  return due.toISOString().slice(0, 10);
+}
+
+/**
+ * @mine — Port of the old SQLite syncAnnualFollowUps(): for each completed,
+ * non-archived project, make sure a pending annual_validation_entries row and
+ * a scheduled annual follow-up inspection exist for every due year
+ * (anniversary − 30 days <= today). Best-effort; writes go through `admin`
+ * when provided so read-only roles still see generated rows.
+ */
+export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: SupabaseClient): Promise<void> {
+  const writer = admin ?? db;
+  const today = new Date().toISOString().slice(0, 10);
+  const currentYear = Number(today.slice(0, 4));
+  const { data: projects, error } = await db
+    .from('projects')
+    .select('id, actual_completion_date, completion_date')
+    .is('archived_at', null)
+    .not('actual_completion_date', 'is', null);
+  if (error || !projects?.length) return;
+
+  for (const project of projects as Joined[]) {
+    const completed = str(project.actual_completion_date || project.completion_date);
+    if (!completed) continue;
+    const completionYear = Number(completed.slice(0, 4));
+    if (!Number.isInteger(completionYear)) continue;
+    const dueYears: Array<{ year: number; dueDate: string }> = [];
+    for (let year = completionYear + 1; year <= currentYear + 1; year += 1) {
+      const dueDate = anniversaryDueDate(completed, year);
+      if (dueDate && dueDate <= today) dueYears.push({ year, dueDate });
+    }
+    if (!dueYears.length) continue;
+
+    const [{ data: entries }, { data: followUps }] = await Promise.all([
+      db.from('annual_validation_entries').select('year').eq('project_id', project.id),
+      db.from('inspections').select('annual_follow_up_year').eq('project_id', project.id).eq('inspection_type', 'follow_up').not('annual_follow_up_year', 'is', null),
+    ]);
+    const haveEntries = new Set((entries ?? []).map((e: Joined) => e.year));
+    const haveFollowUps = new Set((followUps ?? []).map((e: Joined) => e.annual_follow_up_year));
+
+    for (const { year, dueDate } of dueYears) {
+      if (!haveEntries.has(year)) {
+        await writer.from('annual_validation_entries')
+          .insert({ project_id: project.id, year, due_date: dueDate, result: 'pending' })
+          .then(undefined, () => undefined);
+      }
+      if (!haveFollowUps.has(year)) {
+        await writer.from('inspections')
+          .insert({
+            project_id: project.id,
+            inspection_date: dueDate,
+            inspection_type: 'follow_up',
+            annual_follow_up_year: year,
+            validation_status: 'pending',
+            remarks: `Annual follow-up inspection due by ${dueDate}.`,
+          })
+          .then(undefined, () => undefined);
+      }
+    }
+  }
+}
+
+/** Attach annual entries, follow-up years and signed-URL attachments to mapped projects. */
+async function attachRoadExtras(db: SupabaseClient, records: StoredRecord[]): Promise<StoredRecord[]> {
+  if (!records.length) return records;
+  const ids = records.map((r) => r.id);
+  const [{ data: entryRows }, { data: followRows }, { data: attachRows }] = await Promise.all([
+    db.from('annual_validation_entries').select('*').in('project_id', ids).order('year'),
+    db.from('inspections').select('project_id, annual_follow_up_year').in('project_id', ids).eq('inspection_type', 'follow_up').not('annual_follow_up_year', 'is', null),
+    db.from('attachments').select('*').in('project_id', ids).order('created_at'),
+  ]);
+  const signedByProject = new Map<string, StoredRecord[]>();
+  for (const row of (attachRows ?? []) as Joined[]) {
+    const mapped = await mapAttachmentRow(db, row);
+    signedByProject.set(row.project_id, [...(signedByProject.get(row.project_id) ?? []), mapped]);
+  }
+  return records.map((record) => ({
+    ...record,
+    attachments: signedByProject.get(record.id) ?? [],
+    annualValidationEntries: ((entryRows ?? []) as Joined[])
+      .filter((e) => e.project_id === record.id)
+      .map((e) => ({
+        year: e.year,
+        dueDate: str(e.due_date),
+        result: ANNUAL_RESULT_FROM_DB[e.result] ?? 'Pending',
+        remarks: e.remarks ?? '',
+        ...(e.validated_at ? { validatedAt: e.validated_at } : {}),
+      })),
+    annualInspectionYears: ((followRows ?? []) as Joined[])
+      .filter((f) => f.project_id === record.id)
+      .map((f) => f.annual_follow_up_year as number)
+      .sort((a, b) => a - b),
+  }));
+}
+
+export async function listRoads(db: SupabaseClient, admin?: SupabaseClient): Promise<StoredRecord[]> {
+  await ensureAnnualFollowUps(db, admin).catch(() => undefined);
   const { data, error } = await db.from('projects').select(PROJECT_SELECT).is('archived_at', null).order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(mapProject);
+  return attachRoadExtras(db, (data ?? []).map(mapProject));
 }
 
 export async function listArchivedRoads(db: SupabaseClient): Promise<StoredRecord[]> {
   const { data, error } = await db.from('projects').select(PROJECT_SELECT).not('archived_at', 'is', null).order('archived_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(mapProject);
+  return attachRoadExtras(db, (data ?? []).map(mapProject));
+}
+
+/** @mine — Save a validator's annual validation result for one project/year. */
+export async function saveAnnualValidation(
+  db: SupabaseClient,
+  projectId: string,
+  year: number,
+  result: string,
+  remarks: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await db.from('annual_validation_entries').upsert(
+    {
+      project_id: projectId,
+      year,
+      result: VALIDATION_TO_DB[result] ?? 'pending',
+      remarks: remarks || null,
+      validated_by: userId,
+      validated_at: new Date().toISOString(),
+    },
+    { onConflict: 'project_id,year' },
+  );
+  if (error) throw error;
 }
 
 async function resolveBarangayId(db: SupabaseClient, name: string): Promise<number | null> {
@@ -215,9 +428,15 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     projectId = data.id as string;
   }
 
+  // @mine — persist any newly uploaded project files to Storage (best-effort).
+  if (Array.isArray(rec.attachments)) {
+    await syncAttachments(db, { project_id: projectId! }, rec.attachments as AttachmentInput[], userId);
+  }
+
   const { data: joined, error } = await db.from('projects').select(PROJECT_SELECT).eq('id', projectId!).single();
   if (error) throw error;
-  return mapProject(joined as Joined);
+  const [mapped] = await attachRoadExtras(db, [mapProject(joined as Joined)]);
+  return mapped;
 }
 
 export async function archiveRoad(db: SupabaseClient, id: string): Promise<boolean> {
@@ -275,6 +494,14 @@ function mapInspection(i: Joined): StoredRecord {
     inspector: i.profiles?.full_name ?? i.profiles?.name ?? '',
     inspectorId: i.inspector_id ?? undefined,
     inspectionType: INSPECTION_TYPE_FROM_DB[i.inspection_type] ?? 'Routine',
+    // @mine — annual follow-up markers (scheduled rows have no score yet).
+    ...(i.annual_follow_up_year
+      ? {
+          annualFollowUpYear: i.annual_follow_up_year as number,
+          isAnnualFollowUp: true,
+          isScheduledAnnualFollowUp: i.overall_score == null && i.validation_status === 'pending',
+        }
+      : {}),
     validationStatus:
       i.validation_status === 'approved' ? 'Validated' : i.validation_status === 'rejected' ? 'Return for Revision' : 'Pending Validation',
     archivedAt: i.archived_at ?? undefined,
@@ -283,14 +510,25 @@ function mapInspection(i: Joined): StoredRecord {
 
 const INSPECTION_SELECT = '*, inspection_items(*), profiles!inspections_inspector_id_fkey(full_name, name), projects!inspections_project_id_fkey(project_name)';
 
-async function listInspectionsWhere(db: SupabaseClient, archived: boolean): Promise<StoredRecord[]> {
+async function listInspectionsWhere(db: SupabaseClient, archived: boolean, admin?: SupabaseClient): Promise<StoredRecord[]> {
+  if (!archived) await ensureAnnualFollowUps(db, admin).catch(() => undefined);
   let q = db.from('inspections').select(INSPECTION_SELECT).order('inspection_date', { ascending: false });
   q = archived ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map(mapInspection);
+  const records = (data ?? []).map(mapInspection);
+  // @mine — attach each inspection's stored file (signed URL) as `attachment`.
+  if (records.length) {
+    const { data: attachRows } = await db.from('attachments').select('*')
+      .in('inspection_id', records.map((r) => r.id)).order('created_at');
+    for (const row of (attachRows ?? []) as Joined[]) {
+      const target = records.find((r) => r.id === row.inspection_id);
+      if (target && !target.attachment) target.attachment = await mapAttachmentRow(db, row);
+    }
+  }
+  return records;
 }
-export const listInspections = (db: SupabaseClient) => listInspectionsWhere(db, false);
+export const listInspections = (db: SupabaseClient, admin?: SupabaseClient) => listInspectionsWhere(db, false, admin);
 export const listArchivedInspections = (db: SupabaseClient) => listInspectionsWhere(db, true);
 
 export async function saveInspection(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
@@ -302,6 +540,8 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
     overall_score: rec.conditionRating == null || rec.conditionRating === '' ? null : Number(rec.conditionRating),
     remarks: str(rec.remarks) || null,
     validation_status: VALIDATION_TO_DB[str(rec.validationStatus)] ?? 'pending',
+    // @mine — annual follow-up year (null for ordinary inspections).
+    annual_follow_up_year: rec.annualFollowUpYear ? Number(rec.annualFollowUpYear) : null,
   };
   let id = str(rec.id);
   const existing = id ? (await db.from('inspections').select('id').eq('id', id).maybeSingle()).data : null;
@@ -329,9 +569,23 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
       if (error) throw error;
     }
   }
+  // @mine — persist the inspection's file attachment to Storage (best-effort).
+  const attachment = rec.attachment as AttachmentInput | undefined;
+  if (attachment && !str(attachment.storagePath) && str(attachment.dataUrl).startsWith('data:')) {
+    await syncAttachments(
+      db,
+      { inspection_id: id },
+      [{ ...attachment, category: attachment.category ?? 'Inspection Photo' }],
+      userId,
+    );
+  }
+
   const { data, error } = await db.from('inspections').select(INSPECTION_SELECT).eq('id', id).single();
   if (error) throw error;
-  return mapInspection(data as Joined);
+  const mapped = mapInspection(data as Joined);
+  const { data: rows } = await db.from('attachments').select('*').eq('inspection_id', id).order('created_at').limit(1);
+  if (rows?.length) mapped.attachment = await mapAttachmentRow(db, rows[0] as Joined);
+  return mapped;
 }
 
 export async function archiveInspection(db: SupabaseClient, id: string): Promise<boolean> {
@@ -495,6 +749,85 @@ export async function listActivityLogs(admin: SupabaseClient): Promise<Array<{ i
         ? row.details
         : str((row.details as Joined)?.message ?? JSON.stringify(row.details ?? {})),
   }));
+}
+
+/* --------------------- @mine: AI priority run persistence --------------------- */
+
+export interface AiPredictionRow {
+  localRoadId: string;
+  riskLevel: 'High' | 'Medium' | 'Low';
+  priorityScore: number;
+  justification: string;
+  recommendation: string;
+}
+
+const RISK_TO_DB: Record<string, string> = { High: 'high', Medium: 'medium', Low: 'low' };
+const RISK_FROM_DB: Record<string, string> = { high: 'High', medium: 'Medium', low: 'Low' };
+
+/** Save one AI generation as an ai_analysis_runs row + ai_priority_results rows. */
+export async function saveAiRun(
+  admin: SupabaseClient,
+  input: {
+    userId: string;
+    model: string;
+    predictions: AiPredictionRow[];
+    factorsByProjectId?: Record<string, Record<string, unknown>>;
+  },
+): Promise<string | null> {
+  if (!input.predictions.length) return null;
+  const { data: run, error } = await admin
+    .from('ai_analysis_runs')
+    .insert({ run_by: input.userId, model: input.model, total_projects: input.predictions.length })
+    .select('id')
+    .single();
+  if (error) throw error;
+  const runId = run.id as string;
+  const rows = input.predictions.map((p) => ({
+    run_id: runId,
+    project_id: p.localRoadId,
+    risk_level: RISK_TO_DB[p.riskLevel] ?? 'low',
+    priority_score: p.priorityScore,
+    justification: p.justification,
+    recommendation: p.recommendation,
+    factors: input.factorsByProjectId?.[p.localRoadId] ?? {},
+    decision: 'pending',
+  }));
+  const { error: insertError } = await admin.from('ai_priority_results').insert(rows);
+  if (insertError) throw insertError;
+  return runId;
+}
+
+/** Latest saved AI run, mapped to the UI's PredictionResult shape. */
+export async function getLatestAiPredictions(admin: SupabaseClient): Promise<StoredRecord[]> {
+  const { data: run } = await admin
+    .from('ai_analysis_runs')
+    .select('id')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!run) return [];
+  const { data, error } = await admin
+    .from('ai_priority_results')
+    .select('*, projects!ai_priority_results_project_id_fkey(project_name, roads!projects_road_id_fkey(road_name, current_condition, last_inspection_date), project_categories(name))')
+    .eq('run_id', run.id)
+    .order('priority_score', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: Joined) => {
+    const project = (row.projects ?? {}) as Joined;
+    const road = (project.roads ?? {}) as Joined;
+    const factors = (row.factors ?? {}) as Joined;
+    return {
+      localRoadId: row.project_id,
+      localRoadName: str(factors.name) || road.road_name || project.project_name || '',
+      type: str(factors.type) || project.project_categories?.name || '',
+      lastInspection: str(factors.lastInspection) || str(road.last_inspection_date) || 'N/A',
+      condition: str(factors.condition) || cap(road.current_condition) || 'Good',
+      riskLevel: RISK_FROM_DB[row.risk_level] ?? 'Low',
+      priorityScore: Number(row.priority_score ?? 0),
+      justification: row.justification ?? '',
+      recommendation: row.recommendation ?? '',
+    } as unknown as StoredRecord;
+  });
 }
 
 export { ROLE_TO_DB, ROLE_FROM_DB };

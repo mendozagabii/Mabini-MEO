@@ -23,6 +23,7 @@ interface ProjectAttachment {
   type: string;
   dataUrl: string;
   category: string;
+  storagePath?: string;
 }
 
 interface LocalRoad {
@@ -166,6 +167,21 @@ export default function App() {
       console.error('Failed to restore saved AI recommendations.', error);
     }
   }, []);
+
+  // @mine — prefer the latest AI run saved in Supabase (shared across users);
+  // the localStorage copy above remains as an offline fallback.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+    fetch('/api/ai-priority')
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (cancelled || !Array.isArray(payload?.data) || payload.data.length === 0) return;
+        if (payload.data.every(isPredictionResult)) setAiRecommendations(payload.data);
+      })
+      .catch((error: unknown) => console.error('Failed to load saved AI recommendations.', error));
+    return () => { cancelled = true; };
+  }, [isLoggedIn]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setCurrentDateTime(new Date()), 1000);
