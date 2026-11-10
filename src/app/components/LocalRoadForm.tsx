@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { formatProjectCurrency, hasFourDigitYear, isValidProjectCurrency } from '@/lib/project-form-validation';
+import { attachmentError } from '@/lib/attachment-validation';
 
 interface ProjectAttachment {
   name: string;
@@ -11,6 +12,8 @@ interface ProjectAttachment {
   // @mine — Supabase Storage path for the file (Phase 2, 2026-11-09);
   // optional so records created before Storage still type-check.
   storagePath?: string;
+  staged?: boolean;
+  size?: number;
 }
 
 interface LocalRoad {
@@ -78,7 +81,7 @@ interface ProjectFormData {
 interface LocalRoadFormProps {
   item?: LocalRoad | null;
   editId?: string;
-  onSave: (item: Omit<LocalRoad, 'id'> & { id?: string }) => void;
+  onSave: (item: Omit<LocalRoad, 'id'> & { id?: string }) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -130,6 +133,8 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
 export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormProps) {
   const [activeFormTab, setActiveFormTab] = useState<(typeof localRoadFormTabs)[number]['id']>('project');
   const [formData, setFormData] = useState<ProjectFormData>(() => getInitialFormData(item));
+  const [attachmentNotice, setAttachmentNotice] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [otherCategorySelected, setOtherCategorySelected] = useState(() => Boolean(item?.projectCategory && !projectCategories.includes(item.projectCategory)));
 
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
@@ -192,56 +197,78 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       return;
     }
 
-    const uploadedAttachments = await Promise.all([
-      ...formData.attachments.map(file => ({ file, category: 'Turnover Certificate' })),
-    ].map(({ file, category }) => new Promise<ProjectAttachment>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({
-        name: file.name,
-        type: file.type,
-        dataUrl: String(reader.result),
-        category,
-      });
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    })));
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const uploadedAttachments: ProjectAttachment[] = [];
+      for (const file of formData.attachments) {
+        const problem = attachmentError(file);
+        if (problem) throw new Error(problem);
+        const response = await fetch('/api/local-road/attachment-upload', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
+        });
+        const upload = await response.json().catch(() => ({}));
+        if (!response.ok || !upload.signedUrl || !upload.path) throw new Error(upload.message || 'Unable to prepare the attachment.');
+        const body = new FormData();
+        body.append('cacheControl', '3600');
+        body.append('file', new Blob([file], { type: upload.type }), file.name);
+        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+        const storageResponse = await fetch(upload.signedUrl, {
+          method: 'PUT', headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` }, body,
+        });
+        if (!storageResponse.ok) throw new Error(`Could not upload ${file.name}. Please try again.`);
+        uploadedAttachments.push({ name: file.name, type: upload.type, size: file.size, dataUrl: '', category: 'Turnover Certificate', storagePath: upload.path, staged: true });
+      }
 
-    const localRoadData = {
-      name: formData.projectName,
-      type: formData.projectCategory,
-      location: formData.location,
-      dateBuilt: formData.dateStarted,
-      dateStarted: formData.dateStarted,
-      condition: 'Good',
-      projectName: formData.projectName,
-      projectCategory: formData.projectCategory,
-      projectDescription: formData.projectDescription,
-      targetCompletionDate: formData.targetCompletionDate,
-      noOfExtensions: formData.noOfExtensions,
-      actualCompletionDate: formData.actualCompletionDate,
-      roadNetworkId: formData.roadNetworkId,
-      roadName: formData.roadName,
-      barangay: formData.barangay,
-      components: formData.components,
-      description: formData.description,
-      contractorName: formData.contractorName,
-      contractorAddress: formData.contractorAddress,
-      contactInformation: formData.contactInformation,
-      pcadLicenseNo: formData.pcadLicenseNo,
-      sourceOfFunds: formData.sourceOfFunds,
-      appropriation: formData.appropriation.replace(/,/g, ''),
-      contractedAmount: formData.contractedAmount.replace(/,/g, ''),
-      adjustProjectCost: formData.adjustProjectCost.replace(/,/g, ''),
-      completionDate: formData.completionDate,
-      completionPercentage: formData.completionPercentage,
-      turnoverDate: formData.turnoverDate,
-      attachments: [...(item?.attachments || []), ...uploadedAttachments],
-    };
-    onSave(editId ? { ...localRoadData, id: editId } : localRoadData);
+      const localRoadData = {
+        name: formData.projectName,
+        type: formData.projectCategory,
+        location: formData.location,
+        dateBuilt: formData.dateStarted,
+        dateStarted: formData.dateStarted,
+        condition: 'Good',
+        projectName: formData.projectName,
+        projectCategory: formData.projectCategory,
+        projectDescription: formData.projectDescription,
+        targetCompletionDate: formData.targetCompletionDate,
+        noOfExtensions: formData.noOfExtensions,
+        actualCompletionDate: formData.actualCompletionDate,
+        roadNetworkId: formData.roadNetworkId,
+        roadName: formData.roadName,
+        barangay: formData.barangay,
+        components: formData.components,
+        description: formData.description,
+        contractorName: formData.contractorName,
+        contractorAddress: formData.contractorAddress,
+        contactInformation: formData.contactInformation,
+        pcadLicenseNo: formData.pcadLicenseNo,
+        sourceOfFunds: formData.sourceOfFunds,
+        appropriation: formData.appropriation.replace(/,/g, ''),
+        contractedAmount: formData.contractedAmount.replace(/,/g, ''),
+        adjustProjectCost: formData.adjustProjectCost.replace(/,/g, ''),
+        completionDate: formData.completionDate,
+        completionPercentage: formData.completionPercentage,
+        turnoverDate: formData.turnoverDate,
+        attachments: [...(item?.attachments || []), ...uploadedAttachments],
+      };
+      await onSave(editId ? { ...localRoadData, id: editId } : localRoadData);
+    } catch (error) {
+      setAttachmentNotice(error instanceof Error ? error.message : 'Unable to upload attachments. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'attachments') => {
     const newFiles = Array.from(e.target.files || []);
+    const problem = newFiles.map(attachmentError).find(Boolean);
+    if (problem) {
+      setAttachmentNotice(problem);
+      e.target.value = '';
+      return;
+    }
+    setAttachmentNotice('');
     setFormData(prev => ({
       ...prev,
       [field]: [...prev[field], ...newFiles],
@@ -434,7 +461,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Location (Mabini, Batangas Barangay) *
+                Location *
               </label>
               <AutoGrowTextarea
                 data-field="Location"
@@ -442,7 +469,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 rows={2}
                 className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                aria-label="Location (Mabini, Batangas Barangay)"
+                aria-label="Location"
                 required
               />
             </div>
@@ -528,7 +555,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Road Name * (Dependent on the Location Field)
+                  Road Name *
                 </label>
                 <input
                   type="text"
@@ -772,19 +799,23 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Attachment {!editId && '*'} {formData.attachments.length > 0 && `(${formData.attachments.length} file${formData.attachments.length > 1 ? 's' : ''} selected)`}
+                Attachment * {formData.attachments.length > 0 && `(${formData.attachments.length} file${formData.attachments.length > 1 ? 's' : ''} selected)`}
               </label>
               
+              {item?.attachments?.filter(attachment => attachment.category === 'Turnover Certificate').map((attachment, index) => (
+                <p key={`${attachment.storagePath || attachment.name}-${index}`} className="mb-2 text-sm text-gray-600">Existing attachment: {attachment.name}</p>
+              ))}
+              {attachmentNotice && <p role="alert" className="mb-2 text-sm text-red-600">{attachmentNotice}</p>}
               {formData.attachments.length === 0 ? (
                 <>
                   <input
                     type="file"
                     data-field="Turnover Attachment"
-                    aria-required={!editId}
-                    required={!editId}
+                    aria-required={true}
+                    required={!item?.attachments?.some(attachment => attachment.category === 'Turnover Certificate')}
                     multiple
                     onChange={(e) => handleFileChange(e, 'attachments')}
-                    accept=".pdf,.jpg,.png"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
                   />
                   <p className="text-xs text-gray-500 mt-1">
@@ -806,7 +837,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 type="file"
                 multiple
                 onChange={(e) => handleFileChange(e, 'attachments')}
-                accept=".pdf,.jpg,.png"
+                accept=".pdf,.jpg,.jpeg,.png"
                 className="hidden"
               />
 
@@ -847,9 +878,10 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              disabled={isSubmitting}
+              className="disabled:opacity-50 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
-              Submit
+              {isSubmitting ? 'Uploading…' : 'Submit'}
             </button>
           </div>
         </form>

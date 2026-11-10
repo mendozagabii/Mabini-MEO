@@ -111,6 +111,7 @@ const ui = new Proxy({}, { get: () => Dummy });
 const componentMocks = {
   './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
   '@/lib/activity-log-client': { recordClientActivity() {} },
+  '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts', {}),
 };
 const noop = () => {};
 const project = { id: 'p', name: 'Road', projectName: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good' };

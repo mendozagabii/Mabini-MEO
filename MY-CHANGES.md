@@ -78,6 +78,11 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Encoder project saves and attachment validation
+- **What & why:** Keep project data when another module fails to refresh and load records after sign-in. Upload encoder project attachments directly to Storage through encoder-only signed URLs instead of embedding large files in the project request. Verify ownership, stored size, type and file signature before saving; report any post-save link failure explicitly. Require an existing or new turnover attachment during edit, preserve existing files, validate file type and 10 MiB size, and simplify location and road-name labels. Inspection selection and legacy server uploads also reject invalid types and oversized files.
+- **Files:** `src/app/App.tsx`, `src/app/api/local-road/{route.ts,attachment-upload/route.ts}`, `src/app/components/{LocalRoadForm,LocalRoadList,InspectionModule}.tsx`, `src/lib/{attachment-validation,load-records,supabase-data}.ts`, tests, `MY-CHANGES.md`.
+- **Verification:** Read-only policy and storage-bucket metadata show encoder insert/update and Storage upload/read policies; the bucket limit is 10 MiB. Local mocked route/storage and DOM tests, TypeScript and build passed. No live data was written; actual encoder create/edit and signed uploads have not been tested against Supabase. Inspection uploads still use the older JSON path and may hit Vercel's request-size limit below 10 MiB. Failed staged uploads can leave unlinked objects; cleanup is not automated.
+
 ### 2026-11-10 — [mine] Native required-field prompts for local road entry
 - **What & why:** Replace the required-field summary with the browser's "Please fill out this field." prompt at each missing field, including the category and turnover attachment. Use a native category select for focusable browser validation; preserve optional extensions, whitespace checks, decimal amounts and date bounds.
 - **Files:** `src/app/components/LocalRoadForm.tsx`, `tests/project-form.test.cjs`, `MY-CHANGES.md`.

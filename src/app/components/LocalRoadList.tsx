@@ -99,7 +99,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Project / Program / Activity Name', value: item.projectName || item.name, width: 'half' },
           { label: 'Project Category', value: item.projectCategory || item.type, width: 'half' },
           { label: 'Project Description', value: item.projectDescription || item.description, width: 'full' },
-          { label: 'Location (Mabini, Batangas Barangay)', value: item.location, width: 'full' },
+          { label: 'Location', value: item.location, width: 'full' },
           { label: 'Date Started', value: item.dateBuilt, width: 'quarter' },
           { label: 'Target Completion Date', value: item.targetCompletionDate, width: 'quarter' },
           { label: 'No. of Extensions', value: item.noOfExtensions, width: 'quarter' },
@@ -251,7 +251,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               </p>
             </div>
             <div className="mb-4 mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Location (Mabini, Batangas Barangay) *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Location *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.location || 'N/A'}</p>
             </div>
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -276,7 +276,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadNetworkId || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name * (Dependent on the Location Field)</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadName || selectedItem.location || 'N/A'}</p>
             </div>
               </div>

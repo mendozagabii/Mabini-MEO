@@ -22,14 +22,24 @@ function loadTs(relative, mocks = {}) {
   m._compile(code, filename); return m.exports;
 }
 const validation = loadTs('src/lib/project-form-validation.ts');
+const attachmentValidation = loadTs('src/lib/attachment-validation.ts');
+let uploadCalls = [];
+global.fetch = async (url, options) => {
+  uploadCalls.push({ url, options });
+  return url === '/api/local-road/attachment-upload'
+    ? { ok: true, json: async () => ({ signedUrl: 'https://storage.example.test/signed', path: 'project-uploads/test/uuid.pdf', type: 'application/pdf' }) }
+    : { ok: true };
+};
 const { LocalRoadForm } = loadTs('src/app/components/LocalRoadForm.tsx', {
   './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
   '@/lib/project-form-validation': validation,
+  '@/lib/attachment-validation': attachmentValidation,
 });
 const container = document.getElementById('root');
 const root = createRoot(container);
 after(() => { act(() => root.unmount()); dom.window.close(); });
-const render = async onSave => act(async () => root.render(React.createElement(LocalRoadForm, { onSave, onClose() {} })));
+const render = async (onSave, props = {}) => act(async () => root.render(React.createElement(LocalRoadForm, { onSave, onClose() {}, ...props })));
+const reset = async () => act(async () => root.render(null));
 const field = name => container.querySelector(`[data-field="${name}"]`);
 async function change(name, value) {
   const el = field(name); assert.ok(el, `missing field ${name}`);
@@ -81,6 +91,9 @@ test('missing category and turnover attachment are reported; extensions are opti
   assert.equal(saved.appropriation, '1234.56'); assert.equal(saved.contractedAmount, '1000.25');
   assert.equal(saved.adjustProjectCost, '999.99'); assert.equal(saved.dateStarted, '2026-01-01');
   assert.equal(saved.attachments[0].category, 'Turnover Certificate');
+  assert.equal(saved.attachments[0].staged, true);
+  assert.equal(saved.attachments[0].dataUrl, '');
+  assert.ok(uploadCalls.some(call => call.url === 'https://storage.example.test/signed' && call.options.method === 'PUT'));
 });
 
 test('form has only a turnover attachment and bounds all date inputs', async () => {
@@ -147,4 +160,49 @@ test('whitespace-only required text uses the same native message and clears afte
   assert.equal(field('Project Description').validationMessage, 'Please fill out this field.');
   await change('Project Description', 'Description');
   assert.equal(field('Project Description').validationMessage, '');
+});
+
+test('rejects unsupported, mismatched and oversized files without adding them', async () => {
+  await reset(); await render(() => {});
+  const input = field('Turnover Attachment');
+  for (const file of [new window.File(['x'], 'document.exe', { type: 'application/octet-stream' }), new window.File(['x'], 'photo.png', { type: 'application/pdf' }), new window.File([new Uint8Array(10 * 1024 * 1024 + 1)], 'large.pdf', { type: 'application/pdf' })]) {
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+    await act(async () => input.dispatchEvent(new window.Event('change', { bubbles: true })));
+    assert.match(container.querySelector('[role=alert]').textContent, /PDF, JPG, or PNG|10 MB/);
+    assert.doesNotMatch(container.textContent, /Selected Files:/);
+  }
+  assert.equal(attachmentValidation.attachmentError({ name: 'limit.PDF', type: 'application/pdf', size: 10 * 1024 * 1024 }), null);
+  assert.equal(attachmentValidation.attachmentError({ name: 'photo.jpeg', type: 'image/jpeg', size: 100 }), null);
+});
+
+test('edit requires an attachment unless an existing turnover certificate is present', async () => {
+  const base = { id: 'p1', name: 'Project', type: 'National Road', location: 'Mabini', dateBuilt: '2026-01-01', condition: 'Good' };
+  await reset(); await render(() => {}, { item: base, editId: 'p1' });
+  assert.equal(field('Turnover Attachment').required, true);
+  await reset(); await render(() => {}, { item: { ...base, attachments: [{ name: 'existing.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] }, editId: 'p1' });
+  assert.equal(field('Turnover Attachment').required, false);
+  assert.match(container.textContent, /Existing attachment: existing.pdf/);
+  assert.doesNotMatch(container.textContent, /Mabini, Batangas Barangay|Dependent on the Location Field/);
+});
+
+test('failed storage upload keeps the form open and does not save a project', async () => {
+  let saved; await reset(); await render(value => { saved = value; }); await fill(); await file();
+  const original = global.fetch;
+  global.fetch = async (url, options) => url === '/api/local-road/attachment-upload' ? original(url, options) : { ok: false };
+  await submit();
+  assert.equal(saved, undefined);
+  assert.match(container.querySelector('[role=alert]').textContent, /Could not upload/);
+  global.fetch = original;
+});
+
+test('edit accepts a new uploaded turnover attachment without removing existing ones', async () => {
+  let saved;
+  const old = { name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' };
+  const item = { id: 'p1', name: 'Road', type: 'National Road', location: 'Mabini', dateBuilt: '2026-01-01', condition: 'Good', attachments: [old] };
+  await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
+  await fill(); await file(); await submit();
+  assert.equal(saved.id, 'p1');
+  assert.equal(saved.attachments.length, 2);
+  assert.equal(saved.attachments[0].storagePath, 'old/path');
+  assert.equal(saved.attachments[1].staged, true);
 });

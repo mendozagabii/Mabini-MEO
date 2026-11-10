@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 // @mine — turn known saveRoad validation errors into 400s with the real reason, so an
 // encoder missing a barangay sees "A barangay is required" instead of a role warning.
 function saveFailure(error: unknown, fallback: string): { message: string; status: number } {
-  if (error instanceof Error && /(is required for a road project|could not save the barangay)/i.test(error.message)) {
+  if (error instanceof Error && /(is required for a road project|could not save the barangay|could not save the project category|could not (save|update) the contractor|invalid project attachment|attachment (upload|type|has|content)|please upload the project attachment|attachments must)/i.test(error.message)) {
     return { message: error.message, status: 400 };
   }
   return { message: fallback, status: 500 };

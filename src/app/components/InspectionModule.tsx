@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
+import { attachmentError, attachmentMime } from '@/lib/attachment-validation';
 
 interface Inspection {
   id: string;
@@ -239,19 +240,11 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png'];
-    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-    if (!allowedExtensions.includes(extension)) {
+    const problem = attachmentError(file);
+    if (problem) {
       setSelectedAttachment(null);
       setAttachmentName('No file chosen');
-      setValidationNotice('Choose an attachment in PDF, JPG, or PNG format.');
-      event.target.value = '';
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setSelectedAttachment(null);
-      setAttachmentName('No file chosen');
-      setValidationNotice('The attachment must be 10 MB or smaller.');
+      setValidationNotice(problem);
       event.target.value = '';
       return;
     }
@@ -331,7 +324,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
               }
               resolve({
                 name: selectedAttachment.name,
-                type: selectedAttachment.type,
+                type: attachmentMime(selectedAttachment.name, selectedAttachment.type) || '',
                 dataUrl: reader.result,
               });
             };
