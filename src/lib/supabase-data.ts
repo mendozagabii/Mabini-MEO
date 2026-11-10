@@ -48,7 +48,7 @@ function mapProject(p: Joined): StoredRecord {
     projectName: p.project_name ?? '',
     type: p.project_categories?.name ?? p.category_other ?? '',
     projectCategory: p.project_categories?.name ?? p.category_other ?? '',
-    location: p.barangays?.name ?? '',
+    location: p.location ?? p.barangays?.name ?? '',
     barangay: p.barangays?.name ?? '',
     dateBuilt: str(road.date_built),
     condition: cap(road.current_condition) || 'Good',
@@ -405,8 +405,22 @@ const VALIDATION_TO_DB: Record<string, string> = {
   Pending: 'pending',
 };
 
+/** Preserve compatibility with the existing schema without silently losing location text. */
+async function projectLocationColumnAvailable(db: SupabaseClient): Promise<boolean> {
+  const { error } = await db.from('projects').select('location').limit(1);
+  if (!error) return true;
+  if (error.code === '42703' && /location/i.test(error.message)) return false;
+  throw error;
+}
+
 /** Create or update a road+project pair from the app's combined record. Returns the mapped record. */
 export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: string): Promise<StoredRecord> {
+  const locationColumnAvailable = await projectLocationColumnAvailable(db);
+  const location = str(rec.location).trim();
+  const barangay = str(rec.barangay || rec.location).trim();
+  if (!locationColumnAvailable && location && location !== barangay) {
+    throw new Error('A database update is required to save project locations separately from barangays.');
+  }
   const stagedAttachments = await prepareProjectAttachments(db, Array.isArray(rec.attachments) ? rec.attachments as AttachmentInput[] : [], userId);
   const barangayId = await resolveBarangayId(db, str(rec.barangay || rec.location));
   const categoryId = await resolveCategoryId(db, str(rec.projectCategory || rec.type));
@@ -444,6 +458,7 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
 
   const projectPayload = {
     project_name: str(rec.projectName || rec.name) || roadPayload.road_name,
+    ...(locationColumnAvailable ? { location: location || null } : {}),
     road_id: roadId,
     category_id: categoryId,
     category_other: null,

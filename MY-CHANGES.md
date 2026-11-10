@@ -78,6 +78,12 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Multi-barangay project locations
+- **What & why:** Match complete barangay names in comma/conjunction-separated project locations in both project and validation lists. Preserve full location independently of the primary barangay using a new nullable project text column; legacy records fall back to their barangay. Add an unapplied migration and reject saves that would otherwise silently discard a different location when the column is absent.
+- **Files:** `src/app/api/local-road/route.ts`, `src/app/components/LocalRoadList.tsx`, `src/lib/{project-location,supabase-data}.ts`, `supabase/migrations/20261110_project_location_text.sql`, tests, `MY-CHANGES.md`.
+- **Verification and limitation:** 48 local tests and TypeScript passed, including mocked create/edit/read and filter tests. Read-only schema inspection confirmed the live database lacks this column. The migration has NOT been applied; until explicitly approved and applied, the preview rejects locations that differ from the barangay (after a staged attachment may already have been uploaded). Existing locations lost before this change cannot be recovered by the migration. No live writes or end-to-end tests were performed.
+
+
 ### 2026-11-10 — [mine] Whole-peso decimals and project save progress
 - **What & why:** Show at least two decimal places, including `.00`, for saved project amounts in details, print and edit without rounding additional digits. During both add and edit, show saving/updating for at least three seconds while waiting for the actual request, prevent duplicate submissions or dismissal, and keep the form open on errors.
 - **Files:** `src/app/App.tsx`, `src/app/components/LocalRoadForm.tsx`, `src/lib/{project-form-validation,project-save-delay}.ts`, `tests/{project-form,project-save-delay}.test.cjs`, `MY-CHANGES.md`.
