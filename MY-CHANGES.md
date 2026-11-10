@@ -78,6 +78,30 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Master code: walkthrough + setup guide
+- **Type:** Docs
+- **Files:** `docs/MASTER-CODE-GUIDE.md` (new), `MY-CHANGES.md` (this entry)
+- **What & why:** Wrote the guide the owner asked for: what the master code is (an unlock token, not a password), how the lockout it rescues works (3 fails → 15 min × lockout_count), where the bcrypt hash lives (`system_settings.master_unlock_code_hash`), the two ways to unlock, the setup checklist (merge → set the first code in System Management → verify → rotate), an end-to-end test script (lock `encoder`, unlock with the code), a troubleshooting table keyed to the actual response codes, and the break-glass SQL for a forgotten code. Also records four known limitations, the main one being that `POST /api/auth/unlock` has no rate limit yet.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-10 — [mine] Fixed duplicate annual follow-up inspections (4 duplicated pairs live)
+- **Type:** DB migration (live) + no app logic change needed
+- **Files:** `supabase/migrations/20261110_annual_followup_unique.sql` (new), `docs/PHASE-STATUS.md`, `MY-CHANGES.md` (this entry)
+- **DB (live):** de-duplicated existing placeholder follow-ups (keeping the oldest per project/year; rows somebody actually inspected are never touched) and added partial unique index `inspections_annual_follow_up_uq` on `(project_id, annual_follow_up_year) WHERE inspection_type='follow_up' AND annual_follow_up_year IS NOT NULL`. Cause was a check-then-insert race between the concurrent `/api/local-road` and `/api/inspections` loads; the losing insert now raises a unique violation that `ensureAnnualFollowUps()` already swallows, so no code change was required.
+- **Verified:** follow-ups went 9 → 5 (the 4 duplicated pairs collapsed), 0 duplicates left, index present; the 5 remaining are exactly the 5 years actually due (Solo 2026 is correctly absent — it isn't due until 2026-12-18).
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-10 — [mine] Fixed the master code endpoint (it could never set a code) + first-run setup in the UI
+- **Type:** Modified (API route `PATCH`/`POST`/new `GET`) + Modified (user management UI) + DB migration (live)
+- **Files:** `src/app/api/auth/unlock/route.ts` (rewritten), `src/app/components/UserManagementModule.tsx` (first-run banner, optional current code, 8-char minimum, `GET` status), `supabase/migrations/20261110_master_code_service_role.sql` (new), `MY-CHANGES.md` (this entry)
+- **What & why:** The owner could not work out the master code because it did not exist and could not be created: `PATCH /api/auth/unlock` called `set_master_code` with the user-scoped client, while EXECUTE on that RPC is granted to `service_role` only, so every attempt died with `permission denied for function set_master_code`. The route now calls it with the service-role client (it already enforces `head_engineer` itself) and passes `p_updated_by` so `updated_by` is still recorded. `POST` now distinguishes "no code configured" (409, `masterCodeConfigured:false`) from "wrong code" (401) instead of one anonymous 401; the new `GET` reports `{ hasMasterCode, updatedAt, updatedBy }`. UI: the amber first-run banner, current code optional on first set, minimum corrected from "Min 6" to 8 to match the RPC, and set/change actions are written to `activity_logs`.
+- **DB (live):** dropped the 2-arg `set_master_code` and replaced it with `(p_new, p_current, p_updated_by uuid default null)` (defaults keep 2-arg callers working, no ambiguous overload), re-revoked from `anon`/`authenticated`, granted to `service_role`.
+- **Verified:** `tsc --noEmit` ✅; single RPC signature with `authenticated=f` / `service_role=t`; master code still unset (0 rows) so the owner sets the first one themselves — no secret was created or stored by me.
+- **Status:** ✅ Kept — needs a merge + redeploy to reach `mabini-meo.vercel.app`
+- **Original code affected:** none of the baseline files; this is my own route/UI code
+
 ### 2026-11-10 — [mine] Phase 4 live test kit
 - **Type:** Docs
 - **Files:** `docs/PHASE-4-TEST-PLAN.md` (new), `docs/DEMO-DATA-PLAN.md` (header/status updated), `MY-CHANGES.md` (this entry)

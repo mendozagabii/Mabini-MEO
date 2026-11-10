@@ -186,6 +186,20 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  // @mine — null = unknown; false = no master code yet (first-run setup allowed).
+  const [masterCodeConfigured, setMasterCodeConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!showPasswordForm) return;
+    let cancelled = false;
+    fetch('/api/auth/unlock')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled && payload) setMasterCodeConfigured(Boolean(payload.hasMasterCode));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [showPasswordForm]);
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const generatedEmployeeId = getNextEmployeeId(users);
   const moveToUserFormTab = (tab: 'account' | 'access') => {
@@ -705,12 +719,26 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   };
 
   const handlePasswordUpdate = async () => {
-    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+    // @mine — the "current" code only exists from the second change onward.
+    const needsCurrent = masterCodeConfigured !== false;
+    if ((needsCurrent && !passwordForm.currentPassword) || !passwordForm.newPassword || !passwordForm.confirmPassword) {
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Validation Error',
-        message: 'Please fill in all password fields.',
+        message: needsCurrent
+          ? 'Please fill in all password fields.'
+          : 'Enter the new master code and confirm it.',
+      });
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setDialog({
+        isOpen: true,
+        type: 'error',
+        title: 'Validation Error',
+        message: 'The master code must be at least 8 characters long.',
       });
       return;
     }
@@ -1442,6 +1470,17 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               <p className="text-xs leading-relaxed text-slate-500">
                 The master token enables emergency administrative recovery and role-override privileges for the Office of the Municipal Engineer.
               </p>
+              {masterCodeConfigured === false && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                  No master code has been set yet. Leave <strong>Current Master Password</strong> blank and choose one now —
+                  it is what unlocks a locked account from the login screen.
+                </p>
+              )}
+              {masterCodeConfigured === true && (
+                <p className="text-xs leading-relaxed text-slate-500">
+                  A master code is already set. Enter it below to replace it.
+                </p>
+              )}
               <div className="space-y-1">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">Current Master Password</label>
                 <input
@@ -1449,7 +1488,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   value={passwordForm.currentPassword}
                   onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                   className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs font-mono text-slate-900 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-blue-600"
-                  placeholder="Enter current token (e.g. MABINI-2026)"
+                  placeholder={masterCodeConfigured === false ? "Not set yet — leave blank" : "Enter current master code"}
                 />
               </div>
 
@@ -1460,7 +1499,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   value={passwordForm.newPassword}
                   onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                   className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs font-mono text-slate-900 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-blue-600"
-                  placeholder="Min 6 alphanumeric characters"
+                  placeholder="At least 8 characters"
                 />
               </div>
 

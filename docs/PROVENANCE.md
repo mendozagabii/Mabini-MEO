@@ -17,10 +17,10 @@ Generated from git on **2026-11-10** · baseline `ce9a474` · every row below is
 
 | | Files | Meaning |
 |---|---:|---|
-| Total tracked now | **133** | everything in the repo |
-| 🟦 Inherited, untouched | **89** | original author's work, byte-for-byte |
-| 🟩 Added by me | **26** | files that did not exist at baseline |
-| 🟨 Modified by me | **18** | original files I edited (still their file) |
+| Total tracked now | **136** | everything in the repo |
+| 🟦 Inherited, untouched | **88** | original author's work, byte-for-byte |
+| 🟩 Added by me | **29** | files that did not exist at baseline |
+| 🟨 Modified by me | **19** | original files I edited (still their file) |
 | 🟥 Deleted by me | **0** | — |
 
 **I deleted none of the original files** — the original author's tree is preserved.
@@ -38,7 +38,7 @@ grep -rn "@mine" src/                # markers inside the code I wrote/edited
 
 ---
 
-## 🟩 Added by me (26 files)
+## 🟩 Added by me (29 files)
 
 Files that are entirely mine — safe to treat as "new work", nothing inherited inside them.
 
@@ -65,6 +65,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | `docs/BASELINE.md` | added | +43 / -0 | Baseline snapshot taken 2026-11-09: the inherited repo (107 files) before any of my changes. |
 | `docs/DEMO-DATA-PLAN.md` | added | +88 / -0 | EXECUTED 2026-11-10 (Phase 3), after the owner's go signal. |
 | `docs/EMAIL-TEMPLATES.md` | added | +80 / -0 | Created 2026-11-09. Custom Supabase Auth email templates for Mabini MEO. |
+| `docs/MASTER-CODE-GUIDE.md` | added | +146 / -0 | Written 2026-11-10 together with the fix for the master-code endpoint. |
 | `docs/PHASE-4-TEST-PLAN.md` | added | +103 / -0 | Phase 4 live-smoke-test kit, written 2026-11-10 against the freshly seeded data. |
 | `docs/PHASE-STATUS.md` | added | +143 / -0 | Phase verification (2026-11-10). Every row below was checked against the live |
 | `docs/PROVENANCE.md` | added | (this file) | this generated report |
@@ -78,7 +79,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +218 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +242 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -86,6 +87,8 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `supabase/demo/seed-demo-data.sql` | added | +231 / -0 | EXECUTED 2026-11-10 (owner gave the go signal for Phase 3). … |
 | `supabase/migrations/20261109_annual_validation.sql` | added | +31 / -0 | Applied 2026-11-09 via Supabase migration … |
+| `supabase/migrations/20261110_annual_followup_unique.sql` | added | +31 / -0 | Fix (2026-11-10): duplicate annual follow-up inspections. … |
+| `supabase/migrations/20261110_master_code_service_role.sql` | added | +52 / -0 | Fix (2026-11-10): the "Update Master Password" button never worked. … |
 
 #### Tooling — `scripts/`, `.githooks/`
 
@@ -98,7 +101,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | `scripts/my-diff.sh` | added | +59 / -0 | Show everything I changed vs the inherited baseline commit. … |
 | `scripts/setup-hooks.sh` | added | +31 / -0 | Turn the "log every change" rule on (or off) for this clone. … |
 
-## 🟨 Modified by me (18 files)
+## 🟨 Modified by me (19 files)
 
 These are **originally the other author's files** that I edited. The file still counts as
 theirs in origin; only the lines listed in the note / diff are mine.
@@ -114,7 +117,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 | `src/app/api/auth/request-password-reset/route.ts` | modified | +24 / -43 | Rewritten: delegates to Supabase Auth email reset (was custom Gmail … |
 | `src/app/api/auth/reset-password/route.ts` | modified | +36 / -17 | Rewritten for Supabase Auth recovery sessions. Accepts either the … |
 | `src/app/api/auth/status/route.ts` | modified | +122 / -63 | Rewritten for Supabase (was SQLite users table). User administration … |
-| `src/app/api/auth/unlock/route.ts` | modified | +50 / -51 | Rewritten for Supabase. Previously, non-admin accounts could be … |
+| `src/app/api/auth/unlock/route.ts` | modified | +121 / -46 | Rewritten for Supabase. Previously, non-admin accounts could be … |
 | `src/app/api/health/route.ts` | modified | +11 / -8 | Was hardcoded to 'development'/'local-nextjs-sqlite'. |
 | `src/app/api/inspections/route.ts` | modified | +118 / -145 | Rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts. |
 | `src/app/api/local-road/route.ts` | modified | +120 / -163 | Rewritten for Supabase (was SQLite). App "road" records are … |
@@ -132,6 +135,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 |---|---|---|---|
 | `src/app/components/LocalRoadForm.tsx` | modified | +3 / -0 | Supabase Storage path for the file (Phase 2, 2026-11-09); … |
 | `src/app/components/LocalRoadList.tsx` | modified | +3 / -0 | Supabase Storage path for the file (Phase 2, 2026-11-09); … |
+| `src/app/components/UserManagementModule.tsx` | modified | +43 / -4 | Null = unknown; false = no master code yet (first-run setup allowed). |
 
 #### Password-reset page — `src/app/reset-password/`
 
@@ -148,13 +152,13 @@ theirs in origin; only the lines listed in the note / diff are mine.
 
 ---
 
-## 🟦 Inherited, untouched (89 files)
+## 🟦 Inherited, untouched (88 files)
 
 Original author's work, exactly as received (including the ~40 stock shadcn/ui
 components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 <details>
-<summary><b>Show the full list of 89 untouched files</b></summary>
+<summary><b>Show the full list of 88 untouched files</b></summary>
 
 **App shell — `src/app/`**
 
@@ -185,7 +189,6 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 - `src/app/components/ReportsModule.tsx`
 - `src/app/components/Sidebar.tsx`
 - `src/app/components/SystemArchitecture.tsx`
-- `src/app/components/UserManagementModule.tsx`
 
 **Inherited Vite leftovers — `src/`**
 
@@ -273,6 +276,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 | PR | Branch merged | Merge commit |
 |---|---|---|
+| [#3](https://github.com/mendozagabii/Mabini-MEO/pull/3) | `arena/08607812-mabini-meo` | `8d603dd` |
 | [#2](https://github.com/mendozagabii/Mabini-MEO/pull/2) | `arena/3f13779c-mabini-meo` | `427be76` |
 | [#1](https://github.com/mendozagabii/Mabini-MEO/pull/1) | `arena/7f3b570f-mabini-meo` | `8fe2830` |
 
@@ -288,6 +292,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Add change-tracking toolkit: provenance report, auto log entry, commit guard | 11 |
 | 2026-11-10 | [mine] Toolkit refinements: stable provenance regeneration + @mine markers | 3 |
 | 2026-11-10 | [mine] Phase 1+2 verified, Phase 3 executed (backup + demo seed), Phase 4 test kit | 6 |
+| 2026-11-10 | [mine] Fix master code endpoint (service role + first-run setup), de-duplicate annual follow-ups, add walkthrough | 7 |
 
 ---
 
