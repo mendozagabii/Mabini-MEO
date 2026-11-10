@@ -370,6 +370,11 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     ? (await db.from('projects').select('id, road_id').eq('id', rec.id).maybeSingle()).data
     : null;
 
+  // @mine — roads.barangay_id is NOT NULL, so a missing barangay used to bubble up as an
+  // opaque 500 ("your role may not permit it") instead of telling the user what to fix.
+  if (!barangayId) {
+    throw new Error('A barangay is required for a road project.');
+  }
   const roadPayload = {
     road_name: str(rec.roadName || rec.name) || 'Unnamed Road',
     road_network_id: str(rec.roadNetworkId) || null,

@@ -78,6 +78,17 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Encoder role can add local road projects and has a Delete button next to Edit
+- **Type:** Modified (local road list) + Config/DB (RLS insert policies on reference data)
+- **Files:** `src/app/components/LocalRoadList.tsx`, `src/app/api/local-road/route.ts`, `src/lib/supabase-data.ts`, `supabase/migrations/20261110_encoder_reference_data.sql` (new), `MY-CHANGES.md` (this entry)
+- **Add was blocked by reference data, not by the project itself.** `roads.barangay_id` is `NOT NULL`, but the only write policy on `barangays` was `barangays_admin` (FOR ALL, head_engineer only). When an encoder typed a barangay that did not exist yet, the auto-create inside `resolveBarangayId()` failed, `barangay_id` came back null, the roads INSERT tripped the NOT NULL constraint, and the API answered 500 "Unable to create this project. Your role may not permit it." — which looked like a role problem but was really a missing lookup row. `project_categories` had the same shape. Two additive INSERT policies now let the encoder role create barangay/category rows (applied live); UPDATE/DELETE on reference data stay head_engineer-only on purpose.
+- **Proven, not assumed:** simulating the encoder JWT (`set local role authenticated` + claims for `christine agkis`) first reproduced the RLS/NOT-NULL failure; after the policies, the same probe inserted a barangay **and** a road successfully inside a transaction that was rolled back (0 probe rows persisted; `roads` total unchanged).
+- **Delete was pure UI.** The trash button was wrapped in `{!isEncoder && …}` in `LocalRoadList.tsx`, so the encoder could edit but not delete, even though RLS already allowed it. The gate is gone and the control is now a labelled **Delete** button beside **Edit** (same permission as editing). Deleting still goes through the confirmation modal and `archiveRoad()`, i.e. it is a recoverable archive, not a hard delete.
+- **Clearer failure when a barangay is genuinely missing:** `saveRoad()` now throws "A barangay is required for a road project." and the POST/PATCH handlers return it as **400** instead of a generic 500 role warning.
+- **Verified build:** `npx tsc --noEmit` ✅ · `npm run build` ✅
+- **Status:** ✅ Kept — policies live, UI ships with the merge
+- **Original code affected:** `LocalRoadList.tsx` delete gate and `saveRoad()` are my own migrated code; the RLS policies are additive and do not alter the inherited schema
+
 ### 2026-11-10 — [mine] Username IS the display name (unique identity); legacy handles retired
 - **Type:** DB data change (live) + Modified (account create/edit route, account form)
 - **Files:** `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)

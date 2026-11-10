@@ -22,6 +22,15 @@ export async function GET(request: Request) {
   }
 }
 
+// @mine — turn known saveRoad validation errors into 400s with the real reason, so an
+// encoder missing a barangay sees "A barangay is required" instead of a role warning.
+function saveFailure(error: unknown, fallback: string): { message: string; status: number } {
+  if (error instanceof Error && /is required for a road project/i.test(error.message)) {
+    return { message: error.message, status: 400 };
+  }
+  return { message: fallback, status: 500 };
+}
+
 export async function POST(request: Request) {
   const auth = await requireAuth(request);
   if (!auth) return unauthorized();
@@ -35,7 +44,8 @@ export async function POST(request: Request) {
     return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
   } catch (error) {
     console.error('Failed to create project.', error);
-    return NextResponse.json({ message: 'Unable to create this project. Your role may not permit it.' }, { status: 500 });
+    const failure = saveFailure(error, 'Unable to create this project. Your role may not permit it.');
+    return NextResponse.json({ message: failure.message }, { status: failure.status });
   }
 }
 
@@ -80,7 +90,8 @@ export async function PATCH(request: Request) {
     return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
   } catch (error) {
     console.error('Failed to update project.', error);
-    return NextResponse.json({ message: 'Unable to update this project. Your role may not permit it.' }, { status: 500 });
+    const failure = saveFailure(error, 'Unable to update this project. Your role may not permit it.');
+    return NextResponse.json({ message: failure.message }, { status: failure.status });
   }
 }
 

@@ -74,7 +74,6 @@ interface LocalRoadListProps {
 
 export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = false, validatorName = '', currentUser, onSaveValidation, userRole = '' }: LocalRoadListProps) {
   const isAdminReadDeleteOnly = userRole === 'Admin' && !validationMode;
-  const isEncoder = userRole === 'Staff - Encoder';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocation, setFilterLocation] = useState('All');
   const [selectedItem, setSelectedItem] = useState<LocalRoad | null>(null);
@@ -679,23 +678,28 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         Inspection: {item.lastInspection || 'Not recorded'}
                       </span>
                       <div className="flex shrink-0 items-center gap-3">
+                        {/* @mine — encoders can create AND archive projects: the RLS policies on
+                            roads/projects grant insert+update to the encoder role (verified by
+                            simulating the encoder JWT — the policy check passes; only a NOT NULL
+                            column stopped the probe). This Delete button used to be hidden for
+                            them, so the permission existed but was unreachable. */}
                         {!isAdminReadDeleteOnly && (
-                          <button
-                            onClick={() => onEdit(item)}
-                            aria-label={`Edit ${item.projectName || item.name}`}
-                            className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"
-                          >
-                            <Edit className="h-3.5 w-3.5" /> Edit
-                          </button>
-                        )}
-                        {!isEncoder && (
-                          <button
-                            onClick={() => setPendingDelete(item)}
-                            aria-label={`Delete ${item.projectName || item.name}`}
-                            className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => onEdit(item)}
+                              aria-label={`Edit ${item.projectName || item.name}`}
+                              className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"
+                            >
+                              <Edit className="h-3.5 w-3.5" /> Edit
+                            </button>
+                            <button
+                              onClick={() => setPendingDelete(item)}
+                              aria-label={`Delete ${item.projectName || item.name}`}
+                              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-sm font-semibold text-rose-600 hover:bg-rose-50 hover:underline"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
