@@ -68,13 +68,19 @@ maintenance `Scheduled/In Progress/Completed/Deferred` ↔ `scheduled/in_progres
   return 401 ✅, DB RPCs verified via SQL (`resolve_login_email`, `verify_master_code`,
   profile↔auth id match ✅). Seeded account passwords are whatever was set when the
   Auth users were created (not visible to me) — reset via Supabase Dashboard if unknown.
-- Annual follow-up auto-inspections + annual validation entries (SQLite behaviour)
-  have **no table in Supabase** yet — the API now rejects annual-validation-year
-  submissions with an explanatory 400, and no annual inspections are auto-created.
-- App attachments (base64 dataUrls) are **not** uploaded to the `wblrms-files`
-  Storage bucket / `attachments` table yet.
-- AI recommendations are not persisted to `ai_analysis_runs`/`ai_priority_results`
-  yet (still localStorage, as before); `/api/ai-priority` just gained the auth check.
+- ~~Annual follow-up auto-inspections + annual validation entries~~ — **done
+  2026-11-09 (Phase 2.1)**: migration `annual_validation_entries_and_followup_year`
+  added `annual_validation_entries` (+ RLS) and `inspections.annual_follow_up_year`;
+  `ensureAnnualFollowUps()` in `supabase-data.ts` regenerates due entries/follow-ups
+  on list reads, and annual-validation submissions are stored (no more 400).
+- ~~App attachments not uploaded to Storage~~ — **done 2026-11-09 (Phase 2.2)**:
+  project/inspection files are decoded server-side, uploaded to the `wblrms-files`
+  bucket, recorded in `attachments`, and returned as 1-hour signed URLs.
+  Limitation: removing an already-stored file in the form does not delete it yet.
+- ~~AI recommendations not persisted~~ — **done 2026-11-09 (Phase 2.3)**: POST
+  `/api/ai-priority` saves the run to `ai_analysis_runs`/`ai_priority_results`
+  (best-effort); GET returns the latest saved run, which `App.tsx` prefers over
+  the localStorage fallback.
 - `role_module_access` table is not yet consumed — the UI still uses its built-in
   role→module map in `App.tsx`.
 - RLS duplicate-policy cleanup (see `SUPABASE-CHECK-2026-11-09.md` #6) not done.
