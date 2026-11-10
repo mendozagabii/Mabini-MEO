@@ -1,10 +1,11 @@
 // @mine — rewritten for Supabase (was SQLite). App "road" records are
 // projects joined to roads; see src/lib/supabase-data.ts for the mapping.
 import { NextResponse } from 'next/server';
+import { validationTask, type ValidationProject } from '@/lib/project-validation-workflow';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveRoad, listArchivedRoads, listRoads,
-  permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, saveRoad, type StoredRecord,
+  permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, saveInitialValidation, saveRoad, type StoredRecord,
 } from '@/lib/supabase-data';
 
 export const runtime = 'nodejs';
@@ -82,17 +83,26 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // @mine — annual validation entries are now stored in
-    // public.annual_validation_entries (Phase 2.1); the project itself is untouched.
-    if (payload.annualValidationYear !== undefined) {
-      const year = Number(payload.annualValidationYear);
-      if (!Number.isInteger(year)) {
-        return NextResponse.json({ message: 'A valid annual validation year is required.' }, { status: 400 });
+    if (auth.profile.roleDb === 'validator') {
+      const task = validationTask(current as unknown as ValidationProject);
+      const year = payload.annualValidationYear;
+      if (!task || (task.year === undefined ? year !== undefined : year !== task.year)) {
+        return NextResponse.json({ message: 'This validation is not currently due. Refresh the project list and try again.' }, { status: 409 });
       }
-      await saveAnnualValidation(auth.db, payload.id, year, String(payload.validationResult), String(payload.validationRemarks), auth.userId);
-      await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Annual Validation Saved', details: `Saved ${year} annual validation for project ${String(current.projectName || current.name || payload.id)}` });
-      const [updated] = (await listRoads(auth.db, auth.admin)).filter((road) => road.id === payload.id);
-      return withRefresh(NextResponse.json({ success: true, data: updated ?? current }), auth);
+      const result = String(payload.validationResult);
+      const remarks = String(payload.validationRemarks);
+      if (task.year !== undefined) {
+        await saveAnnualValidation(auth.db, payload.id, task.year, result, remarks, auth.userId);
+      } else {
+        // Scoped service-role update: only these two validation columns, after role and eligibility checks.
+        await saveInitialValidation(auth.admin, payload.id, result, remarks);
+      }
+      await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Validation Saved', details: `Saved ${task.year ? `${task.year} annual` : 'initial'} validation for project ${String(current.projectName || current.name || payload.id)}` });
+      let updated: StoredRecord | undefined;
+      try { updated = (await listRoads(auth.db, auth.admin)).find((road) => road.id === payload.id); }
+      catch (error) { console.error('Validation saved but refresh failed.', error); }
+      if (!updated) return NextResponse.json({ message: 'Validation was saved, but the project could not be reloaded. Please refresh.' }, { status: 500 });
+      return withRefresh(NextResponse.json({ success: true, data: updated }), auth);
     }
 
     const saved = await saveRoad(auth.db, { ...current, ...payload, id: current.id }, auth.userId);

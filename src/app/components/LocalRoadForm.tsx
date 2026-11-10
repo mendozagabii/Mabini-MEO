@@ -198,7 +198,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     ].find(([, value]) => !hasFourDigitYear(value));
     const invalidCurrency = [
       ['Appropriation', formData.appropriation], ['Contracted Amount', formData.contractedAmount],
-      ['Adjust Project Cost', formData.adjustProjectCost],
+      ['Actual Project Cost', formData.adjustProjectCost],
     ].find(([, value]) => !isValidProjectCurrency(value));
     const invalidField = invalidDate || invalidCurrency;
     if (invalidField) {
@@ -750,14 +750,14 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Adjust Project Cost *
+                  Actual Project Cost *
                 </label>
                 <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0ea5e9]">
                   <span className="px-4 py-3 bg-gray-100 text-gray-700 font-medium">Php</span>
                   <input
                     type="text"
                     inputMode="decimal"
-                    data-field="Adjust Project Cost"
+                    data-field="Actual Project Cost"
                     value={formData.adjustProjectCost}
                     onChange={(e) => handleCurrencyChange('adjustProjectCost', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"

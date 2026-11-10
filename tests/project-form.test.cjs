@@ -33,6 +33,7 @@ global.fetch = async (url, options) => {
 };
 const { LocalRoadForm } = loadTs('src/app/components/LocalRoadForm.tsx', {
   './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
+  '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
   '@/lib/project-form-validation': validation,
   '@/lib/attachment-validation': attachmentValidation,
   '@/lib/project-save-delay': { startProjectSaveDelay: () => startDelay() },
@@ -63,7 +64,7 @@ async function fill() {
     'Location': 'Mabini', 'Date Started': '2026-01-01', 'Target Completion Date': '2026-02-01', 'Actual Completion Date': '2026-02-01',
     'Road Network ID No.': '1', 'Barangay': 'Mabini', 'Components': 'Road', 'Description': 'Road works',
     'Contractor Name': 'Company', 'Contractor Address': 'Address', 'Contact Information': '123', 'PCAD License No.': 'ABC',
-    'Source of Funds': 'Municipal', 'Appropriation': '1234.56', 'Contracted Amount': '1000.25', 'Adjust Project Cost': '999.99',
+    'Source of Funds': 'Municipal', 'Appropriation': '1234.56', 'Contracted Amount': '1000.25', 'Actual Project Cost': '999.99',
     'Completion Date': '2026-02-01', 'Completion Percentage': '100', 'Turnover and Acceptance Date': '2026-02-02',
   })) await change(name, value);
 }
@@ -121,7 +122,7 @@ test('form has only a turnover attachment and bounds all date inputs', async () 
 test('each editable project field blocks submission when empty', async () => {
   let saved; await act(async () => root.render(null)); await render(value => { saved = value; });
   await fill(); await file();
-  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Road Network ID No.', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Contact Information', 'PCAD License No.', 'Source of Funds', 'Appropriation', 'Contracted Amount', 'Adjust Project Cost', 'Completion Date', 'Completion Percentage', 'Turnover and Acceptance Date'];
+  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Road Network ID No.', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Contact Information', 'PCAD License No.', 'Source of Funds', 'Appropriation', 'Contracted Amount', 'Actual Project Cost', 'Completion Date', 'Completion Percentage', 'Turnover and Acceptance Date'];
   for (const name of names) {
     const old = field(name).value;
     await change(name, ''); await submit();
@@ -232,7 +233,7 @@ test('editing saved monetary values groups commas, preserves decimals and submit
   await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
   assert.equal(field('Appropriation').value, '1,234,567.89');
   assert.equal(field('Contracted Amount').value, '1,000.25');
-  assert.equal(field('Adjust Project Cost').value, '0.50');
+  assert.equal(field('Actual Project Cost').value, '0.50');
   await submit();
   assert.equal(saved.appropriation, '1234567.89');
   assert.equal(saved.contractedAmount, '1000.25');
@@ -266,7 +267,8 @@ test('project details and printed financial information group saved values', asy
     './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
     '@/lib/activity-log-client': { recordClientActivity: async () => {} },
-    '@/lib/project-form-validation': validation,
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+  '@/lib/project-form-validation': validation,
   });
   const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good',
     appropriation: '1234567.89', contractedAmount: '1,000.25', adjustProjectCost: '0.50' };
@@ -281,7 +283,7 @@ test('project details and printed financial information group saved values', asy
   const fields = sections.flatMap(section => section.fields);
   assert.equal(fields.find(field => field.label === 'Appropriation').value, 'Php 1,234,567.89');
   assert.equal(fields.find(field => field.label === 'Contracted Amount').value, 'Php 1,000.25');
-  assert.equal(fields.find(field => field.label === 'Adjust Project Cost').value, 'Php 0.50');
+  assert.equal(fields.find(field => field.label === 'Actual Project Cost').value, 'Php 0.50');
 });
 
 test('whole peso values retain .00 in editing, saving, viewing and printing', async () => {
@@ -290,9 +292,9 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
     appropriation: '10000', contractedAmount: '10000.0', adjustProjectCost: '10000.00',
     attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] };
   await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
-  for (const name of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) assert.equal(field(name).value, '10,000.00');
+  for (const name of ['Appropriation', 'Contracted Amount', 'Actual Project Cost']) assert.equal(field(name).value, '10,000.00');
   await fill();
-  for (const name of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) await change(name, '10,000.00');
+  for (const name of ['Appropriation', 'Contracted Amount', 'Actual Project Cost']) await change(name, '10,000.00');
   await submit();
   assert.equal(saved.appropriation, '10000.00'); assert.equal(saved.contractedAmount, '10000.00'); assert.equal(saved.adjustProjectCost, '10000.00');
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
@@ -301,7 +303,8 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
   const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
     './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
-    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-form-validation': validation,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+  '@/lib/project-form-validation': validation,
   });
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
@@ -309,7 +312,7 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
   assert.equal((container.textContent.match(/Php 10,000\.00/g) || []).length, 3);
   await act(async () => [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
   const fields = sections.flatMap(section => section.fields);
-  for (const label of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
+  for (const label of ['Appropriation', 'Contracted Amount', 'Actual Project Cost']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
 });
 
 for (const editing of [false, true]) {

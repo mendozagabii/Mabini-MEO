@@ -78,6 +78,14 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Project validation and revision workflow
+
+- Rename the displayed project cost to Actual Project Cost without changing its stored column.
+- Show due initial and annual validations from 30 days before the actual completion date and anniversaries; handle overdue years in order, and preserve returned work for validator updates.
+- Display the latest decision and remarks and an encoder-only Revision badge; keep those fields independent of encoder edits. Refresh project lists on module entry, focus, and periodically.
+- Save initial validation with a narrowly scoped service-role update after server-side role, input and due-task checks; update existing annual entries through validator RLS and detect denied or missing updates. Surface annual generation/read errors instead of silently hiding projects.
+- Local automated tests exercise dates, annual backlog, role restrictions, badge, and validation writes. No database migration or live test was performed; preview shares the live database and reads can generate annual records.
+
 ### 2026-11-10 — [mine] Undo multi-barangay location task
 - **What & why:** Reverted the location filter, persistence guard, tests and unapplied migration at the user's request. Earlier currency and save-progress changes remain intact.
 - **Verification:** 42 local tests and TypeScript passed. The location migration was never applied; no database changes were made.

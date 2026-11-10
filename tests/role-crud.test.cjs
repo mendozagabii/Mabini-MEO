@@ -38,7 +38,7 @@ const data = {
   archiveMaintenance: async () => (calls.push('maintenance'), true),
   addActivityLog: async () => {},
 };
-const mocks = { '@/lib/api': api, '@/lib/supabase-data': data, 'next/server': { NextResponse: { json: (body, init) => response(init?.status ?? 200, body) } } };
+const mocks = { '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts', {}), '@/lib/api': api, '@/lib/supabase-data': data, 'next/server': { NextResponse: { json: (body, init) => response(init?.status ?? 200, body) } } };
 const routes = Object.fromEntries(['local-road', 'maintenance', 'inspections'].map((name) => [name, loadTs(`src/app/api/${name}/route.ts`, mocks)]));
 function request(body = {}, query = '') { return { url: `https://example.test/api?${query}`, json: async () => body }; }
 
@@ -111,6 +111,7 @@ const ui = new Proxy({}, { get: () => Dummy });
 const componentMocks = {
   './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
   '@/lib/activity-log-client': { recordClientActivity() {} },
+  '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
   '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}),
   '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts', {}),
 };

@@ -230,7 +230,8 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     .select('id, actual_completion_date, completion_date')
     .is('archived_at', null)
     .not('actual_completion_date', 'is', null);
-  if (error || !projects?.length) return;
+  if (error) throw error;
+  if (!projects?.length) return;
 
   for (const project of projects as Joined[]) {
     const completed = str(project.actual_completion_date || project.completion_date);
@@ -244,18 +245,19 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     }
     if (!dueYears.length) continue;
 
-    const [{ data: entries }, { data: followUps }] = await Promise.all([
+    const [{ data: entries, error: entriesError }, { data: followUps }] = await Promise.all([
       db.from('annual_validation_entries').select('year').eq('project_id', project.id),
       db.from('inspections').select('annual_follow_up_year').eq('project_id', project.id).eq('inspection_type', 'follow_up').not('annual_follow_up_year', 'is', null),
     ]);
+    if (entriesError) throw entriesError;
     const haveEntries = new Set((entries ?? []).map((e: Joined) => e.year));
     const haveFollowUps = new Set((followUps ?? []).map((e: Joined) => e.annual_follow_up_year));
 
     for (const { year, dueDate } of dueYears) {
       if (!haveEntries.has(year)) {
-        await writer.from('annual_validation_entries')
-          .insert({ project_id: project.id, year, due_date: dueDate, result: 'pending' })
-          .then(undefined, () => undefined);
+        const { error: insertError } = await writer.from('annual_validation_entries')
+          .upsert({ project_id: project.id, year, due_date: dueDate, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
+        if (insertError) throw insertError;
       }
       if (!haveFollowUps.has(year)) {
         await writer.from('inspections')
@@ -277,11 +279,12 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
 async function attachRoadExtras(db: SupabaseClient, records: StoredRecord[]): Promise<StoredRecord[]> {
   if (!records.length) return records;
   const ids = records.map((r) => r.id);
-  const [{ data: entryRows }, { data: followRows }, { data: attachRows }] = await Promise.all([
+  const [{ data: entryRows, error: entriesError }, { data: followRows }, { data: attachRows }] = await Promise.all([
     db.from('annual_validation_entries').select('*').in('project_id', ids).order('year'),
     db.from('inspections').select('project_id, annual_follow_up_year').in('project_id', ids).eq('inspection_type', 'follow_up').not('annual_follow_up_year', 'is', null),
     db.from('attachments').select('*').in('project_id', ids).order('created_at'),
   ]);
+  if (entriesError) throw entriesError;
   const signedByProject = new Map<string, StoredRecord[]>();
   for (const row of (attachRows ?? []) as Joined[]) {
     const mapped = await mapAttachmentRow(db, row);
@@ -307,7 +310,7 @@ async function attachRoadExtras(db: SupabaseClient, records: StoredRecord[]): Pr
 }
 
 export async function listRoads(db: SupabaseClient, admin?: SupabaseClient): Promise<StoredRecord[]> {
-  await ensureAnnualFollowUps(db, admin).catch(() => undefined);
+  await ensureAnnualFollowUps(db, admin);
   const { data, error } = await db.from('projects').select(PROJECT_SELECT).is('archived_at', null).order('created_at', { ascending: false });
   if (error) throw error;
   return attachRoadExtras(db, (data ?? []).map(mapProject));
@@ -328,18 +331,21 @@ export async function saveAnnualValidation(
   remarks: string,
   userId: string,
 ): Promise<void> {
-  const { error } = await db.from('annual_validation_entries').upsert(
-    {
-      project_id: projectId,
-      year,
-      result: VALIDATION_TO_DB[result] ?? 'pending',
-      remarks: remarks || null,
-      validated_by: userId,
-      validated_at: new Date().toISOString(),
-    },
-    { onConflict: 'project_id,year' },
-  );
+  const { data, error } = await db.from('annual_validation_entries').update({
+    result: VALIDATION_TO_DB[result], remarks: remarks.trim(),
+    validated_by: userId, validated_at: new Date().toISOString(),
+  }).eq('project_id', projectId).eq('year', year).select('id').maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Could not update this annual validation.');
+}
+
+/** Only called after the API has checked the authenticated validator and eligible project. */
+export async function saveInitialValidation(admin: SupabaseClient, projectId: string, result: string, remarks: string): Promise<void> {
+  const { data, error } = await admin.from('projects')
+    .update({ validation_status: VALIDATION_TO_DB[result], validation_remarks: remarks.trim() })
+    .eq('id', projectId).is('archived_at', null).select('id').maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Could not update this project validation.');
 }
 
 async function resolveBarangayId(db: SupabaseClient, name: string): Promise<number | null> {
@@ -462,12 +468,7 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     completion_date: str(rec.completionDate) || null,
     completion_percentage: Number(rec.completionPercentage ?? 0) || 0,
     turnover_date: str(rec.turnoverDate) || null,
-    ...(rec.validationResult
-      ? {
-          validation_status: VALIDATION_TO_DB[str(rec.validationResult)] ?? 'pending',
-          validation_remarks: str(rec.validationRemarks) || null,
-        }
-      : {}),
+
   };
 
   let projectId = existing?.id as string | undefined;

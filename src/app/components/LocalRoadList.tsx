@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
+import { latestValidation, validationTask } from '@/lib/project-validation-workflow';
 import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
@@ -78,7 +79,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole) && !validationMode;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocation, setFilterLocation] = useState('All');
-  const [selectedItem, setSelectedItem] = useState<LocalRoad | null>(null);
+  const [selectedSnapshot, setSelectedItem] = useState<LocalRoad | null>(null);
+  const selectedItem = selectedSnapshot ? data.find(item => item.id === selectedSnapshot.id) ?? selectedSnapshot : null;
   const [pendingDelete, setPendingDelete] = useState<LocalRoad | null>(null);
   const [selectedAttachment, setSelectedAttachment] = useState<ProjectAttachment | null>(null);
   const [validationResult, setValidationResult] = useState<'Validated' | 'Return for Revision' | ''>('');
@@ -132,7 +134,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Source of Funds', value: item.sourceOfFunds, width: 'full' },
           { label: 'Appropriation', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'third' },
           { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: 'third' },
-          { label: 'Adjust Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' },
+          { label: 'Actual Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' },
         ],
       },
       {
@@ -143,8 +145,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Turnover and Acceptance Date', value: item.turnoverDate, width: 'third' },
           { label: 'Condition', value: item.condition },
           { label: 'Last Inspection', value: item.lastInspection },
-          { label: 'Validation Result', value: item.validationResult || 'Pending validation' },
-          { label: 'Validation Remarks', value: item.validationRemarks },
+          { label: 'Validation Result', value: latestValidation(item).result || 'Pending validation' },
+          { label: 'Validation Remarks', value: latestValidation(item).remarks },
         ],
       },
     ]);
@@ -154,22 +156,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesLocation = filterLocation === 'All' || item.location === filterLocation;
-    const latestAnnualEntry = [...(item.annualValidationEntries ?? [])]
-      .sort((a, b) => b.year - a.year)[0];
-    const hasPendingAnnualValidation = latestAnnualEntry?.result === 'Pending' ||
-      latestAnnualEntry?.result === 'Return for Revision';
-    const completionDate = item.actualCompletionDate
-      ? new Date(`${item.actualCompletionDate}T00:00:00.000Z`)
-      : null;
-    const validationOpensOn = completionDate && Number.isFinite(completionDate.getTime())
-      ? new Date(completionDate.getTime() - 30 * 24 * 60 * 60 * 1000)
-      : null;
-    const today = new Date();
-    const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-    const isWithinValidationWindow = validationOpensOn !== null && todayUtc >= validationOpensOn.getTime();
-    const isEligibleForValidation = !validationMode ||
-      hasPendingAnnualValidation ||
-      (isWithinValidationWindow && item.validationResult !== 'Validated');
+    const isEligibleForValidation = !validationMode || validationTask(item) !== null;
     return matchesSearch && matchesLocation && isEligibleForValidation;
   });
 
@@ -331,7 +318,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.contractedAmount) || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Adjust Project Cost *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Actual Project Cost *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.adjustProjectCost) || 'N/A'}</p>
             </div>
             </div>
@@ -407,12 +394,12 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             </div>
             <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Validation Result</p>
-              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.validationResult || 'Pending validation'}</p>
+              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{latestValidation(selectedItem).result || 'Pending validation'}</p>
             </div>
             <div className="md:col-span-2">
               <p className="mb-2 text-sm font-medium text-gray-700">Validation Remarks</p>
               <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
-                {selectedItem.validationRemarks || 'N/A'}
+                {latestValidation(selectedItem).remarks || 'N/A'}
               </p>
             </div>
             </div>
@@ -580,14 +567,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredData.map(item => {
-                  const latestAnnualEntry = [...(item.annualValidationEntries ?? [])]
-                    .sort((a, b) => b.year - a.year)[0];
-                  const activeAnnualEntry = latestAnnualEntry && latestAnnualEntry.result !== 'Validated'
-                    ? latestAnnualEntry
-                    : undefined;
-                  const status = activeAnnualEntry?.result === 'Pending'
-                    ? 'Pending'
-                    : activeAnnualEntry?.result || item.validationResult || 'Pending';
+                  const task = validationTask(item);
+                  const status = task?.result || 'Pending';
                   return (
                   <tr
                     key={item.id}
@@ -595,17 +576,17 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     aria-label={`Open validation form for ${item.name}`}
                     onClick={() => {
                       setSelectedItem(item);
-                      setSelectedValidationYear(activeAnnualEntry?.year ?? null);
-                      setValidationResult(activeAnnualEntry?.result === 'Pending' ? '' : activeAnnualEntry?.result || item.validationResult || '');
-                      setValidationRemarks(activeAnnualEntry?.remarks || item.validationRemarks || '');
+                      setSelectedValidationYear(task?.year ?? null);
+                      setValidationResult(task?.result || '');
+                      setValidationRemarks(task?.remarks || '');
                     }}
                     onKeyDown={(event) => {
                       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
                         event.preventDefault();
                         setSelectedItem(item);
-                        setSelectedValidationYear(activeAnnualEntry?.year ?? null);
-                        setValidationResult(activeAnnualEntry?.result === 'Pending' ? '' : activeAnnualEntry?.result || item.validationResult || '');
-                        setValidationRemarks(activeAnnualEntry?.remarks || item.validationRemarks || '');
+                        setSelectedValidationYear(task?.year ?? null);
+                        setValidationResult(task?.result || '');
+                        setValidationRemarks(task?.remarks || '');
                       }
                     }}
                     className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400"
@@ -621,9 +602,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         status === 'Return for Revision' ? 'bg-amber-100 text-amber-800' :
                         'bg-gray-100 text-gray-700'
                       }`}>
-                        {status}{activeAnnualEntry ? ` · Annual ${activeAnnualEntry.year}` : ''}
+                        {status}{task?.year ? ` · Annual ${task.year}` : ''}
                       </span>
-                      {activeAnnualEntry && <p className="mt-1 text-xs text-slate-500">Due {activeAnnualEntry.dueDate}</p>}
+                      {task?.year && <p className="mt-1 text-xs text-slate-500">Due {task.dueDate}</p>}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
@@ -674,6 +655,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         Inspection: {item.lastInspection || 'Not recorded'}
                       </span>
                       <div className="flex shrink-0 items-center gap-3">
+                        {userRole === 'Staff - Encoder' && latestValidation(item).result === 'Return for Revision' && (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Revision</span>
+                        )}
                         {!isAdminReadDeleteOnly && (
                           <button
                             type="button"
