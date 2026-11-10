@@ -78,6 +78,14 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Fixed password reset: every link reported "invalid or expired"
+- **Type:** Modified (API route rewrite + reset page)
+- **Files:** `src/app/api/auth/reset-password/route.ts`, `src/app/reset-password/page.tsx`, `MY-CHANGES.md` (this entry)
+- **What & why:** A freshly sent reset link always failed with *"This password reset link is invalid or has expired."* Root cause is in the library, not the link: the route built `createUserClient(accessToken)` (anon key + `global.headers.Authorization`) and called `auth.updateUser()`, but gotrue-js 2.119 resolves that call through `_useSession()` and throws `AuthSessionMissingError` whenever no session is stored — `persistSession: false` guarantees that. The token was therefore never used, so the age of the link was irrelevant. Fix: resolve the recovery JWT with `anon.auth.getUser(accessToken)` (it accepts an explicit JWT), then set the password with the service-role client via `admin.auth.admin.updateUserById(id, { password })`; the PKCE `?code=` path does the same after `exchangeCodeForSession`. Errors are no longer collapsed into one message: a bad/consumed token is 401, a genuine failure is 500. The page now also surfaces GoTrue's own `#error_code=otp_expired&error_description=…` hash (previously swallowed, leaving a dead form), explains a link with no token at all, and the minimum password is 8 characters in both the input and the route (was 6, inconsistent with the rest of the app).
+- **Verified:** `npx tsc --noEmit` ✅ · `npm run build` ✅ · default `flowType` confirmed `implicit` and `_updateUser` session requirement read from `node_modules/@supabase/auth-js/dist/main/GoTrueClient.js`
+- **Status:** ✅ Kept — needs a merge + redeploy
+- **Original code affected:** both files are already `@mine` (migrated), not baseline
+
 ### 2026-11-10 — [mine] Fixed account editing: e-mail and password now reach the Supabase Auth identity
 - **Type:** Modified (API route `PATCH` + user-management form)
 - **Files:** `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)
