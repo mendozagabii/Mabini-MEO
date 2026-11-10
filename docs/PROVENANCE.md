@@ -2,7 +2,7 @@
 
 # 🧾 PROVENANCE — what is inherited vs. what is mine
 
-Generated from git on **2026-11-10** · baseline `ce9a474` → `0c2ad43`
+Generated from git on **2026-11-10** · baseline `ce9a474` · every row below is verifiable with git
 
 > **Inherited** = present in the baseline commit `ce9a474` ("Add files via upload",
 > Jeicel Mae A. Ortega) and **not** touched by me.
@@ -34,7 +34,7 @@ git diff ce9a474 HEAD -- <file>      # the actual lines
 grep -rn "@mine" src/                # markers inside the code I wrote/edited
 ```
 
-**[Full diff on GitHub: baseline → now](https://github.com/mendozagabii/Mabini-MEO/compare/$short_base...$short_head)**
+**[Full diff on GitHub: baseline → main](https://github.com/mendozagabii/Mabini-MEO/compare/ce9a474...main)**
 
 ---
 
@@ -65,7 +65,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | `docs/BASELINE.md` | added | +43 / -0 | Baseline snapshot taken 2026-11-09: the inherited repo (107 files) before any of my changes. |
 | `docs/DEMO-DATA-PLAN.md` | added | +88 / -0 | PREP ONLY (2026-11-09). Nothing in Supabase has been deleted or inserted yet. |
 | `docs/EMAIL-TEMPLATES.md` | added | +80 / -0 | Created 2026-11-09. Custom Supabase Auth email templates for Mabini MEO. |
-| `docs/PROVENANCE.md` | added | +289 / -0 | this generated report |
+| `docs/PROVENANCE.md` | added | (this file) | this generated report |
 | `docs/SUPABASE-CHECK-2026-11-09.md` | added | +80 / -0 | Supabase inspection by me on 2026-11-09. Read-only; nothing in Supabase was changed. |
 | `docs/SUPABASE-MIGRATION.md` | added | +111 / -0 | SQLite -> Supabase migration, done 2026-11-09. Login page design unchanged. |
 | `docs/baseline-files.txt` | added | +107 / -0 | — |
@@ -76,7 +76,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +188 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +195 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -91,7 +91,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.githooks/pre-commit` | added | +8 / -0 | Pre-commit guard: refuse a commit that changes code without a MY-CHANGES.md … |
 | `scripts/check-changelog.sh` | added | +110 / -0 | Guard: no code adjustment is "done" until MY-CHANGES.md documents it. … |
-| `scripts/gen-provenance.sh` | added | +265 / -0 | Generate docs/PROVENANCE.md: a file-by-file map of "inherited vs mine". … |
+| `scripts/gen-provenance.sh` | added | +263 / -0 | Generate docs/PROVENANCE.md: a file-by-file map of "inherited vs mine". … |
 | `scripts/log-change.sh` | added | +159 / -0 | Append a MY-CHANGES.md entry automatically from what is in the working tree. … |
 | `scripts/my-diff.sh` | added | +59 / -0 | Show everything I changed vs the inherited baseline commit. … |
 | `scripts/setup-hooks.sh` | added | +31 / -0 | Turn the "log every change" rule on (or off) for this clone. … |
@@ -276,14 +276,15 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 ### My commits (everything after the baseline, merges excluded)
 
-| Commit | Date | Subject | Files |
-|---|---|---|---:|
-| `d7dca29` | 2026-11-09 | [mine] Supabase migration + Vercel env vars documented (see docs/SUPABASE-MIGRATION.md) | 30 |
-| `d021c83` | 2026-11-09 | [mine] Log PR #1 opening in MY-CHANGES.md | 1 |
-| `3bc5118` | 2026-11-09 | [mine] Prep demo-data cleanup plan + seed script (not executed); log AI status | 3 |
-| `85e8df0` | 2026-11-10 | [mine] Add custom Supabase email templates doc | 2 |
-| `9e0c949` | 2026-11-10 | [mine] Phase 2: annual validation + Storage attachments + AI run persistence | 10 |
-| `0c2ad43` | 2026-11-10 | [mine] Add change-tracking toolkit: provenance report, auto log entry, commit guard | 11 |
+| Date | Subject | Files |
+|---|---|---:|
+| 2026-11-09 | [mine] Supabase migration + Vercel env vars documented (see docs/SUPABASE-MIGRATION.md) | 30 |
+| 2026-11-09 | [mine] Log PR #1 opening in MY-CHANGES.md | 1 |
+| 2026-11-09 | [mine] Prep demo-data cleanup plan + seed script (not executed); log AI status | 3 |
+| 2026-11-10 | [mine] Add custom Supabase email templates doc | 2 |
+| 2026-11-10 | [mine] Phase 2: annual validation + Storage attachments + AI run persistence | 10 |
+| 2026-11-10 | [mine] Add change-tracking toolkit: provenance report, auto log entry, commit guard | 11 |
+| 2026-11-10 | [mine] Toolkit refinements: stable provenance regeneration + @mine markers | 3 |
 
 ---
 

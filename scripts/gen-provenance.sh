@@ -88,6 +88,8 @@ note_of() {
 while IFS=$'\t' read -r add del path; do
   [ -n "${path:-}" ] || continue
   if [ "$add" = "-" ]; then delta="binary"; else delta="+$add / -$del"; fi
+  # the report's own row would change its own line count on every regeneration
+  [ "$path" = "docs/PROVENANCE.md" ] && delta="(this file)"
   if grep -Fxq -- "$path" "$tmp/base.txt"; then
     if grep -Fxq -- "$path" "$tmp/head.txt"; then kind="modified"; else kind="deleted"; fi
   else
@@ -118,7 +120,6 @@ n_modified=$(count_of modified)
 n_deleted=$(count_of deleted)
 n_untouched=$(wc -l < "$tmp/untouched.txt" | tr -d ' ')
 short_base="$(git rev-parse --short "$BASELINE")"
-short_head="$(git rev-parse --short "$HEAD_REF^{commit}")"
 today="$(date -u +%Y-%m-%d)"
 
 # --- write the report ------------------------------------------------------
@@ -129,7 +130,7 @@ cat <<EOF
 
 # 🧾 PROVENANCE — what is inherited vs. what is mine
 
-Generated from git on **$today** · baseline \`$short_base\` → \`$short_head\`
+Generated from git on **$today** · baseline \`$short_base\` · every row below is verifiable with git
 
 > **Inherited** = present in the baseline commit \`ce9a474\` ("Add files via upload",
 > Jeicel Mae A. Ortega) and **not** touched by me.
@@ -162,11 +163,8 @@ git diff ce9a474 HEAD -- <file>      # the actual lines
 grep -rn "@mine" src/                # markers inside the code I wrote/edited
 ```
 
-**[Full diff on GitHub: baseline → now](https://github.com/mendozagabii/Mabini-MEO/compare/$short_base...$short_head)**
-
----
-
 EOF
+printf '**[Full diff on GitHub: baseline → main](https://github.com/mendozagabii/Mabini-MEO/compare/%s...main)**\n\n---\n\n' "$short_base"
 
 if [ "$n_added" -gt 0 ]; then
 cat <<EOF
@@ -245,13 +243,13 @@ cat <<'EOF'
 
 ### My commits (everything after the baseline, merges excluded)
 
-| Commit | Date | Subject | Files |
-|---|---|---|---:|
+| Date | Subject | Files |
+|---|---|---:|
 EOF
 
 git log --no-merges --reverse --format='%h|%ad|%s' --date=short "$BASELINE".."$HEAD_REF" | while IFS='|' read -r h d s; do
   nf=$(git show --pretty=format: --name-only "$h" | grep -c . || true)
-  printf '| `%s` | %s | %s | %s |\n' "$h" "$d" "${s//|/\\|}" "$nf"
+  printf '| %s | %s | %s |\n' "$d" "${s//|/\\|}" "$nf"
 done
 
 cat <<EOF

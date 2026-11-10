@@ -20,12 +20,12 @@
 | Inherited baseline | `ce9a474` — "Add files via upload", Jeicel Mae A. Ortega (2026-11-09), 107 files |
 | My work merged into `main` | PR [#1](https://github.com/mendozagabii/Mabini-MEO/pull/1) → `8fe2830`, PR [#2](https://github.com/mendozagabii/Mabini-MEO/pull/2) → `427be76` |
 | Working branch for new work | `arena/08607812-mabini-meo` |
-| Repo today | 125 tracked files = 89 inherited **untouched** + 18 **added by me** + 18 **modified by me** (+0 deleted) |
+| Repo today (2026-11-10) | 131 tracked files = 89 inherited **untouched** + 24 **added by me** + 18 **modified by me** (+0 deleted) |
 | Original files removed | none — the original author's tree is intact |
 
-The 36 files I ever touched, with line counts, are listed at the bottom of
-[`docs/PROVENANCE.md`](docs/PROVENANCE.md) and can be re-derived any time with
-[`scripts/my-diff.sh`](scripts/my-diff.sh).
+The 42 files I ever touched, with line counts, are listed file-by-file in
+[`docs/PROVENANCE.md`](docs/PROVENANCE.md) (regenerate with `./scripts/gen-provenance.sh`)
+and can be re-derived any time with [`scripts/my-diff.sh`](scripts/my-diff.sh).
 
 ## 🔍 How to tell what's mine (4 ways)
 
@@ -77,10 +77,17 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Toolkit refinements: stable provenance regeneration + @mine markers on the two edited components
+- **Type:** Modified
+- **Files:** `docs/PROVENANCE.md` (modified), `scripts/gen-provenance.sh` (modified)
+- **What & why:** Made docs/PROVENANCE.md byte-identical on every regeneration (it no longer embeds a commit hash of the commit that carries it), cleaned how the @mine note is read (comment syntax, continuation ellipsis, exceptions for package.json / this log), stopped the report's own row from reporting its own line count (which made every regeneration differ by one line), and added explicit @mine markers to the two inherited components that only gained a type field (LocalRoadForm/`LocalRoadList`).
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-10 — [mine] Change-tracking toolkit (provenance map, auto-entry, commit guard)
 - **Type:** Added (tooling) / Docs + a small edit to this file's structure
 - **Files:** `docs/PROVENANCE.md` (new, generated), `scripts/gen-provenance.sh` (new), `scripts/log-change.sh` (new), `scripts/check-changelog.sh` (new), `.githooks/pre-commit` (new), `scripts/setup-hooks.sh` (new), `scripts/my-diff.sh` (extended), `MY-CHANGES.md` (restructured: status block + workflow + `NEW-ENTRY-MARKER`)
-- **What & why:** Turned the manual change log into a system that cannot silently go stale. `gen-provenance.sh` derives a file-by-file "inherited vs mine" report from git + the `@mine` markers (so `docs/PROVENANCE.md` always matches the code); `log-change.sh` writes the next entry from the working tree so logging costs one command; `check-changelog.sh` + the pre-commit hook block any commit that changes code without a log entry. Also refreshed the header: the earlier work is now merged into `main` via PR #1/#2, so the file describes the repo as it stands, not as a pending branch.
+- **What & why:** Turned the manual change log into a system that cannot silently go stale. `gen-provenance.sh` derives a file-by-file "inherited vs mine" report from git + the `@mine` markers (so `docs/PROVENANCE.md` always matches the code); `log-change.sh` writes the next entry from the working tree so logging costs one command; `check-changelog.sh` + the pre-commit hook block any commit that changes code without a log entry. Also refreshed the header: the earlier work is now merged into `main` via PR #1/#2, so the file describes the repo as it stands, not as a pending branch. Header counts were refreshed to the post-toolkit totals (131 / 89 / 24 / 18) at the end of the work, and the GitHub compare link now expands the baseline hash (it was printed literally at first).
 - **Status:** ✅ Kept
 - **Original code affected:** none (no file from the baseline was touched)
 
