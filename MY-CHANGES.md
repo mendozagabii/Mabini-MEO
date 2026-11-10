@@ -20,12 +20,13 @@
 | Inherited baseline | `ce9a474` — "Add files via upload", Jeicel Mae A. Ortega (2026-11-09), 107 files |
 | My work merged into `main` | PR [#1](https://github.com/mendozagabii/Mabini-MEO/pull/1) → `8fe2830`, PR [#2](https://github.com/mendozagabii/Mabini-MEO/pull/2) → `427be76` |
 | Working branch for new work | `arena/08607812-mabini-meo` |
-| Repo today (2026-11-10) | 131 tracked files = 89 inherited **untouched** + 24 **added by me** + 18 **modified by me** (+0 deleted) |
+| Repo today | counts live in [`docs/PROVENANCE.md`](docs/PROVENANCE.md) → *At a glance* (generated from git; never hand-edited) |
 | Original files removed | none — the original author's tree is intact |
 
-The 42 files I ever touched, with line counts, are listed file-by-file in
-[`docs/PROVENANCE.md`](docs/PROVENANCE.md) (regenerate with `./scripts/gen-provenance.sh`)
-and can be re-derived any time with [`scripts/my-diff.sh`](scripts/my-diff.sh).
+Every file I ever touched — added or modified, with `+N/−M` line counts and the `@mine`
+note — is listed file-by-file in [`docs/PROVENANCE.md`](docs/PROVENANCE.md) (regenerate
+with `./scripts/gen-provenance.sh`), and can be re-derived any time with
+[`scripts/my-diff.sh`](scripts/my-diff.sh).
 
 ## 🔍 How to tell what's mine (4 ways)
 
@@ -76,6 +77,28 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 ## 📋 Change Log
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
+
+### 2026-11-10 — [mine] Phase 4 live test kit
+- **Type:** Docs
+- **Files:** `docs/PHASE-4-TEST-PLAN.md` (new), `docs/DEMO-DATA-PLAN.md` (header/status updated), `MY-CHANGES.md` (this entry)
+- **What & why:** Wrote the checklist for the deployed site: which account to use for what (usernames `admin`/`encoder`/`inspector`/`validator`, their e-mails, and the role→module map read from `role_module_access`), the two ways to set the four passwords, then the flows to smoke-test with the exact seeded fixtures to expect — create/edit, inspection (7 components), validation approve/reject, **annual validation (no more 400)**, **attachments through `wblrms-files`**, maintenance statuses — plus the forgot-password and AI-priorities checks and what to capture if something fails. Also flipped the demo-data plan from "waiting for signal" to executed.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-10 — [mine] Phase 3 executed: backup + wipe + seed of the 10 demo datasets
+- **Type:** DB (live Supabase WBLRMS) + script hardening
+- **Files:** `supabase/demo/seed-demo-data.sql` (hardened + notes synced with what ran), `docs/PHASE-STATUS.md` (results + restore SQL), `MY-CHANGES.md` (this entry)
+- **DB (live):** created 11 snapshots `demo_backup_2026_*` (RLS enabled with no policies and `anon`/`authenticated` revoked, so backups are console-only), then wiped the transactional/test tables **except the 4 accounts and the reference data** (barangays, categories, contractors, role access), then seeded 10 roads/projects, 18 inspections with 126 items, 10 maintenance records, 8 progress updates, 1 AI run + 10 AI results — all inside one transaction. The first attempt was rejected by Postgres because `inspection_items.score` is a GENERATED column and rolled back with **zero** data loss (verified counts before/after); the script now omits it. Also switched the backups to `CREATE TABLE IF NOT EXISTS` (first snapshot wins, so a re-run can never overwrite the original) and simplified the UUID helper to `md5(...)::uuid`.
+- **Verified:** roads 10 · projects 10 · inspections 18 · items 126 (7 per inspection) · maintenance 10 · progress 8 · ai runs 1 / results 10 · profiles 4 · barangays 34 · categories 5 · contractors 4 · role access 14 · activity_logs 252 (audit triggers logging the seed). Integrity: 0 orphan projects/inspections, 0 projects without contractor, every non-pending inspection has `validated_by`, all status/condition/risk buckets populated.
+- **Status:** ✅ Kept — backups stay until the demo is signed off (Phase 5.1)
+- **Original code affected:** none (the seed script is my own file)
+
+### 2026-11-10 — [mine] Phase 1 + Phase 2 verified complete against the live dashboards
+- **Type:** Docs (verification only — nothing changed in Vercel, Supabase or the code)
+- **Files:** `docs/PHASE-STATUS.md` (new), `MY-CHANGES.md` (this entry)
+- **What & why:** Owner asked to confirm Phases 1–2 before continuing, so I checked the live systems instead of the notes. **Phase 1:** project `mabini-meo` has `AI_GATEWAY_API_KEY` as three separate sensitive variables (production, preview, development); Supabase Auth has custom SMTP (`smtp.gmail.com:587`, sender "Office of the Municipal Engineer") and the branded recovery template with the subject "Reset your Mabini MEO password"; site URL + redirect allow-list correct, sign-up disabled. **Phase 2:** `annual_validation_entries` exists with 4 RLS policies, `inspections.annual_follow_up_year` exists, bucket `wblrms-files` and the `attachments` table exist, `ai_analysis_runs`/`ai_priority_results` exist and are used by the routes, and the production deployment is READY on commit `427be76` (the Phase 2 merge). One note recorded, not a blocker: the SMTP mailbox is a personal Gmail address and should become an MEO-controlled mailbox before go-live.
+- **Status:** ✅ Kept
+- **Original code affected:** none
 
 ### 2026-11-10 — [mine] Toolkit refinements: stable provenance regeneration + @mine markers on the two edited components
 - **Type:** Modified

@@ -17,9 +17,9 @@ Generated from git on **2026-11-10** · baseline `ce9a474` · every row below is
 
 | | Files | Meaning |
 |---|---:|---|
-| Total tracked now | **131** | everything in the repo |
+| Total tracked now | **133** | everything in the repo |
 | 🟦 Inherited, untouched | **89** | original author's work, byte-for-byte |
-| 🟩 Added by me | **24** | files that did not exist at baseline |
+| 🟩 Added by me | **26** | files that did not exist at baseline |
 | 🟨 Modified by me | **18** | original files I edited (still their file) |
 | 🟥 Deleted by me | **0** | — |
 
@@ -38,7 +38,7 @@ grep -rn "@mine" src/                # markers inside the code I wrote/edited
 
 ---
 
-## 🟩 Added by me (24 files)
+## 🟩 Added by me (26 files)
 
 Files that are entirely mine — safe to treat as "new work", nothing inherited inside them.
 
@@ -63,8 +63,10 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `docs/AUDIT-2026-11-09.md` | added | +72 / -0 | Audit by me on 2026-11-09, of the inherited baseline code. No original code was changed. |
 | `docs/BASELINE.md` | added | +43 / -0 | Baseline snapshot taken 2026-11-09: the inherited repo (107 files) before any of my changes. |
-| `docs/DEMO-DATA-PLAN.md` | added | +88 / -0 | PREP ONLY (2026-11-09). Nothing in Supabase has been deleted or inserted yet. |
+| `docs/DEMO-DATA-PLAN.md` | added | +88 / -0 | EXECUTED 2026-11-10 (Phase 3), after the owner's go signal. |
 | `docs/EMAIL-TEMPLATES.md` | added | +80 / -0 | Created 2026-11-09. Custom Supabase Auth email templates for Mabini MEO. |
+| `docs/PHASE-4-TEST-PLAN.md` | added | +103 / -0 | Phase 4 live-smoke-test kit, written 2026-11-10 against the freshly seeded data. |
+| `docs/PHASE-STATUS.md` | added | +143 / -0 | Phase verification (2026-11-10). Every row below was checked against the live |
 | `docs/PROVENANCE.md` | added | (this file) | this generated report |
 | `docs/SUPABASE-CHECK-2026-11-09.md` | added | +80 / -0 | Supabase inspection by me on 2026-11-09. Read-only; nothing in Supabase was changed. |
 | `docs/SUPABASE-MIGRATION.md` | added | +111 / -0 | SQLite -> Supabase migration, done 2026-11-09. Login page design unchanged. |
@@ -76,13 +78,13 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +195 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +218 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
 | File | Type | Δ lines | Note (from the `@mine` marker) |
 |---|---|---|---|
-| `supabase/demo/seed-demo-data.sql` | added | +204 / -0 | PREPARED 2026-11-09, **DO NOT RUN UNTIL THE OWNER SAYS GO**. … |
+| `supabase/demo/seed-demo-data.sql` | added | +231 / -0 | EXECUTED 2026-11-10 (owner gave the go signal for Phase 3). … |
 | `supabase/migrations/20261109_annual_validation.sql` | added | +31 / -0 | Applied 2026-11-09 via Supabase migration … |
 
 #### Tooling — `scripts/`, `.githooks/`
@@ -285,6 +287,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Phase 2: annual validation + Storage attachments + AI run persistence | 10 |
 | 2026-11-10 | [mine] Add change-tracking toolkit: provenance report, auto log entry, commit guard | 11 |
 | 2026-11-10 | [mine] Toolkit refinements: stable provenance regeneration + @mine markers | 3 |
+| 2026-11-10 | [mine] Phase 1+2 verified, Phase 3 executed (backup + demo seed), Phase 4 test kit | 6 |
 
 ---
 
