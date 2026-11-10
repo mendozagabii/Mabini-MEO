@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { formatProjectCurrency, hasFourDigitYear, isValidProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
@@ -131,7 +130,6 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
 export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormProps) {
   const [activeFormTab, setActiveFormTab] = useState<(typeof localRoadFormTabs)[number]['id']>('project');
   const [formData, setFormData] = useState<ProjectFormData>(() => getInitialFormData(item));
-  const [requiredFieldsError, setRequiredFieldsError] = useState('');
   const [otherCategorySelected, setOtherCategorySelected] = useState(() => Boolean(item?.projectCategory && !projectCategories.includes(item.projectCategory)));
 
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
@@ -168,56 +166,13 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const requiredFields = [
-      { label: 'Project / Program / Activity Name', value: formData.projectName, tab: 'project' },
-      { label: 'Project Category', value: formData.projectCategory, tab: 'project' },
-      { label: 'Project Description', value: formData.projectDescription, tab: 'project' },
-      { label: 'Location', value: formData.location, tab: 'project' },
-      { label: 'Date Started', value: formData.dateStarted, tab: 'project' },
-      { label: 'Target Completion Date', value: formData.targetCompletionDate, tab: 'project' },
-      { label: 'Actual Completion Date', value: formData.actualCompletionDate, tab: 'project' },
-      { label: 'Road Network ID No.', value: formData.roadNetworkId, tab: 'road' },
-      { label: 'Road Name', value: formData.roadName, tab: 'road' },
-      { label: 'Barangay', value: formData.barangay, tab: 'road' },
-      { label: 'Components', value: formData.components, tab: 'road' },
-      { label: 'Description', value: formData.description, tab: 'road' },
-      { label: 'Contractor Name', value: formData.contractorName, tab: 'contractor' },
-      { label: 'Contractor Address', value: formData.contractorAddress, tab: 'contractor' },
-      { label: 'Contact Information', value: formData.contactInformation, tab: 'contractor' },
-      { label: 'PCAD License No.', value: formData.pcadLicenseNo, tab: 'contractor' },
-      { label: 'Source of Funds', value: formData.sourceOfFunds, tab: 'financial' },
-      { label: 'Appropriation', value: formData.appropriation, tab: 'financial' },
-      { label: 'Contracted Amount', value: formData.contractedAmount, tab: 'financial' },
-      { label: 'Adjust Project Cost', value: formData.adjustProjectCost, tab: 'financial' },
-      { label: 'Completion Date', value: formData.completionDate, tab: 'turnover' },
-      { label: 'Completion Percentage', value: formData.completionPercentage, tab: 'turnover' },
-      { label: 'Turnover and Acceptance Date', value: formData.turnoverDate, tab: 'turnover' },
-      { label: 'Turnover Attachment', value: editId || formData.attachments.length || item?.attachments?.some(attachment => attachment.category === 'Turnover Certificate') ? 'attached' : '', tab: 'turnover' },
-    ] as const;
-    const missingFields = requiredFields.filter(({ label, value }) =>
-      !value.trim() || (label === 'Project Category' && otherCategorySelected && value.trim() === 'Other Specify')
-    );
-
-    if (missingFields.length > 0) {
-      setRequiredFieldsError(`Complete all required fields: ${missingFields.map(({ label }) => label).join(', ')}.`);
-      const firstMissing = missingFields[0];
-      const tabIndex = localRoadFormTabs.findIndex(tab => tab.id === firstMissing.tab);
-      setActiveFormTab(firstMissing.tab);
-      const section = formSectionRefs[tabIndex]?.current;
-      const scrollContainer = formScrollRef.current;
-      if (section && scrollContainer) {
-        const top = section.getBoundingClientRect().top
-          - scrollContainer.getBoundingClientRect().top
-          + scrollContainer.scrollTop;
-        scrollContainer.scrollTo({ top, behavior: 'smooth' });
-      }
-      window.setTimeout(() => {
-        const focusTarget = firstMissing.label === 'Project Category' && otherCategorySelected
-          ? section?.querySelector<HTMLElement>('[aria-label="Specify project category"]')
-          : section?.querySelector<HTMLElement>(`[data-field="${firstMissing.label}"]`);
-        if (firstMissing.label === 'Turnover Attachment' && !focusTarget) attachmentsInputRef.current?.focus();
-        focusTarget?.focus();
-      }, 0);
+    // Native constraint validation displays the browser's message at the first invalid field.
+    // Keep whitespace-only text, four-digit years and incomplete amounts invalid too.
+    const whitespaceField = Array.from(e.currentTarget.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[required]:not([type="file"]), textarea[required]'))
+      .find(field => !field.disabled && field.value && !field.value.trim());
+    if (whitespaceField) {
+      whitespaceField.setCustomValidity('Please fill out this field.');
+      whitespaceField.reportValidity();
       return;
     }
     const invalidDate = [
@@ -225,29 +180,17 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       ['Actual Completion Date', formData.actualCompletionDate], ['Completion Date', formData.completionDate],
       ['Turnover and Acceptance Date', formData.turnoverDate],
     ].find(([, value]) => !hasFourDigitYear(value));
-    if (invalidDate) {
-      setRequiredFieldsError(`${invalidDate[0]} must have a four-digit year.`);
-      formScrollRef.current?.querySelector<HTMLElement>(`[data-field="${invalidDate[0]}"]`)?.focus();
-      return;
-    }
     const invalidCurrency = [
       ['Appropriation', formData.appropriation], ['Contracted Amount', formData.contractedAmount],
       ['Adjust Project Cost', formData.adjustProjectCost],
     ].find(([, value]) => !isValidProjectCurrency(value));
-    if (invalidCurrency) {
-      setRequiredFieldsError(`Enter a valid amount for ${invalidCurrency[0]}.`);
-      formScrollRef.current?.querySelector<HTMLElement>(`[data-field="${invalidCurrency[0]}"]`)?.focus();
+    const invalidField = invalidDate || invalidCurrency;
+    if (invalidField) {
+      const input = e.currentTarget.querySelector<HTMLInputElement>(`[data-field="${invalidField[0]}"]`);
+      input?.setCustomValidity(invalidDate ? 'Enter a date with a four-digit year.' : 'Enter a valid amount.');
+      input?.reportValidity();
       return;
     }
-    // noValidate allows the custom category message to run; retain native range and date checks.
-    const invalidInput = Array.from(e.currentTarget.querySelectorAll<HTMLInputElement>('input:not([type="file"]):not([type="hidden"])'))
-      .find(input => !input.disabled && !input.checkValidity());
-    if (invalidInput) {
-      setRequiredFieldsError('Please correct the highlighted field before submitting.');
-      invalidInput.reportValidity();
-      return;
-    }
-    setRequiredFieldsError('');
 
     const uploadedAttachments = await Promise.all([
       ...formData.attachments.map(file => ({ file, category: 'Turnover Certificate' })),
@@ -394,16 +337,24 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         <form
           ref={formScrollRef}
           onSubmit={handleSubmit}
-          noValidate
-          onChange={() => setRequiredFieldsError('')}
+          onInvalidCapture={(event) => {
+            const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+            if (field.validity.valueMissing) field.setCustomValidity('Please fill out this field.');
+          }}
+          onInputCapture={(event) => {
+            const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+            if (!('setCustomValidity' in field)) return;
+            const textField = field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && field.type === 'text');
+            field.setCustomValidity(field.required && textField && field.value && !field.value.trim()
+              ? 'Please fill out this field.' : '');
+          }}
+          onChangeCapture={(event) => {
+            const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+            if (field instanceof HTMLSelectElement || (field instanceof HTMLInputElement && field.type === 'file')) field.setCustomValidity('');
+          }}
           onScroll={updateActiveFormTab}
           className="form-modal-fields min-h-0 flex-1 overflow-y-auto px-6 py-5"
         >
-          {requiredFieldsError && (
-            <p role="alert" className="sticky top-0 z-10 mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {requiredFieldsError}
-            </p>
-          )}
           {/* Project Information */}
           <section ref={projectSectionRef} className="scroll-mt-4 border-b pb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h3>
@@ -426,42 +377,21 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Project Category *
                 </label>
-                <Select
-                  value={
-                    otherCategorySelected ? 'Other Specify' : formData.projectCategory
-                  }
-                  onValueChange={(value) => {
+                <select
+                  data-field="Project Category"
+                  aria-label="Project category"
+                  value={otherCategorySelected ? 'Other Specify' : formData.projectCategory}
+                  onChange={(event) => {
+                    const value = event.target.value;
                     setOtherCategorySelected(value === 'Other Specify');
                     setFormData({ ...formData, projectCategory: value });
-                    setRequiredFieldsError('');
                   }}
+                  className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   required
                 >
-                  <SelectTrigger
-                    data-field="Project Category"
-                    aria-label="Project category"
-                    aria-invalid={Boolean(
-                      requiredFieldsError &&
-                      (!formData.projectCategory.trim() || formData.projectCategory.trim() === 'Other Specify')
-                    )}
-                    aria-describedby={
-                      requiredFieldsError &&
-                      (!formData.projectCategory.trim() || formData.projectCategory.trim() === 'Other Specify')
-                        ? 'project-category-error'
-                        : undefined
-                    }
-                  >
-                    <SelectValue placeholder="-- Select a Project Category --" />
-                  </SelectTrigger>
-                  <SelectContent>
-                  {!projectCategories.includes(formData.projectCategory) && formData.projectCategory && (
-                    <SelectItem value={formData.projectCategory}>{formData.projectCategory}</SelectItem>
-                  )}
-                  {projectCategories.map((category) => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
-                  ))}
-                  </SelectContent>
-                </Select>
+                  <option value="">-- Select a Project Category --</option>
+                  {projectCategories.map(category => <option key={category} value={category}>{category}</option>)}
+                </select>
                 {otherCategorySelected && (
                   <textarea
                     value={formData.projectCategory === 'Other Specify' ? '' : formData.projectCategory}
@@ -484,14 +414,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                     aria-label="Specify project category"
                     required
                   />
-                )}
-                {requiredFieldsError &&
-                  (!formData.projectCategory.trim() || formData.projectCategory.trim() === 'Other Specify') && (
-                  <p id="project-category-error" role="alert" className="mt-2 text-sm text-red-600">
-                    {formData.projectCategory.trim() === 'Other Specify'
-                      ? 'Enter a category when Other Specify is selected.'
-                      : 'Select a project category before submitting.'}
-                  </p>
                 )}
               </div>
             </div>
@@ -859,6 +781,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                     type="file"
                     data-field="Turnover Attachment"
                     aria-required={!editId}
+                    required={!editId}
                     multiple
                     onChange={(e) => handleFileChange(e, 'attachments')}
                     accept=".pdf,.jpg,.png"

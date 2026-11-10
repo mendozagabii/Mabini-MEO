@@ -78,6 +78,11 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Native required-field prompts for local road entry
+- **What & why:** Replace the required-field summary with the browser's "Please fill out this field." prompt at each missing field, including the category and turnover attachment. Use a native category select for focusable browser validation; preserve optional extensions, whitespace checks, decimal amounts and date bounds.
+- **Files:** `src/app/components/LocalRoadForm.tsx`, `tests/project-form.test.cjs`, `MY-CHANGES.md`.
+- **Verification:** Local DOM validation tests and role tests; no production database access.
+
 ### 2026-11-10 — [mine] Encoder local road form validation
 - **What & why:** Require all add-project fields including the turnover attachment, but leave No. of Extensions optional; show a category-specific prompt, preserve existing edit attachments, and remove the duplicate project-information attachment control/display. Accept decimal money amounts and strip grouping before saving. Require four-digit years in all five date fields and carry Date Started through the project payload.
 - **Files:** `src/app/components/LocalRoadForm.tsx`, `LocalRoadList.tsx`, `src/app/App.tsx`, `src/lib/project-form-validation.ts`, `tests/project-form.test.cjs`, `package.json`, `package-lock.json`, `MY-CHANGES.md`.
