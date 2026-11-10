@@ -22,7 +22,6 @@ function loadTs(relative, mocks = {}) {
   m._compile(code, filename); return m.exports;
 }
 const validation = loadTs('src/lib/project-form-validation.ts');
-const projectLocation = loadTs('src/lib/project-location.ts');
 const attachmentValidation = loadTs('src/lib/attachment-validation.ts');
 let uploadCalls = [];
 let startDelay = () => Promise.resolve();
@@ -268,7 +267,6 @@ test('project details and printed financial information group saved values', asy
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
     '@/lib/activity-log-client': { recordClientActivity: async () => {} },
     '@/lib/project-form-validation': validation,
-    '@/lib/project-location': projectLocation,
   });
   const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good',
     appropriation: '1234567.89', contractedAmount: '1,000.25', adjustProjectCost: '0.50' };
@@ -303,7 +301,7 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
   const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
     './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
-    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-form-validation': validation, '@/lib/project-location': projectLocation,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-form-validation': validation,
   });
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
@@ -355,57 +353,4 @@ test('save failures leave the form open and display the error after the delay', 
     assert.equal(closed, 0); assert.equal(container.querySelector('button[type=submit]').disabled, false);
     assert.match(container.querySelector('[role=alert]').textContent, /Save failed/);
   } finally { startDelay = () => Promise.resolve(); }
-});
-
-test('location matching identifies each complete barangay without matching partial names', () => {
-  const location = 'Anilao East, Mabini, Batangas and Anilao Proper, Mabini, Batangas';
-  for (const name of ['Anilao East', 'Anilao Proper', 'All']) assert.equal(projectLocation.projectMatchesLocation(location, name), true, name);
-  for (const name of ['Anilao', 'Solo', 'Talaga East']) assert.equal(projectLocation.projectMatchesLocation(location, name), false, name);
-  assert.equal(projectLocation.projectMatchesLocation('  BRGY.  anilao EAST ; Barangay Anilao Proper  ', 'Anilao East'), true);
-  assert.equal(projectLocation.projectMatchesLocation('Anilao Proper Extension, Mabini', 'Anilao Proper'), false);
-  assert.equal(projectLocation.projectMatchesLocation('Santo Niño, Mabini', 'SANTO NIÑO'), true);
-});
-
-test('form retains a complete multi-barangay location for add and edit', async () => {
-  const location = 'Anilao East, Mabini, Batangas and Anilao Proper, Mabini, Batangas';
-  for (const editing of [false, true]) {
-    let saved;
-    const item = editing ? { id: 'p1', name: 'Road', type: 'National Road', location, dateBuilt: '2026-01-01', condition: 'Good',
-      attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] } : null;
-    await reset(); await render(value => { saved = value; }, { item, editId: editing ? 'p1' : undefined });
-    if (editing) assert.equal(field('Location').value, location);
-    await fill(); await change('Location', location); await change('Barangay', 'Anilao East'); if (!editing) await file();
-    await submit(); assert.equal(saved.location, location); assert.equal(saved.barangay, 'Anilao East');
-  }
-});
-
-test('location filter shows a multi-barangay project under both barangays in project and validation lists', async () => {
-  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
-  const ui = new Proxy({}, { get: () => Dummy });
-  const select = {
-    Select: ({ value, onValueChange, children }) => React.createElement('select', { 'aria-label': 'Filter by location', value, onChange: event => onValueChange(event.target.value) }, children),
-    SelectTrigger: () => null, SelectValue: () => null,
-    SelectContent: Dummy, SelectItem: ({ value, children }) => React.createElement('option', { value }, children),
-  };
-  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
-    './ui/textarea': ui, './ui/dialog': ui, './ui/select': select, './ConfirmActionDialog': ui, './PrintDocument': ui,
-    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-form-validation': validation, '@/lib/project-location': projectLocation,
-  });
-  const common = { type: 'Road', dateBuilt: '', condition: 'Good', annualValidationEntries: [{ year: 2026, result: 'Pending', remarks: '', dueDate: '2026-01-01' }] };
-  const data = [
-    { ...common, id: 'p1', name: 'Multi-location road', location: 'Anilao East, Mabini, Batangas and Anilao Proper, Mabini, Batangas' },
-    { ...common, id: 'p2', name: 'Solo road', location: 'Solo, Mabini, Batangas' },
-    { ...common, id: 'p3', name: 'Unrelated', location: 'Anilao Eastern Extension, Mabini' },
-  ];
-  for (const validationMode of [false, true]) {
-    await reset();
-    await act(async () => root.render(React.createElement(LocalRoadList, { data, validationMode, currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
-    for (const filter of ['Anilao East', 'Anilao Proper']) {
-      const el = container.querySelector('select[aria-label="Filter by location"]');
-      await act(async () => { el.value = filter; el.dispatchEvent(new window.Event('change', { bubbles: true })); });
-      assert.match(container.textContent, /Multi-location road/);
-      assert.doesNotMatch(container.textContent, /Solo road|Unrelated/);
-      assert.match(container.textContent, /1 records listed/);
-    }
-  }
 });

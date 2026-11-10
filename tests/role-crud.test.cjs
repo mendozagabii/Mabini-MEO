@@ -112,7 +112,6 @@ const componentMocks = {
   './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
   '@/lib/activity-log-client': { recordClientActivity() {} },
   '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}),
-  '@/lib/project-location': loadTs('src/lib/project-location.ts', {}),
   '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts', {}),
 };
 const noop = () => {};

@@ -78,10 +78,9 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
-### 2026-11-10 — [mine] Multi-barangay project locations
-- **What & why:** Match complete barangay names in comma/conjunction-separated project locations in both project and validation lists. Preserve full location independently of the primary barangay using a new nullable project text column; legacy records fall back to their barangay. Add an unapplied migration and reject saves that would otherwise silently discard a different location when the column is absent.
-- **Files:** `src/app/api/local-road/route.ts`, `src/app/components/LocalRoadList.tsx`, `src/lib/{project-location,supabase-data}.ts`, `supabase/migrations/20261110_project_location_text.sql`, tests, `MY-CHANGES.md`.
-- **Verification and limitation:** 48 local tests and TypeScript passed, including mocked create/edit/read and filter tests. Read-only schema inspection confirmed the live database lacks this column. The migration has NOT been applied; until explicitly approved and applied, the preview rejects locations that differ from the barangay (after a staged attachment may already have been uploaded). Existing locations lost before this change cannot be recovered by the migration. No live writes or end-to-end tests were performed.
+### 2026-11-10 — [mine] Undo multi-barangay location task
+- **What & why:** Reverted the location filter, persistence guard, tests and unapplied migration at the user's request. Earlier currency and save-progress changes remain intact.
+- **Verification:** 42 local tests and TypeScript passed. The location migration was never applied; no database changes were made.
 
 
 ### 2026-11-10 — [mine] Whole-peso decimals and project save progress

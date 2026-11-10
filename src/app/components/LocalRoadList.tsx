@@ -7,7 +7,6 @@ import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
 import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
-import { projectMatchesLocation } from '@/lib/project-location';
 
 interface ProjectAttachment {
   name: string;
@@ -154,7 +153,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const filteredData = data.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLocation = projectMatchesLocation(item.location, filterLocation);
+    const matchesLocation = filterLocation === 'All' || item.location === filterLocation;
     const latestAnnualEntry = [...(item.annualValidationEntries ?? [])]
       .sort((a, b) => b.year - a.year)[0];
     const hasPendingAnnualValidation = latestAnnualEntry?.result === 'Pending' ||

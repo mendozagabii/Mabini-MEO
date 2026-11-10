@@ -32,17 +32,14 @@ function mockDb(options = {}) {
         select(value) { selected = value; return chain; },
         insert(value) { op = 'insert'; payload = value; writes.push({ table, op, value }); return chain; },
         update(value) { op = 'update'; payload = value; writes.push({ table, op, value }); return chain; },
-        eq() { return chain; }, ilike() { return chain; }, in() { return chain; }, not() { return chain; }, order() { return chain; }, limit() {
-          if (table === 'projects' && selected === 'location') return Promise.resolve({ data: [], error: options.noLocationColumn ? { code: '42703', message: 'column projects.location does not exist' } : options.probeError || null });
-          return Promise.resolve({ data: options.linked ? [{ id: 'existing' }] : [], error: null });
-        },
+        eq() { return chain; }, ilike() { return chain; }, limit() { return Promise.resolve({ data: options.linked ? [{ id: 'existing' }] : [], error: null }); },
         maybeSingle: async () => {
           if (table === 'projects' && op === 'select') return { data: options.edit ? { id: 'project-1', road_id: 'road-1' } : null, error: null };
           if ((table === 'projects' || table === 'roads' || table === 'contractors') && op === 'update') return { data: options.blockUpdate ? null : { id: 'existing' }, error: null };
           return { data: { id: table === 'contractors' ? 'contractor-1' : 1 }, error: null };
         },
         single: async () => {
-          if (table === 'projects' && op === 'select' && selected.includes('roads!')) return options.joined ? { data: options.joined, error: null } : { data: null, error: new Error('mock join unavailable') };
+          if (table === 'projects' && op === 'select' && selected.includes('roads!')) return { data: null, error: new Error('mock join unavailable') };
           return { data: { id: table === 'projects' ? 'project-1' : 'road-1' }, error: null };
         },
         then(resolve, reject) { return Promise.resolve({ data: null, error: table === 'attachments' && options.linkError ? new Error('link denied') : null }).then(resolve, reject); },
@@ -115,35 +112,4 @@ test('record refresh rejects failed or malformed module responses instead of cle
   assert.deepEqual(await loadRecords('/api/local-road', async () => ({ ok: true, json: async () => ({ data: [{ id: 'p' }] }) })), [{ id: 'p' }]);
   await assert.rejects(loadRecords('/api/inspections', async () => ({ ok: false, status: 500 })), /500/);
   await assert.rejects(loadRecords('/api/local-road', async () => ({ ok: true, json: async () => ({ message: 'error' }) })), /Invalid record response/);
-});
-
-test('project location round-trips independently from the primary barangay on create and edit', async () => {
-  const location = 'Anilao East, Mabini, Batangas and Anilao Proper, Mabini, Batangas';
-  for (const edit of [false, true]) {
-    const options = { edit, joined: { id: 'project-1', road_id: 'road-1', project_name: 'Road project', location, barangays: { name: 'Anilao East' }, roads: { road_name: 'Road' } } };
-    const db = mockDb(options);
-    const result = await dataModule.saveRoad(db, { ...payload, id: edit ? 'project-1' : '', location, barangay: 'Anilao East', attachments: [] }, USER);
-    const written = db.writes.find(write => write.table === 'projects' && write.op === (edit ? 'update' : 'insert'));
-    assert.equal(written.value.location, location);
-    assert.equal(result.location, location);
-    assert.equal(result.barangay, 'Anilao East');
-  }
-});
-
-test('legacy project location falls back to its barangay if location column is empty', async () => {
-  const db = mockDb({ joined: { id: 'project-1', road_id: 'road-1', location: null, barangays: { name: 'Anilao Proper' }, roads: {} } });
-  const result = await dataModule.saveRoad(db, { ...payload, location: 'Anilao Proper', barangay: 'Anilao Proper', attachments: [] }, USER);
-  assert.equal(result.location, 'Anilao Proper');
-});
-
-test('missing location column rejects unsavable locations before writes and retains legacy same-barangay saves', async () => {
-  const db = mockDb({ noLocationColumn: true });
-  await assert.rejects(dataModule.saveRoad(db, { ...payload, location: 'Anilao East and Anilao Proper', barangay: 'Anilao East', attachments: [] }, USER), /database update is required/i);
-  assert.equal(db.writes.length, 0);
-  const legacy = mockDb({ noLocationColumn: true });
-  await dataModule.saveRoad(legacy, { ...payload, location: 'Anilao East', barangay: 'Anilao East', attachments: [] }, USER);
-  assert.equal(Object.hasOwn(legacy.writes.find(write => write.table === 'projects').value, 'location'), false);
-  const broken = mockDb({ probeError: { code: '42501', message: 'permission denied' } });
-  await assert.rejects(dataModule.saveRoad(broken, { ...payload, attachments: [] }, USER));
-  assert.equal(broken.writes.length, 0);
 });
