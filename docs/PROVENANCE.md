@@ -17,9 +17,9 @@ Generated from git on **2026-11-10** · baseline `ce9a474` · every row below is
 
 | | Files | Meaning |
 |---|---:|---|
-| Total tracked now | **138** | everything in the repo |
+| Total tracked now | **139** | everything in the repo |
 | 🟦 Inherited, untouched | **88** | original author's work, byte-for-byte |
-| 🟩 Added by me | **31** | files that did not exist at baseline |
+| 🟩 Added by me | **32** | files that did not exist at baseline |
 | 🟨 Modified by me | **19** | original files I edited (still their file) |
 | 🟥 Deleted by me | **0** | — |
 
@@ -38,7 +38,7 @@ grep -rn "@mine" src/                # markers inside the code I wrote/edited
 
 ---
 
-## 🟩 Added by me (31 files)
+## 🟩 Added by me (32 files)
 
 Files that are entirely mine — safe to treat as "new work", nothing inherited inside them.
 
@@ -61,6 +61,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | File | Type | Δ lines | Note (from the `@mine` marker) |
 |---|---|---|---|
 | `src/lib/api.ts` | added | +37 / -0 | Shared helpers for API routes after the Supabase migration. |
+| `src/lib/session-expiry.ts` | added | +51 / -0 | Client-side guard for a dead Supabase session. … |
 | `src/lib/supabase-data.ts` | added | +833 / -0 | Translation layer: Supabase (normalized Postgres) <-> the record shapes … |
 | `src/lib/supabase.ts` | added | +187 / -0 | Supabase connection layer (added during SQLite → Supabase migration). … |
 
@@ -86,7 +87,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +285 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +294 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -134,7 +135,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 
 | File | Type | Δ lines | Note (from the `@mine` marker) |
 |---|---|---|---|
-| `src/app/App.tsx` | modified | +39 / -0 | Prefer the latest AI run saved in Supabase (shared across users); … |
+| `src/app/App.tsx` | modified | +74 / -0 | Set when an authenticated call answers 401 (see lib/session-expiry). |
 
 #### Feature modules — `src/app/components/`
 
@@ -283,6 +284,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 | PR | Branch merged | Merge commit |
 |---|---|---|
+| [#7](https://github.com/mendozagabii/Mabini-MEO/pull/7) | `arena/bd8f6847-mabini-meo` | `10eb585` |
 | [#6](https://github.com/mendozagabii/Mabini-MEO/pull/6) | `arena/2f0c41f0-mabini-meo` | `a24dde1` |
 | [#5](https://github.com/mendozagabii/Mabini-MEO/pull/5) | `arena/d405d1b2-mabini-meo` | `af8ad92` |
 | [#4](https://github.com/mendozagabii/Mabini-MEO/pull/4) | `arena/c5868898-mabini-meo` | `faee7e6` |
@@ -307,6 +309,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Account editing: apply email + password to the Supabase Auth identity | 4 |
 | 2026-11-10 | [mine] Fix password reset: links never applied because updateUser needs a session | 4 |
 | 2026-11-10 | [mine] Fix role editing: one role resolver, no silent encoder fallback, restore demoted accounts | 5 |
+| 2026-11-10 | [mine] Handle a dead session: 401 shows a 'Session ended' dialog instead of a cryptic error | 4 |
 
 ---
 

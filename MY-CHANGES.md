@@ -78,6 +78,15 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Dead-session handling: 401 now says "Session ended" and offers a re-login
+- **Type:** Added (`src/lib/session-expiry.ts`) + Modified (`src/app/App.tsx`)
+- **Files:** `src/lib/session-expiry.ts` (new), `src/app/App.tsx`, `MY-CHANGES.md` (this entry)
+- **What & why:** Admin actions can answer 401 *"You must be signed in to do that."* while the tab still looks signed in — e.g. the session expired, another tab rotated the refresh token, or the user edited **their own** account (changing your own e-mail/password ends your session). The UI reported that as an ordinary red error and kept the stale page usable, so it read as "I'm the Head Engineer but it says I'm not". Now `installSessionExpiryHandler()` wraps `window.fetch` once and turns a 401 from any authenticated `/api/*` route into a single `wblrms:session-expired` event (login / logout / unlock / password-reset are exempt — their 401s are legitimate answers). `App.tsx` listens and shows a **"Session ended"** dialog with a *Sign in again* button that performs the normal logout, so the state and the server agree. No login-page redesign: the dialog lives in the app shell.
+- **Diagnosis that prompted it (live evidence, 2026-11-10 05:32 UTC):** the `admin` profile was renamed and its e-mail changed `admin@gmail.com → ortegajeicelmae@gmail.com`; `auth.users.updated_at` and `profiles.updated_at` both 05:32:43, `last_sign_in_at` 05:28:52, and `auth.sessions` count for that user **0** while every other account has 1 — i.e. the session was revoked by the account's own update, so every subsequent admin call 401'd regardless of the role being selected.
+- **Verified:** `npx tsc --noEmit` ✅ · `npm run build` ✅
+- **Status:** ✅ Kept — needs a merge + redeploy
+- **Original code affected:** `App.tsx` is a baseline file; the change is additive and marked `@mine` (import, one state, one effect, one dialog). `src/lib/session-expiry.ts` is a new file with an `@mine` header.
+
 ### 2026-11-10 — [mine] Fixed role editing (every choice was silently saved as Encoder) + restored 2 demoted accounts
 - **Type:** Modified (role resolver in `src/lib/supabase.ts`, API route, user-management form) + DB data repair
 - **Files:** `src/lib/supabase.ts` (`toDbRole()`), `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)
