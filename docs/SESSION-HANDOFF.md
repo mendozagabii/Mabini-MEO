@@ -18,6 +18,34 @@
 
 ---
 
+## 0. Resume prompt (the keyword is **HANDOFF**)
+
+If the owner opens a new session and types just **`HANDOFF`**, the agent must reply with a short
+status read-out and then ask **one** question: *verify, or merge?* — nothing else.
+
+Equivalent full prompt, if the keyword is not recognised:
+
+```text
+HANDOFF — read docs/SESSION-HANDOFF.md completely before doing anything, then check
+git log --oneline -5 on branch arena/f7b64daf-mabini-meo and `gh pr view 10`.
+Then: summarise in 5 lines what is done, what is still unverified by me, and what needs
+my explicit approval. Do NOT start new work, do NOT merge, do NOT touch the database
+until I say which. My pending task is §4 (verification) → §5 (merge only on my go).
+```
+
+Variants the owner may use:
+
+| He types | You do |
+|---|---|
+| `HANDOFF` | Read this file, give the 5-line status, ask *verify or merge?* |
+| `HANDOFF verify` | Walk him through §4's tick-list step by step, in order, on the live app |
+| `HANDOFF merge` | Merge PR #10 (explicit approval given by that word), then confirm the Vercel deployment is READY/promoted |
+| `HANDOFF next` | Only after §4 is confirmed: propose the next gated item from §6 and wait for a go |
+
+Do not treat `HANDOFF` as approval for anything beyond reading and reporting.
+
+---
+
 ## 1. The one thing to understand
 
 The owner (Gab) has been asking for adjustments in phases and **has not finished verifying the latest

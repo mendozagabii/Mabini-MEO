@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Resume keyword `HANDOFF` for new sessions
+- **Type:** Docs (added a section to an existing doc)
+- **Files:** `docs/SESSION-HANDOFF.md`, `MY-CHANGES.md` (this entry)
+- **What & why:** the owner switches accounts/sessions and wants a one-word way back in. §0 of the handoff now defines the keyword **`HANDOFF`** (plus `HANDOFF verify`, `HANDOFF merge`, `HANDOFF next`), what each variant must do, and the full equivalent prompt in case the keyword is not recognised. `HANDOFF` alone is **not** approval to merge or change anything — it means read, report, and ask.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-10 — [mine] Read-first handoff brief for new sessions (docs/SESSION-HANDOFF.md)
 - **Type:** Added (docs)
 - **Files:** `docs/SESSION-HANDOFF.md` (new), `README.md` (pointer at the top), `MY-CHANGES.md` (this entry)

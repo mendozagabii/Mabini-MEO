@@ -77,7 +77,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | `docs/PHASE-4-TEST-PLAN.md` | added | +103 / -0 | Phase 4 live-smoke-test kit, written 2026-11-10 against the freshly seeded data. |
 | `docs/PHASE-STATUS.md` | added | +143 / -0 | Phase verification (2026-11-10). Every row below was checked against the live |
 | `docs/PROVENANCE.md` | added | (this file) | this generated report |
-| `docs/SESSION-HANDOFF.md` | added | +181 / -0 | Created 2026-11-10 at the owner's request: a read-first brief so a new Arena |
+| `docs/SESSION-HANDOFF.md` | added | +209 / -0 | Created 2026-11-10 at the owner's request: a read-first brief so a new Arena |
 | `docs/SUPABASE-CHECK-2026-11-09.md` | added | +80 / -0 | Supabase inspection by me on 2026-11-09. Read-only; nothing in Supabase was changed. |
 | `docs/SUPABASE-MIGRATION.md` | added | +111 / -0 | SQLite -> Supabase migration, done 2026-11-09. Login page design unchanged. |
 | `docs/baseline-files.txt` | added | +107 / -0 | — |
@@ -88,7 +88,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +347 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +354 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -320,6 +320,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Encoder can add local road projects (RLS insert on barangays/categories) and gets a Delete button beside Edit | 6 |
 | 2026-11-10 | [mine] Never report failure after a project is saved; explain barangay failures instead of blaming the role | 4 |
 | 2026-11-10 | [mine] Add docs/SESSION-HANDOFF.md — read-first brief for new sessions | 4 |
+| 2026-11-10 | [mine] Define the HANDOFF resume keyword in docs/SESSION-HANDOFF.md | 3 |
 
 ---
 
