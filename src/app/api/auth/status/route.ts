@@ -11,6 +11,17 @@ export const dynamic = 'force-dynamic';
 
 const HEAD = ['head_engineer'];
 
+// @mine — the login handle IS the display name, normalised (lower-case, single
+// spaces). Identity is then guaranteed by the unique constraint on
+// profiles.username: two accounts can never share a name, and no legacy handle
+// like 'admin' survives a rename. `admin` is no longer a valid login.
+function deriveUsername(name: unknown): string {
+  return String(name ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
 export async function GET(request: Request) {
   const { auth, denied } = await requireRole(request, HEAD);
   if (denied) return denied;
@@ -26,7 +37,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { auth, denied } = await requireRole(request, HEAD);
   if (denied) return denied;
-  const { name, email, username, password, role, status } = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const { name, email, password, role, status } = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   if (!String(name ?? '').trim() || !String(email ?? '').trim() || !String(password ?? '') || !String(role ?? '').trim()) {
     return NextResponse.json({ message: 'Name, email, password, and role are required.' }, { status: 400 });
   }
@@ -40,7 +51,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: `Unknown role: ${String(role)}.` }, { status: 400 });
   }
   const cred = String(password ?? '');
-  const cleanUsername = (String(username ?? '').trim() || cleanEmail.split('@')[0]).toLowerCase();
+  // @mine — the handle follows the displayed name (no more e-mail-prefix handles).
+  const cleanUsername = deriveUsername(name);
+  if (!cleanUsername) {
+    return NextResponse.json({ message: 'A name is required to build the username.' }, { status: 400 });
+  }
+  const { data: taken } = await auth.admin
+    .from('profiles')
+    .select('id')
+    .eq('username', cleanUsername)
+    .maybeSingle();
+  if (taken) {
+    return NextResponse.json(
+      { message: `An account is already named "${cleanUsername}". Add a distinguishing name (e.g. a middle name) first.` },
+      { status: 409 },
+    );
+  }
   try {
     // Trigger create_profile_for_auth_user creates the profile from metadata;
     // we then correct role/status/name (trigger defaults to encoder/active).
@@ -121,6 +147,24 @@ export async function PATCH(request: Request) {
           { status: 400 },
         );
       }
+      // @mine — the handle must always equal the name, and must not collide.
+      const nextUsername = deriveUsername(payload.name);
+      if (!nextUsername) {
+        return NextResponse.json({ message: 'A name is required to build the username.' }, { status: 400 });
+      }
+      const { data: clash } = await auth.admin
+        .from('profiles')
+        .select('id')
+        .eq('username', nextUsername)
+        .neq('id', userId)
+        .maybeSingle();
+      if (clash) {
+        return NextResponse.json(
+          { message: `Another account is already named "${nextUsername}". Add a distinguishing name (e.g. a middle name) first.` },
+          { status: 409 },
+        );
+      }
+
       const emailChanged = nextEmail !== String(current.email ?? '').trim().toLowerCase();
       if (emailChanged || nextPassword) {
         const { error: authError } = await auth.admin.auth.admin.updateUserById(userId, {
@@ -141,7 +185,7 @@ export async function PATCH(request: Request) {
           full_name: String(payload.name).trim(),
           name: String(payload.name).trim(),
           email: String(payload.email).trim().toLowerCase(),
-          username: String(payload.username).trim().toLowerCase(),
+          username: nextUsername,
           role: dbRole,
           status: dbStatus,
         }, { count: 'exact' })

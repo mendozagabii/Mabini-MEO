@@ -87,7 +87,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +305 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +316 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -125,7 +125,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 | `src/app/api/auth/login/route.ts` | modified | +95 / -63 | Rewritten: Supabase Auth sign-in (was SQLite password check). … |
 | `src/app/api/auth/request-password-reset/route.ts` | modified | +24 / -43 | Rewritten: delegates to Supabase Auth email reset (was custom Gmail … |
 | `src/app/api/auth/reset-password/route.ts` | modified | +81 / -17 | Rewritten for Supabase Auth recovery sessions. Accepts either the … |
-| `src/app/api/auth/status/route.ts` | modified | +174 / -62 | Rewritten for Supabase (was SQLite users table). User administration … |
+| `src/app/api/auth/status/route.ts` | modified | +217 / -61 | Rewritten for Supabase (was SQLite users table). User administration … |
 | `src/app/api/auth/unlock/route.ts` | modified | +121 / -46 | Rewritten for Supabase. Previously, non-admin accounts could be … |
 | `src/app/api/health/route.ts` | modified | +11 / -8 | Was hardcoded to 'development'/'local-nextjs-sqlite'. |
 | `src/app/api/inspections/route.ts` | modified | +118 / -145 | Rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts. |
@@ -144,7 +144,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 |---|---|---|---|
 | `src/app/components/LocalRoadForm.tsx` | modified | +3 / -0 | Supabase Storage path for the file (Phase 2, 2026-11-09); … |
 | `src/app/components/LocalRoadList.tsx` | modified | +3 / -0 | Supabase Storage path for the file (Phase 2, 2026-11-09); … |
-| `src/app/components/UserManagementModule.tsx` | modified | +72 / -11 | These are the labels the API/session already use (ROLE_FROM_DB); the old … |
+| `src/app/components/UserManagementModule.tsx` | modified | +74 / -11 | These are the labels the API/session already use (ROLE_FROM_DB); the old … |
 
 #### Password-reset page — `src/app/reset-password/`
 
@@ -313,6 +313,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Fix role editing: one role resolver, no silent encoder fallback, restore demoted accounts | 5 |
 | 2026-11-10 | [mine] Handle a dead session: 401 shows a 'Session ended' dialog instead of a cryptic error | 4 |
 | 2026-11-10 | [mine] Log in with username, display name, or e-mail | 4 |
+| 2026-11-10 | [mine] Username equals the display name (unique identity); retire legacy handles | 4 |
 
 ---
 

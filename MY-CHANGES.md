@@ -78,6 +78,17 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Username IS the display name (unique identity); legacy handles retired
+- **Type:** DB data change (live) + Modified (account create/edit route, account form)
+- **Files:** `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)
+- **What & why:** the owner wants one canonical handle per person: the username must equal the display name, so identity is guaranteed by the **unique constraint on `profiles.username`** instead of legacy handles. `deriveUsername()` (trim → collapse spaces → lower-case) is now used by both create and edit; the old e-mail-prefix fallback on create is gone. Before anything is written, both paths check for an existing account with that name and answer **409** with guidance ("add a distinguishing name, e.g. a middle name"), so a duplicate name can never half-create or half-update an account.
+- **DB (live backfill):** all five accounts re-stamped after verifying zero collisions — `admin` → `mae ortega`, `encoder` → `christine agkis`, `inspector` → `gabriel mendoza`, `validator` → `jeicel ortega`, `ortegajeicel` → `ryan` (all `username_resolves = true`).
+- **Verified** (`resolve_login_email`): `admin` → **null**, `encoder` → **null** (retired) · `mae ortega` / `Mae Ortega` / `MAE ORTEGA` → ortegajeicelmae@gmail.com · `ryan` → ryanbarraca1905@gmail.com · `christine agkis` → christinejoy.agkis@gmail.com · any e-mail → itself.
+- **Operational note:** anyone still using the old handles must now sign in with their **name or e-mail** — both still work, so nobody is locked out. The form shows a hint under Name ("The username is this name in lower case, and must be unique across accounts").
+- **Verified build:** `npx tsc --noEmit` ✅ · `npm run build` ✅
+- **Status:** ✅ Kept — the DB half is live; the route half ships with the merge
+- **Original code affected:** both files are my own migrated code (already `@mine`)
+
 ### 2026-11-10 — [mine] Login with a username, a display name, or an e-mail
 - **Type:** DB migration (live) + Modified (login route)
 - **Files:** `supabase/migrations/20261110_login_identifier_resolution.sql` (new), `src/app/api/auth/login/route.ts`, `MY-CHANGES.md` (this entry)
