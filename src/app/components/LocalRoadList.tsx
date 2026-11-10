@@ -73,8 +73,8 @@ interface LocalRoadListProps {
 }
 
 export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = false, validatorName = '', currentUser, onSaveValidation, userRole = '' }: LocalRoadListProps) {
-  const isAdminReadDeleteOnly = userRole === 'Admin' && !validationMode;
-  const isEncoder = userRole === 'Staff - Encoder';
+  // @mine — Head Engineer is the actual session label for the Admin role.
+  const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole) && !validationMode;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocation, setFilterLocation] = useState('All');
   const [selectedItem, setSelectedItem] = useState<LocalRoad | null>(null);
@@ -84,7 +84,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const [validationRemarks, setValidationRemarks] = useState('');
   const [selectedValidationYear, setSelectedValidationYear] = useState<number | null>(null);
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
-  const canPrint = userRole === 'Admin' || userRole === 'Staff - Encoder';
+  const canPrint = ['Admin', 'Head Engineer', 'Staff - Encoder'].includes(userRole);
 
   const printSelectedProject = (item: LocalRoad) => {
     void recordClientActivity(
@@ -503,7 +503,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
         if (!open) setPendingDelete(null);
       }}
       title="Delete road project?"
-      description={`Delete ${pendingDelete?.projectName || pendingDelete?.name || 'this road'}? This will also remove its inspections and maintenance records. This action cannot be undone.`}
+      description={`Archive ${pendingDelete?.projectName || pendingDelete?.name || 'this road'}? It can be restored from System Management.`}
       onConfirm={() => {
         if (pendingDelete) onDelete(pendingDelete.id);
         setPendingDelete(null);
@@ -681,22 +681,25 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                       <div className="flex shrink-0 items-center gap-3">
                         {!isAdminReadDeleteOnly && (
                           <button
+                            type="button"
                             onClick={() => onEdit(item)}
                             aria-label={`Edit ${item.projectName || item.name}`}
-                            className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"
+                            title="Edit"
+                            className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                           >
-                            <Edit className="h-3.5 w-3.5" /> Edit
+                            <Edit className="h-4 w-4" aria-hidden="true" />
                           </button>
                         )}
-                        {!isEncoder && (
-                          <button
-                            onClick={() => setPendingDelete(item)}
-                            aria-label={`Delete ${item.projectName || item.name}`}
-                            className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                        {/* @mine — icon-only archive with a red hover state. */}
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(item)}
+                          aria-label={`Delete ${item.projectName || item.name}`}
+                          title="Delete"
+                          className="rounded-md p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
                       </div>
                     </div>
                   </article>

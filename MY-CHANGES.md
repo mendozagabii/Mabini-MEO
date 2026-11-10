@@ -78,6 +78,20 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Icon-only project, maintenance and inspection actions
+- **Type:** Modified (`src/app/components/LocalRoadList.tsx`, `MaintenanceModule.tsx`, `InspectionModule.tsx`) and tests (`tests/role-crud.test.cjs`).
+- **What & why:** Display Edit and Delete as neutral icon buttons, with blue and red hover/focus styling respectively; the deferred maintenance Continue action also uses a blue-hover icon. Accessible names and title tooltips identify the controls. Removed the inspection Details button; the card itself still opens the details modal.
+- **Verification:** 16 local role/UI tests, TypeScript, and production build passed. No live database testing or changes.
+- **Status:** Vercel preview READY at `https://mabini-4clloo4gr-gabii0805s-projects.vercel.app`; owner approved merging the current task branch. This preview uses the live database.
+
+### 2026-11-10 — [mine] Role-specific project, maintenance and inspection actions
+- **Type:** Modified UI, API routes and data helpers; added tests, handoff and staged migrations.
+- **Files:** `src/app/components/{LocalRoadList,MaintenanceModule,InspectionModule}.tsx`, `src/app/api/{local-road,maintenance,inspections}/route.ts`, `src/lib/supabase-data.ts`, `supabase/migrations/20261110_encoder_reference_data.sql`, `supabase/migrations/20261110_staff_archive_permissions.sql`, `tests/role-crud.test.cjs`, `docs/SESSION-HANDOFF.md`, `MY-CHANGES.md`.
+- **What & why:** Treat Head Engineer as Admin and hide Add/Edit in these modules; allow Encoder to archive projects and maintenance and Inspector to archive inspections via labelled Delete controls and confirmation. API role checks block Head Engineer creation/editing, restrict staff actions to their modules, and retain Validator-only validation submissions. Deleting an inspection as Head Engineer no longer invokes the general project-edit path; the UI receives the derived condition instead. Ordinary Delete archives; permanent deletion and restore remain Head Engineer actions. Pull in PR #10 project-save error handling and the previously live reference-data migration so that work is not lost on this branch.
+- **Database:** No database touched. Added an unapplied migration for encoder/inspector UPDATE permissions used by archive. Existing policy interactions, direct Supabase access restrictions, and real CRUD still require review and approval before applying or claiming end-to-end success.
+- **Verification:** Local mocked route/SSR tests and TypeScript passed. Vercel preview `https://mabini-ode7zhvla-gabii0805s-projects.vercel.app` built READY from an upload-based snapshot; app login and real CRUD remain untested. It uses the live database, and no migration was applied. The owner approved merging the current task branch; real-role CRUD and direct database RLS remain unverified.
+- **Original code affected:** UI files marked `@mine`; route/data files already carried `@mine` markers.
+
 ### 2026-11-10 — [mine] Username IS the display name (unique identity); legacy handles retired
 - **Type:** DB data change (live) + Modified (account create/edit route, account form)
 - **Files:** `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)

@@ -1,6 +1,6 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { NextResponse } from 'next/server';
-import { requireAuth, unauthorized, withRefresh } from '@/lib/api';
+import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads,
   permanentlyDeleteInspection, restoreInspection, saveInspection, saveRoad, type StoredRecord,
@@ -18,6 +18,12 @@ async function refreshRoadCondition(auth: Awaited<ReturnType<typeof requireAuth>
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0];
   const rating = latest ? Number(latest.conditionRating) : 0;
   const condition = !latest || rating <= 0 ? 'Not rated' : rating >= 8 ? 'Good' : rating >= 5 ? 'Fair' : 'Poor';
+  // @mine — deletion by a Head Engineer must not call the general project-edit
+  // path. Return the derived condition for the UI; the DB's inspection trigger
+  // remains responsible for its own road-condition synchronization.
+  if (auth.profile.roleDb === 'head_engineer') {
+    return { id: roadId, condition, lastInspection: latest?.date || '' };
+  }
   // Note: the DB trigger sync_road_from_inspection also keeps roads in sync;
   // this preserves the app's exact Good/Fair/Poor wording in the response.
   const updated = await saveRoad(auth.db, { ...road, condition, lastInspection: latest?.date || '' }, auth.userId).catch(() => road);
@@ -37,8 +43,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuth(request);
-  if (!auth) return unauthorized();
+  // @mine — enforce the module action on the server, not just in the UI.
+  const { auth, denied } = await requireRole(request, ['inspector']);
+  if (denied) return denied;
   const payload = (await request.json().catch(() => null)) as StoredRecord | null;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
@@ -57,8 +64,9 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const auth = await requireAuth(request);
-  if (!auth) return unauthorized();
+  // @mine — enforce the module action on the server, not just in the UI.
+  const { auth, denied } = await requireRole(request, ['inspector']);
+  if (denied) return denied;
   const payload = (await request.json().catch(() => null)) as StoredRecord | null;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.id !== 'string' || !payload.id || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid inspection and road ID are required.' }, { status: 400 });
@@ -79,14 +87,17 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireAuth(request);
-  if (!auth) return unauthorized();
+  // @mine — enforce the module action on the server, not just in the UI.
+  const { auth, denied } = await requireRole(request, ['head_engineer', 'inspector']);
+  if (denied) return denied;
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
   if (!id) return NextResponse.json({ message: 'An inspection ID is required.' }, { status: 400 });
+  const permanent = url.searchParams.get('permanent') === 'true';
+  // @mine — reject before reading, as listing may create due annual follow-ups.
+  if (permanent && auth.profile.roleDb !== 'head_engineer') return forbidden();
   const inspection = (await listInspections(auth.db)).find((item) => item.id === id);
   if (!inspection) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });
-  const permanent = url.searchParams.get('permanent') === 'true';
   try {
     const changed = permanent ? await permanentlyDeleteInspection(auth.db, id) : await archiveInspection(auth.db, id);
     if (!changed) return NextResponse.json({ message: 'Inspection could not be deleted.' }, { status: 500 });
@@ -100,8 +111,9 @@ export async function DELETE(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireAuth(request);
-  if (!auth) return unauthorized();
+  // @mine — enforce the module action on the server, not just in the UI.
+  const { auth, denied } = await requireRole(request, ['head_engineer']);
+  if (denied) return denied;
   const { id, action } = (await request.json().catch(() => ({}))) as { id?: unknown; action?: unknown };
   if (typeof id !== 'string' || (action !== 'restore' && action !== 'archive')) {
     return NextResponse.json({ message: 'A valid inspection ID and action are required.' }, { status: 400 });
