@@ -62,7 +62,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `src/lib/api.ts` | added | +37 / -0 | Shared helpers for API routes after the Supabase migration. |
 | `src/lib/session-expiry.ts` | added | +51 / -0 | Client-side guard for a dead Supabase session. … |
-| `src/lib/supabase-data.ts` | added | +838 / -0 | Translation layer: Supabase (normalized Postgres) <-> the record shapes … |
+| `src/lib/supabase-data.ts` | added | +862 / -0 | Translation layer: Supabase (normalized Postgres) <-> the record shapes … |
 | `src/lib/supabase.ts` | added | +187 / -0 | Supabase connection layer (added during SQLite → Supabase migration). … |
 
 #### Documentation — `docs/`
@@ -87,7 +87,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +327 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +340 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -317,6 +317,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Log in with username, display name, or e-mail | 4 |
 | 2026-11-10 | [mine] Username equals the display name (unique identity); retire legacy handles | 4 |
 | 2026-11-10 | [mine] Encoder can add local road projects (RLS insert on barangays/categories) and gets a Delete button beside Edit | 6 |
+| 2026-11-10 | [mine] Never report failure after a project is saved; explain barangay failures instead of blaming the role | 4 |
 
 ---
 

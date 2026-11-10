@@ -309,7 +309,12 @@ async function resolveBarangayId(db: SupabaseClient, name: string): Promise<numb
   const { data } = await db.from('barangays').select('id').ilike('name', clean).maybeSingle();
   if (data) return data.id as number;
   const { data: created, error } = await db.from('barangays').insert({ name: clean }).select('id').single();
-  if (error) return null;
+  // @mine — returning null here used to hide the real cause: roads.barangay_id is NOT NULL,
+  // so the insert failed later with an opaque 'your role may not permit it'.
+  if (error) {
+    console.error('Could not create barangay.', error);
+    throw new Error(`Could not save the barangay "${clean}". Ask a Head Engineer to add it, then try again.`);
+  }
   return created.id as number;
 }
 
@@ -438,10 +443,24 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     await syncAttachments(db, { project_id: projectId! }, rec.attachments as AttachmentInput[], userId);
   }
 
-  const { data: joined, error } = await db.from('projects').select(PROJECT_SELECT).eq('id', projectId!).single();
-  if (error) throw error;
-  const [mapped] = await attachRoadExtras(db, [mapProject(joined as Joined)]);
-  return mapped;
+  // @mine — the road and the project are already committed at this point. A failure in this
+  // follow-up read (joins, signed URLs, extras) must NOT surface as 'unable to create',
+  // otherwise the user sees an error for a project that is sitting in the list.
+  try {
+    const { data: joined, error } = await db.from('projects').select(PROJECT_SELECT).eq('id', projectId!).single();
+    if (error) throw error;
+    const [mapped] = await attachRoadExtras(db, [mapProject(joined as Joined)]);
+    return mapped;
+  } catch (error) {
+    console.error('Project was saved but could not be re-read; returning the stored values.', error);
+    return {
+      ...rec,
+      id: projectId,
+      roadId: roadId ?? rec.roadId,
+      projectName: projectPayload.project_name,
+      name: projectPayload.project_name,
+    } as StoredRecord;
+  }
 }
 
 export async function archiveRoad(db: SupabaseClient, id: string): Promise<boolean> {
@@ -732,13 +751,18 @@ export async function addActivityLog(
   admin: SupabaseClient,
   input: { userId?: string; user: string; action: string; details: string },
 ): Promise<void> {
-  await admin.from('activity_logs').insert({
-    user_id: input.userId ?? null,
-    user_name: input.user,
-    action: input.action,
-    entity_type: 'app',
-    details: { message: input.details },
-  });
+  // @mine — logging is best-effort: it runs after the write and must never fail the request.
+  try {
+    await admin.from('activity_logs').insert({
+      user_id: input.userId ?? null,
+      user_name: input.user,
+      action: input.action,
+      entity_type: 'app',
+      details: { message: input.details },
+    });
+  } catch (error) {
+    console.error('Could not write the activity log entry.', error);
+  }
 }
 
 export async function listActivityLogs(admin: SupabaseClient): Promise<Array<{ id: string; user: string; action: string; timestamp: string; details: string }>> {

@@ -78,6 +78,19 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Follow-up: a saved project can no longer be reported as a failure
+- **Type:** Modified (save path hardening)
+- **Files:** `src/lib/supabase-data.ts`, `src/app/api/local-road/route.ts`, `MY-CHANGES.md` (this entry)
+- **What the owner saw:** adding a project as encoder produced "Unable to create this project. Your role may not permit it." even though the project *was* in the list. The database log shows why: the failing attempt never wrote a row (no orphan `roads`, no orphan `projects`), then the very next attempt wrote one road + one project + the "Project Created" activity entry. That is the pre-policy barangay failure (new barangay could not be created → `barangay_id` null → `NOT NULL` violation → generic role message), and the row in the list came from the retry that succeeded once the policy landed.
+- **Two ways that misleading error could still be produced — both closed:**
+-   1. `resolveBarangayId()` used to `return null` when the barangay insert failed, hiding the cause; it now throws `Could not save the barangay "X". Ask a Head Engineer to add it, then try again.`, which the route returns as **400**.
+-   2. After the road + project rows are committed, the follow-up read (joins, signed URLs, extras) is now best-effort: if it fails the request still answers with the stored values instead of a 500, so the UI can never show an error for a project that was actually saved.
+- **Also:** `addActivityLog()` is explicitly non-fatal (wrapped in try/catch) — it runs after the write and must never fail the request.
+- **Verified:** exactly **one** road and **one** project exist from that encoder session (`christine agkis`, 07:10:46–07:10:52 UTC), with the new barangay `mjkjshdkjssd`, contractor `mhgsdjh`, category `National Road` — i.e. the new-barangay path now works end to end.
+- **Verified build:** `npx tsc --noEmit` ✅ · `npm run build` ✅
+- **Status:** ✅ Kept
+- **Original code affected:** `saveRoad()` / `resolveBarangayId()` / `addActivityLog()` are my own migrated code
+
 ### 2026-11-10 — [mine] Encoder role can add local road projects and has a Delete button next to Edit
 - **Type:** Modified (local road list) + Config/DB (RLS insert policies on reference data)
 - **Files:** `src/app/components/LocalRoadList.tsx`, `src/app/api/local-road/route.ts`, `src/lib/supabase-data.ts`, `supabase/migrations/20261110_encoder_reference_data.sql` (new), `MY-CHANGES.md` (this entry)
