@@ -8,6 +8,7 @@ const IDLE_TIMEOUT_MS = 3 * 60 * 1000;
 const IDLE_WARNING_MS = 30 * 1000;
 import { LoginPage } from './components/LoginPage';
 import { Sidebar } from './components/Sidebar';
+import { SESSION_EXPIRED_EVENT, installSessionExpiryHandler } from '@/lib/session-expiry';
 import { Dashboard } from './components/Dashboard';
 import { LocalRoadList } from './components/LocalRoadList';
 import { LocalRoadForm } from './components/LocalRoadForm';
@@ -151,6 +152,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   const [idleCountdown, setIdleCountdown] = useState(0);
+  // @mine — set when an authenticated call answers 401 (see lib/session-expiry).
+  const [sessionExpired, setSessionExpired] = useState(false);
   const lastActivity = useRef(Date.now());
   const handleLogoutRef = useRef<() => void>(() => {});
 
@@ -348,6 +351,20 @@ export default function App() {
   };
 
   handleLogoutRef.current = handleLogout;
+
+  // @mine — a 401 from an authenticated call means the session is gone; say so
+  // instead of showing "You must be signed in to do that." over a stale page.
+  const loggedInRef = useRef(false);
+  loggedInRef.current = isLoggedIn;
+
+  useEffect(() => {
+    installSessionExpiryHandler();
+    const onExpired = () => {
+      if (loggedInRef.current) setSessionExpired(true);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
 
   const handleTabChange = (tab: string) => {
     setShowLocalRoadForm(false);
@@ -791,6 +808,24 @@ export default function App() {
               <span className="font-bold text-red-500">{idleCountdown}</span> seconds.
             </p>
             <p className="text-sm text-gray-500">Move your mouse or press a key to continue.</p>
+          </div>
+        </div>
+      )}
+      {sessionExpired && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+          <div role="alertdialog" aria-labelledby="session-ended-title" className="w-full max-w-sm rounded-lg bg-white p-8 text-center shadow-lg">
+            <h2 id="session-ended-title" className="mb-2 text-xl font-bold text-[#0ea5e9]">Session ended</h2>
+            <p className="mb-4 text-gray-600">
+              Your sign-in is no longer valid. This happens when the session expires or when your own account was
+              edited (changing your e-mail or password signs you out). Sign in again to continue.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setSessionExpired(false); handleLogoutRef.current(); }}
+              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white transition hover:brightness-105"
+            >
+              Sign in again
+            </button>
           </div>
         </div>
       )}
