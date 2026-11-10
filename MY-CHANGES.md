@@ -46,6 +46,13 @@ so you can `grep -rn "@mine" src/` and find my fingerprints.
 
 ## 📋 Change Log
 
+### 2026-11-09 — [mine] Custom email templates doc (for Supabase Auth)
+- **Type:** Docs only (no code executed, nothing changed in Supabase yet)
+- **Files:** `docs/EMAIL-TEMPLATES.md` (new), `MY-CHANGES.md` (this entry)
+- **What & why:** Prepared a Mabini MEO-branded password-reset email template (subject + HTML) to paste into Supabase Dashboard → Authentication → Email Templates, plus suggested subjects for the other built-in templates. Context from this session: the system currently uses Supabase's default templates and built-in mailer (~2 emails/hour); custom SMTP is a dashboard-only config the owner will do in Phase 1 (along with creating `AI_GATEWAY_API_KEY` in Vercel — the only API key still needed; Supabase keys are already set).
+- **Status:** 📄 Ready to paste — owner applies it in the Supabase dashboard
+- **Original code affected:** none
+
 ### 2026-11-09 — [mine] AI integration check + demo-data cleanup plan (PREPARED, not executed)
 - **Type:** Docs + prepared SQL (no data changed anywhere)
 - **Files:** `docs/DEMO-DATA-PLAN.md` (new), `supabase/demo/seed-demo-data.sql` (new), `MY-CHANGES.md` (this entry)
