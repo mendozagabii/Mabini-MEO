@@ -38,6 +38,7 @@ interface LocalRoad {
   projectName?: string;
   projectCategory?: string;
   projectDescription?: string;
+  dateStarted?: string;
   targetCompletionDate?: string;
   noOfExtensions?: string;
   actualCompletionDate?: string;
@@ -399,6 +400,7 @@ export default function App() {
       type: data.type || data.projectCategory || '',
       location: data.location || '',
       dateBuilt: data.dateBuilt || '',
+      dateStarted: data.dateStarted || data.dateBuilt || '',
       condition: data.condition || 'Good',
       lastInspection: data.lastInspection,
       projectName: data.projectName || data.name || '',

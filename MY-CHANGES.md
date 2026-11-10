@@ -78,6 +78,11 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Encoder local road form validation
+- **What & why:** Require all add-project fields including the turnover attachment, but leave No. of Extensions optional; show a category-specific prompt, preserve existing edit attachments, and remove the duplicate project-information attachment control/display. Accept decimal money amounts and strip grouping before saving. Require four-digit years in all five date fields and carry Date Started through the project payload.
+- **Files:** `src/app/components/LocalRoadForm.tsx`, `LocalRoadList.tsx`, `src/app/App.tsx`, `src/lib/project-form-validation.ts`, `tests/project-form.test.cjs`, `package.json`, `package-lock.json`, `MY-CHANGES.md`.
+- **Verification:** Local DOM form tests, mocked role tests, TypeScript and production build. A separate database-free form preview was used; no database or production deployment was changed. Real-account CRUD remains unverified.
+
 ### 2026-11-10 — [mine] Icon-only project, maintenance and inspection actions
 - **Type:** Modified (`src/app/components/LocalRoadList.tsx`, `MaintenanceModule.tsx`, `InspectionModule.tsx`) and tests (`tests/role-crud.test.cjs`).
 - **What & why:** Display Edit and Delete as neutral icon buttons, with blue and red hover/focus styling respectively; the deferred maintenance Continue action also uses a blue-hover icon. Accessible names and title tooltips identify the controls. Removed the inspection Details button; the card itself still opens the details modal.

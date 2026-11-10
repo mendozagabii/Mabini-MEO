@@ -258,7 +258,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               {[
                 ['Date Started *', selectedItem.dateBuilt],
                 ['Target Completion Date *', selectedItem.targetCompletionDate],
-                ['No. of Extensions *', selectedItem.noOfExtensions],
+                ['No. of Extensions', selectedItem.noOfExtensions],
                 ['Actual Completion Date *', selectedItem.actualCompletionDate],
               ].map(([label, value]) => (
                 <div key={label}>
@@ -266,12 +266,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                   <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{value || 'N/A'}</p>
                 </div>
               ))}
-            </div>
-            <div className="mb-1">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Attachment</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
-                {selectedItem.attachments?.length ? `${selectedItem.attachments.length} file${selectedItem.attachments.length > 1 ? 's' : ''} submitted` : 'No file chosen'}
-              </p>
             </div>
             </section>
             <section className="border-b pb-6 pt-5">
@@ -355,7 +349,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.turnoverDate || 'N/A'}</p>
             </div>
-            </section>
             <div className="project-attachments-section mt-5 border-t border-slate-200 pb-5 pt-5">
               <p className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <Paperclip className="h-3.5 w-3.5" />
@@ -401,6 +394,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                 )) : <p className="text-gray-800">No attachments available</p>}
               </div>
             </div>
+            </section>
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Condition</p>
