@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardCheck, Calendar, X, Search, ChevronRight, FileText, AlertCircle, Pencil, Trash2, Printer, Plus } from 'lucide-react';
+import { ClipboardCheck, Calendar, X, Search, FileText, AlertCircle, Pencil, Trash2, Printer, Plus } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -69,8 +69,8 @@ const conditionAssessmentLabels = [
 ];
 
 export function InspectionModule({ inspections, localRoadList, onAddInspection, onEditInspection, onDeleteInspection, currentUser, userRole = '' }: InspectionModuleProps) {
-  const isAdminReadDeleteOnly = userRole === 'Admin';
-  const isInspector = userRole === 'Staff - Inspector';
+  // @mine — Admin accounts are displayed as Head Engineer.
+  const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
   const [showForm, setShowForm] = useState(false);
   const [editingInspection, setEditingInspection] = useState<Inspection | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -89,7 +89,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
   const [printAttachment, setPrintAttachment] = useState<Inspection['attachment']>();
   const [selectedInspectionAttachment, setSelectedInspectionAttachment] = useState<Inspection['attachment'] | null>(null);
-  const canPrint = userRole === 'Admin' || userRole === 'Staff - Inspector';
+  const canPrint = ['Admin', 'Head Engineer', 'Staff - Inspector'].includes(userRole);
   const [conditionRatings, setConditionRatings] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     localRoadId: '',
@@ -1205,32 +1205,24 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         }}
                         aria-label={`${isPendingInspection ? 'Record' : 'Edit'} inspection ${referenceId}`}
                         title={isPendingInspection ? 'Record inspection' : 'Edit inspection'}
-                        className="rounded-md p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-700"
+                        className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         {isPendingInspection
-                          ? <ClipboardCheck className="h-4 w-4" />
-                          : <Pencil className="h-4 w-4" />}
+                          ? <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                          : <Pencil className="h-4 w-4" aria-hidden="true" />}
                       </button>}
-                      {!isInspector && !inspection.isScheduledAnnualFollowUp && <button
+                      {/* @mine — inspectors and Head Engineers may archive inspections. */}
+                      <button
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
                           setPendingDelete(inspection);
                         }}
                         aria-label={`Delete inspection ${referenceId}`}
-                        className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        title="Delete"
+                        className="rounded-md p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </button>}
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedInspection({ inspection, referenceId });
-                        }}
-                        className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"
-                      >
-                        Details <ChevronRight className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </div>
                   </footer>
@@ -1257,7 +1249,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
           if (!open) setPendingDelete(null);
         }}
         title="Delete inspection?"
-        description={`Delete the inspection for ${pendingDelete?.localRoadName || 'this road'}? This action cannot be undone.`}
+        description={`Archive the inspection for ${pendingDelete?.localRoadName || 'this road'}? It can be restored from System Management.`}
         onConfirm={() => {
           if (pendingDelete) void onDeleteInspection(pendingDelete.id);
           setPendingDelete(null);

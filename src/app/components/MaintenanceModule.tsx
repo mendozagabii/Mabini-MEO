@@ -38,8 +38,8 @@ const maintenanceFormTabs = [
 ] as const;
 
 export function MaintenanceModule({ maintenanceRecords, localRoadList, inspections, onAddMaintenance, onEditMaintenance, onDeleteMaintenance, onUpdateStatus, currentUser, userRole = '' }: MaintenanceModuleProps) {
-  const isAdminReadDeleteOnly = userRole === 'Admin';
-  const isEncoder = userRole === 'Staff - Encoder';
+  // @mine — Admin accounts are displayed as Head Engineer.
+  const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
   const [showForm, setShowForm] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,7 +49,7 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
   const [projectError, setProjectError] = useState('');
   const [activityError, setActivityError] = useState('');
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
-  const canPrint = userRole === 'Admin' || userRole === 'Staff - Encoder';
+  const canPrint = ['Admin', 'Head Engineer', 'Staff - Encoder'].includes(userRole);
   const [activeFormTab, setActiveFormTab] = useState<(typeof maintenanceFormTabs)[number]['id']>('project');
   const formScrollRef = useRef<HTMLFormElement>(null);
   const projectSectionRef = useRef<HTMLElement>(null);
@@ -719,15 +719,16 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                   <div className="flex shrink-0 items-center gap-2">
                     {!isAdminReadDeleteOnly && (
                       <>
-                        <button type="button" onClick={(event) => { event.stopPropagation(); startEditing(record); }} aria-label={`Edit maintenance record for ${record.localRoadName}`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">
-                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        {/* @mine — icon-only controls keep accessible names and visible focus. */}
+                        <button type="button" onClick={(event) => { event.stopPropagation(); startEditing(record); }} aria-label={`Edit maintenance record for ${record.localRoadName}`} title="Edit" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
                         </button>
                         {record.status === 'Scheduled' && (
                           <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} className="text-sm font-semibold text-blue-700 hover:underline">Start</button>
                         )}
                         {record.status === 'Deferred' && (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">
-                            <Play className="h-3.5 w-3.5" /> Continue
+                          <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} aria-label={`Continue maintenance for ${record.localRoadName}`} title="Continue" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                            <Play className="h-4 w-4" aria-hidden="true" />
                           </button>
                         )}
                         {record.status === 'In Progress' && (
@@ -738,11 +739,10 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                         )}
                       </>
                     )}
-                    {!isEncoder && (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); handleDelete(record); }} aria-label={`Delete maintenance record for ${record.localRoadName}`} className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
+                    {/* @mine — encoder can archive maintenance beside Edit. */}
+                    <button type="button" onClick={(event) => { event.stopPropagation(); handleDelete(record); }} aria-label={`Delete maintenance record for ${record.localRoadName}`} title="Delete" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   </div>
                 </div>
               </article>
@@ -764,7 +764,7 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
           if (!open) setPendingDelete(null);
         }}
         title="Delete maintenance record?"
-        description={`Delete the maintenance record for ${pendingDelete?.localRoadName || 'this project'}? This action cannot be undone.`}
+        description={`Archive the maintenance record for ${pendingDelete?.localRoadName || 'this project'}? It can be restored from System Management.`}
         onConfirm={() => {
           if (pendingDelete) onDeleteMaintenance(pendingDelete.id);
           setPendingDelete(null);
