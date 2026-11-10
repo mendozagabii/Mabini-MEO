@@ -78,6 +78,28 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Username IS the display name (unique identity); legacy handles retired
+- **Type:** DB data change (live) + Modified (account create/edit route, account form)
+- **Files:** `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)
+- **What & why:** the owner wants one canonical handle per person: the username must equal the display name, so identity is guaranteed by the **unique constraint on `profiles.username`** instead of legacy handles. `deriveUsername()` (trim → collapse spaces → lower-case) is now used by both create and edit; the old e-mail-prefix fallback on create is gone. Before anything is written, both paths check for an existing account with that name and answer **409** with guidance ("add a distinguishing name, e.g. a middle name"), so a duplicate name can never half-create or half-update an account.
+- **DB (live backfill):** all five accounts re-stamped after verifying zero collisions — `admin` → `mae ortega`, `encoder` → `christine agkis`, `inspector` → `gabriel mendoza`, `validator` → `jeicel ortega`, `ortegajeicel` → `ryan` (all `username_resolves = true`).
+- **Verified** (`resolve_login_email`): `admin` → **null**, `encoder` → **null** (retired) · `mae ortega` / `Mae Ortega` / `MAE ORTEGA` → ortegajeicelmae@gmail.com · `ryan` → ryanbarraca1905@gmail.com · `christine agkis` → christinejoy.agkis@gmail.com · any e-mail → itself.
+- **Operational note:** anyone still using the old handles must now sign in with their **name or e-mail** — both still work, so nobody is locked out. The form shows a hint under Name ("The username is this name in lower case, and must be unique across accounts").
+- **Verified build:** `npx tsc --noEmit` ✅ · `npm run build` ✅
+- **Status:** ✅ Kept — the DB half is live; the route half ships with the merge
+- **Original code affected:** both files are my own migrated code (already `@mine`)
+
+### 2026-11-10 — [mine] Login with a username, a display name, or an e-mail
+- **Type:** DB migration (live) + Modified (login route)
+- **Files:** `supabase/migrations/20261110_login_identifier_resolution.sql` (new), `src/app/api/auth/login/route.ts`, `MY-CHANGES.md` (this entry)
+- **What & why:** Renaming an account ("admin" → "Mae Ortega") changed the display but not the way people sign in, because `resolve_login_email` only matched `profiles.username`. Now the identifier resolves against all three, in this order: **username** (unique) → **e-mail** (unique) → **display name**, and a display name is accepted only when **exactly one active account** carries it, so two people with the same name can never land on the wrong account (they fall back to their username/e-mail). Matching ignores case and collapses repeated spaces. The login route now always calls the resolver (previously it skipped it whenever the identifier contained `@`), so the address Auth actually holds wins over whatever spelling was typed; the raw string is only used as a fallback for an e-mail no profile carries.
+- **DB (live):** `resolve_login_email(text)` replaced (dropped + recreated because Postgres cannot rename an input parameter in place), `SECURITY DEFINER`, `search_path ''`, re-granted to `anon`, `authenticated`, `service_role`.
+- **Verified** (`select resolve_login_email(...)`): `admin` → ortegajeicelmae@gmail.com · `Mae Ortega` → same · `"  mae   ORTEGA "` → same · `Christine Agkis` → christinejoy.agkis@gmail.com · `christinejoy.agkis@gmail.com` → same · `inspector` → mendozagabriel253@gmail.com · `Gabriel Mendoza` → same · `no such person` → null.
+- **Note:** existing **usernames are unchanged** (`encoder`, `inspector`, …) and the account form still has no Username field, so a person's e-mail prefix (e.g. `christinejoy.agkis`) is *not* a handle until a username editor exists — their name and e-mail both work.
+- **Verified build:** `npx tsc --noEmit` ✅ · `npm run build` ✅
+- **Status:** ✅ Kept — the DB half is already live; the route half needs the merge + redeploy
+- **Original code affected:** `src/app/api/auth/login/route.ts` is my own migrated file (already `@mine`)
+
 ### 2026-11-10 — [mine] Dead-session handling: 401 now says "Session ended" and offers a re-login
 - **Type:** Added (`src/lib/session-expiry.ts`) + Modified (`src/app/App.tsx`)
 - **Files:** `src/lib/session-expiry.ts` (new), `src/app/App.tsx`, `MY-CHANGES.md` (this entry)

@@ -38,13 +38,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // Username (or email) -> account email. Unknown accounts get the same
-  // generic error as a wrong password (no user enumeration).
-  let email = identifier.includes('@') ? identifier : '';
-  if (!email) {
-    const { data } = await admin.rpc('resolve_login_email', { input_username: identifier });
-    email = typeof data === 'string' ? data : '';
-  }
+  // @mine — the identifier may be a username, a display name, or an e-mail
+  // (public.resolve_login_email). Always resolve it, so the address Auth actually
+  // holds wins over whatever spelling was typed; only fall back to the raw string
+  // for an e-mail that no profile carries. Unknown accounts get the same generic
+  // error as a wrong password (no user enumeration).
+  const { data: resolvedEmail } = await admin.rpc('resolve_login_email', { input_username: identifier });
+  const email = typeof resolvedEmail === 'string' && resolvedEmail
+    ? resolvedEmail
+    : identifier.includes('@')
+      ? identifier
+      : '';
 
   const fail = async () => {
     const { data } = await admin.rpc('register_failed_login', { p_identifier: key, p_max_attempts: MAX_ATTEMPTS, p_lock_minutes: 15 });

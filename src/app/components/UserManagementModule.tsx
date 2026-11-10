@@ -1373,6 +1373,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="h-10 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
+                {/* @mine — the handle is derived from this name and must be unique. */}
+                <p className="mt-1 text-xs text-slate-500">The username is this name in lower case, and must be unique across accounts.</p>
               </div>
 
               <div className="sm:col-span-2">

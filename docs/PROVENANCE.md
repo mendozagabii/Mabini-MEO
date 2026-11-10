@@ -17,9 +17,9 @@ Generated from git on **2026-11-10** · baseline `ce9a474` · every row below is
 
 | | Files | Meaning |
 |---|---:|---|
-| Total tracked now | **139** | everything in the repo |
+| Total tracked now | **140** | everything in the repo |
 | 🟦 Inherited, untouched | **88** | original author's work, byte-for-byte |
-| 🟩 Added by me | **32** | files that did not exist at baseline |
+| 🟩 Added by me | **33** | files that did not exist at baseline |
 | 🟨 Modified by me | **19** | original files I edited (still their file) |
 | 🟥 Deleted by me | **0** | — |
 
@@ -38,7 +38,7 @@ grep -rn "@mine" src/                # markers inside the code I wrote/edited
 
 ---
 
-## 🟩 Added by me (32 files)
+## 🟩 Added by me (33 files)
 
 Files that are entirely mine — safe to treat as "new work", nothing inherited inside them.
 
@@ -87,7 +87,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +294 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +316 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -96,6 +96,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | `supabase/demo/seed-demo-data.sql` | added | +231 / -0 | EXECUTED 2026-11-10 (owner gave the go signal for Phase 3). … |
 | `supabase/migrations/20261109_annual_validation.sql` | added | +31 / -0 | Applied 2026-11-09 via Supabase migration … |
 | `supabase/migrations/20261110_annual_followup_unique.sql` | added | +31 / -0 | Fix (2026-11-10): duplicate annual follow-up inspections. … |
+| `supabase/migrations/20261110_login_identifier_resolution.sql` | added | +75 / -0 | Login identifier resolution: username, display name, or e-mail. … |
 | `supabase/migrations/20261110_master_code_service_role.sql` | added | +52 / -0 | Fix (2026-11-10): the "Update Master Password" button never worked. … |
 
 #### Tooling — `scripts/`, `.githooks/`
@@ -121,10 +122,10 @@ theirs in origin; only the lines listed in the note / diff are mine.
 | `src/app/api/activity-logs/route.ts` | modified | +36 / -20 | Rewritten for Supabase; now requires a session (was unauthenticated). … |
 | `src/app/api/ai-priority/route.ts` | modified | +78 / -35 | Added the session check (was unauthenticated); AI logic unchanged. … |
 | `src/app/api/auth/lock-status/route.ts` | modified | +18 / -6 | Fixed + moved to Supabase: this route was statically prerendered … |
-| `src/app/api/auth/login/route.ts` | modified | +91 / -63 | Rewritten: Supabase Auth sign-in (was SQLite password check). … |
+| `src/app/api/auth/login/route.ts` | modified | +95 / -63 | Rewritten: Supabase Auth sign-in (was SQLite password check). … |
 | `src/app/api/auth/request-password-reset/route.ts` | modified | +24 / -43 | Rewritten: delegates to Supabase Auth email reset (was custom Gmail … |
 | `src/app/api/auth/reset-password/route.ts` | modified | +81 / -17 | Rewritten for Supabase Auth recovery sessions. Accepts either the … |
-| `src/app/api/auth/status/route.ts` | modified | +174 / -62 | Rewritten for Supabase (was SQLite users table). User administration … |
+| `src/app/api/auth/status/route.ts` | modified | +217 / -61 | Rewritten for Supabase (was SQLite users table). User administration … |
 | `src/app/api/auth/unlock/route.ts` | modified | +121 / -46 | Rewritten for Supabase. Previously, non-admin accounts could be … |
 | `src/app/api/health/route.ts` | modified | +11 / -8 | Was hardcoded to 'development'/'local-nextjs-sqlite'. |
 | `src/app/api/inspections/route.ts` | modified | +118 / -145 | Rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts. |
@@ -143,7 +144,7 @@ theirs in origin; only the lines listed in the note / diff are mine.
 |---|---|---|---|
 | `src/app/components/LocalRoadForm.tsx` | modified | +3 / -0 | Supabase Storage path for the file (Phase 2, 2026-11-09); … |
 | `src/app/components/LocalRoadList.tsx` | modified | +3 / -0 | Supabase Storage path for the file (Phase 2, 2026-11-09); … |
-| `src/app/components/UserManagementModule.tsx` | modified | +72 / -11 | These are the labels the API/session already use (ROLE_FROM_DB); the old … |
+| `src/app/components/UserManagementModule.tsx` | modified | +74 / -11 | These are the labels the API/session already use (ROLE_FROM_DB); the old … |
 
 #### Password-reset page — `src/app/reset-password/`
 
@@ -284,6 +285,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 | PR | Branch merged | Merge commit |
 |---|---|---|
+| [#8](https://github.com/mendozagabii/Mabini-MEO/pull/8) | `arena/2189dcc5-mabini-meo` | `c959a40` |
 | [#7](https://github.com/mendozagabii/Mabini-MEO/pull/7) | `arena/bd8f6847-mabini-meo` | `10eb585` |
 | [#6](https://github.com/mendozagabii/Mabini-MEO/pull/6) | `arena/2f0c41f0-mabini-meo` | `a24dde1` |
 | [#5](https://github.com/mendozagabii/Mabini-MEO/pull/5) | `arena/d405d1b2-mabini-meo` | `af8ad92` |
@@ -310,6 +312,8 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Fix password reset: links never applied because updateUser needs a session | 4 |
 | 2026-11-10 | [mine] Fix role editing: one role resolver, no silent encoder fallback, restore demoted accounts | 5 |
 | 2026-11-10 | [mine] Handle a dead session: 401 shows a 'Session ended' dialog instead of a cryptic error | 4 |
+| 2026-11-10 | [mine] Log in with username, display name, or e-mail | 4 |
+| 2026-11-10 | [mine] Username equals the display name (unique identity); retire legacy handles | 4 |
 
 ---
 
