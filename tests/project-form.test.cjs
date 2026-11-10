@@ -33,7 +33,6 @@ global.fetch = async (url, options) => {
 };
 const { LocalRoadForm } = loadTs('src/app/components/LocalRoadForm.tsx', {
   './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
-  '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
   '@/lib/project-form-validation': validation,
   '@/lib/attachment-validation': attachmentValidation,
   '@/lib/project-save-delay': { startProjectSaveDelay: () => startDelay() },
@@ -267,6 +266,7 @@ test('project details and printed financial information group saved values', asy
     './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
     '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-save-delay': loadTs('src/lib/project-save-delay.ts'),
     '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
   '@/lib/project-form-validation': validation,
   });
@@ -303,7 +303,8 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
   const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
     './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
-    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-save-delay': loadTs('src/lib/project-save-delay.ts'),
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
   '@/lib/project-form-validation': validation,
   });
   await reset();
@@ -356,4 +357,33 @@ test('save failures leave the form open and display the error after the delay', 
     assert.equal(closed, 0); assert.equal(container.querySelector('button[type=submit]').disabled, false);
     assert.match(container.querySelector('[role=alert]').textContent, /Save failed/);
   } finally { startDelay = () => Promise.resolve(); }
+});
+
+test('validation save displays loading and prevents duplicate submission until request and delay finish', async () => {
+  let finishDelay; let finishSave; let calls = 0;
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
+    './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+    '@/lib/project-save-delay': { startProjectSaveDelay: () => new Promise(resolve => { finishDelay = resolve; }) },
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good', actualCompletionDate: '2000-01-01', validationResult: 'Return for Revision', validationRemarks: 'Fix it' };
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Validator', validationMode: true, onAdd() {}, onEdit() {}, onDelete() {}, onSaveValidation: () => { calls++; return new Promise(resolve => { finishSave = resolve; }); } })));
+  await act(async () => container.querySelector('tr[aria-label]').click());
+  const form = container.querySelector('.validation-entry-form');
+  await act(async () => form.requestSubmit());
+  assert.equal(calls, 1);
+  const button = form.querySelector('button[type=submit]');
+  assert.equal(button.disabled, true); assert.match(button.textContent, /Saving/);
+  await act(async () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })));
+  assert.equal(calls, 1);
+  await act(async () => finishSave(true));
+  assert.equal(button.disabled, true);
+  await act(async () => finishDelay());
+  assert.equal(container.querySelector('.validation-entry-form'), null);
 });

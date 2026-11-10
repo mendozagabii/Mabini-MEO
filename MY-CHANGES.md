@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Revision resubmission and validator progress
+
+- Change the encoder badge to For Revision; record encoder resubmission independently of the validator's result and remarks, and show Updated in the validator list until the next decision.
+- Guard resubmission against concurrent validation changes and report partial failures. Validator saves have a disabled loading state lasting at least three seconds.
+- Add an unapplied migration for the two resubmission timestamps. A returned project cannot be updated through the preview until that migration is explicitly approved and applied; other existing workflows remain compatible with the old schema.
+- Local mock and UI tests only; no live database writes or migration application.
+
 ### 2026-11-10 — [mine] Project validation and revision workflow
 
 - Rename the displayed project cost to Actual Project Cost without changing its stored column.

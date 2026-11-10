@@ -75,6 +75,9 @@ function mapProject(p: Joined): StoredRecord {
     projectStatus: p.status ?? 'planned',
     ...(validation ? { validationResult: validation } : {}),
     validationRemarks: p.validation_remarks ?? '',
+    validationValidatedAt: p.validated_at ?? undefined,
+    validationResubmittedAt: p.validation_resubmitted_at ?? undefined,
+    revisionWorkflowAvailable: Object.hasOwn(p, 'validation_resubmitted_at'),
     archivedAt: p.archived_at ?? undefined,
     // @mine — filled in by attachRoadExtras() in the list functions below.
     attachments: [] as StoredRecord[],
@@ -301,6 +304,8 @@ async function attachRoadExtras(db: SupabaseClient, records: StoredRecord[]): Pr
         result: ANNUAL_RESULT_FROM_DB[e.result] ?? 'Pending',
         remarks: e.remarks ?? '',
         ...(e.validated_at ? { validatedAt: e.validated_at } : {}),
+        ...(e.resubmitted_at ? { resubmittedAt: e.resubmitted_at } : {}),
+        revisionWorkflowAvailable: Object.hasOwn(e, 'resubmitted_at'),
       })),
     annualInspectionYears: ((followRows ?? []) as Joined[])
       .filter((f) => f.project_id === record.id)
@@ -330,22 +335,37 @@ export async function saveAnnualValidation(
   result: string,
   remarks: string,
   userId: string,
+  supportsResubmission = false,
 ): Promise<void> {
   const { data, error } = await db.from('annual_validation_entries').update({
     result: VALIDATION_TO_DB[result], remarks: remarks.trim(),
     validated_by: userId, validated_at: new Date().toISOString(),
+    ...(supportsResubmission ? { resubmitted_at: null } : {}),
   }).eq('project_id', projectId).eq('year', year).select('id').maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Could not update this annual validation.');
 }
 
 /** Only called after the API has checked the authenticated validator and eligible project. */
-export async function saveInitialValidation(admin: SupabaseClient, projectId: string, result: string, remarks: string): Promise<void> {
+export async function saveInitialValidation(admin: SupabaseClient, projectId: string, result: string, remarks: string, userId?: string, supportsResubmission = false): Promise<void> {
   const { data, error } = await admin.from('projects')
-    .update({ validation_status: VALIDATION_TO_DB[result], validation_remarks: remarks.trim() })
+    .update({ validation_status: VALIDATION_TO_DB[result], validation_remarks: remarks.trim(),
+      ...(userId ? { validated_by: userId, validated_at: new Date().toISOString() } : {}),
+      ...(supportsResubmission ? { validation_resubmitted_at: null } : {}) })
     .eq('id', projectId).is('archived_at', null).select('id').maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Could not update this project validation.');
+}
+
+/** Mark only the still-returned decision that was visible when the encoder began saving. */
+export async function markValidationResubmitted(admin: SupabaseClient, projectId: string, year: number | undefined, validatedAt: string | undefined, remarks: string): Promise<boolean> {
+  let query = year === undefined
+    ? admin.from('projects').update({ validation_resubmitted_at: new Date().toISOString() }).eq('id', projectId).is('archived_at', null).eq('validation_status', 'rejected').eq('validation_remarks', remarks).is('validation_resubmitted_at', null)
+    : admin.from('annual_validation_entries').update({ resubmitted_at: new Date().toISOString() }).eq('project_id', projectId).eq('year', year).eq('result', 'rejected').eq('remarks', remarks).is('resubmitted_at', null);
+  query = validatedAt ? query.eq('validated_at', validatedAt) : query.is('validated_at', null);
+  const { data, error } = await query.select('id').maybeSingle();
+  if (error) throw error;
+  return !!data;
 }
 
 async function resolveBarangayId(db: SupabaseClient, name: string): Promise<number | null> {
