@@ -3,7 +3,8 @@
 // Accounts now live in Supabase Auth + public.profiles.
 import { NextResponse } from 'next/server';
 import { requireRole, withRefresh } from '@/lib/api';
-import { ROLE_TO_DB, addActivityLog, listArchivedUsers, listUsers, mapProfile } from '@/lib/supabase-data';
+import { addActivityLog, listArchivedUsers, listUsers, mapProfile } from '@/lib/supabase-data';
+import { toDbRole } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Invalid account status.' }, { status: 400 });
   }
   const cleanEmail = String(email).trim().toLowerCase();
+  // @mine — reject an unknown role instead of silently creating an encoder.
+  const dbRole = toDbRole(role);
+  if (!dbRole) {
+    return NextResponse.json({ message: `Unknown role: ${String(role)}.` }, { status: 400 });
+  }
   const cred = String(password ?? '');
   const cleanUsername = (String(username ?? '').trim() || cleanEmail.split('@')[0]).toLowerCase();
   try {
@@ -51,7 +57,7 @@ export async function POST(request: Request) {
         full_name: String(name).trim(),
         name: String(name).trim(),
         username: cleanUsername,
-        role: ROLE_TO_DB[String(role)] ?? 'encoder',
+        role: dbRole,
         status: status === 'Inactive' ? 'inactive' : 'active',
       })
       .eq('id', data.user.id)
@@ -92,15 +98,29 @@ export async function PATCH(request: Request) {
       if (nextPassword && nextPassword.length < 8) {
         return NextResponse.json({ message: 'The password must be at least 8 characters long.' }, { status: 400 });
       }
+      // @mine — same tolerant resolution as create; an unknown value is an error,
+      // not a silent fallback to encoder.
+      const dbRole = toDbRole(payload.role);
+      if (!dbRole) {
+        return NextResponse.json({ message: `Unknown role: ${String(payload.role)}.` }, { status: 400 });
+      }
       const { data: current, error: currentError } = await auth.admin
         .from('profiles')
-        .select('email')
+        .select('email, role')
         .eq('id', userId)
         .is('archived_at', null)
         .maybeSingle();
       if (currentError) throw currentError;
       if (!current) return NextResponse.json({ message: 'User not found.' }, { status: 404 });
 
+      // @mine — a Head Engineer demoting themselves would leave the system with no
+      // one able to administer users (the master code does not grant roles).
+      if (userId === auth.userId && dbRole !== current.role) {
+        return NextResponse.json(
+          { message: 'You cannot change your own role. Ask another Head Engineer to do it.' },
+          { status: 400 },
+        );
+      }
       const emailChanged = nextEmail !== String(current.email ?? '').trim().toLowerCase();
       if (emailChanged || nextPassword) {
         const { error: authError } = await auth.admin.auth.admin.updateUserById(userId, {
@@ -122,7 +142,7 @@ export async function PATCH(request: Request) {
           name: String(payload.name).trim(),
           email: String(payload.email).trim().toLowerCase(),
           username: String(payload.username).trim().toLowerCase(),
-          role: ROLE_TO_DB[String(payload.role)] ?? 'encoder',
+          role: dbRole,
           status: dbStatus,
         }, { count: 'exact' })
         .eq('id', payload.id)
