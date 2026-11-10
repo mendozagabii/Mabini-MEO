@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# @mine — pre-commit guard: refuse a commit that changes code without a MY-CHANGES.md
+# entry staged alongside it. Installed by ./scripts/setup-hooks.sh
+# (git config core.hooksPath .githooks). Bypass with: git commit --no-verify
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+exec "$root/scripts/check-changelog.sh" --staged

@@ -1,3 +1,5 @@
+<!-- @mine — baseline snapshot taken 2026-11-09: the inherited repo (107 files) before any of my changes. -->
+
 # 📦 BASELINE — What I Inherited (Not Mine)
 
 Snapshot of the repo exactly as received, before any of my changes.
