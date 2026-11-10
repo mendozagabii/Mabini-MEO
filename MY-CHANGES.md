@@ -78,6 +78,12 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Revision badge and validation save feedback
+
+- Rename the encoder badge to For Revision. After an encoder successfully saves a returned project, requeue the corresponding initial or annual decision as Pending while retaining the validator's remarks; this removes the badge and permits another validation without a schema change.
+- Guard the requeue against concurrent decisions using the existing validation timestamp and report partial failures. Validator save/submit buttons show Saving... or Submitting... and prevent duplicates until the request finishes.
+- Verified with local UI and mock tests only; no live database writes or migration were performed. Preview uses the live database.
+
 ### 2026-11-10 — [mine] Undo revision resubmission task
 
 - Reverted the For Revision badge rename, Updated resubmission status, validator save loading indicator, and associated changes from commit `a02531f` at the user's request. The earlier project validation workflow is retained.

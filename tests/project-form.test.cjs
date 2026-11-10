@@ -357,3 +357,33 @@ test('save failures leave the form open and display the error after the delay', 
     assert.match(container.querySelector('[role=alert]').textContent, /Save failed/);
   } finally { startDelay = () => Promise.resolve(); }
 });
+
+test('validation buttons show Saving... and Submitting... while awaiting the request', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
+    './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  for (const result of ['Return for Revision', 'Validated']) {
+    let finishSave, calls = 0;
+    const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good', actualCompletionDate: '2000-01-01', validationResult: 'Return for Revision', validationRemarks: 'Fix it' };
+    await reset();
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Validator', validationMode: true, onAdd() {}, onEdit() {}, onDelete() {}, onSaveValidation: () => { calls++; return new Promise(resolve => { finishSave = resolve; }); } })));
+    await act(async () => container.querySelector('tr[aria-label]').click());
+    if (result === 'Validated') await act(async () => container.querySelector('input[value="Validated"]').click());
+    const form = container.querySelector('.validation-entry-form');
+    await act(async () => form.requestSubmit());
+    const button = form.querySelector('button[type=submit]');
+    assert.equal(button.disabled, true);
+    assert.equal(button.textContent, result === 'Validated' ? 'Submitting...' : 'Saving...');
+    await act(async () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })));
+    assert.equal(calls, 1);
+    await act(async () => finishSave(false));
+    assert.equal(button.disabled, false);
+    assert.equal(button.textContent, result === 'Validated' ? 'Submit' : 'Save');
+  }
+});
