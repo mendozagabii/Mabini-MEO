@@ -69,6 +69,11 @@ async function fill() {
 test('currency and date helpers preserve decimals and require a four-digit year', () => {
   assert.equal(validation.formatProjectCurrency('1234567.89'), '1,234,567.89');
   assert.equal(validation.formatProjectCurrency('1234.'), '1,234.');
+  assert.equal(validation.formatSavedProjectCurrency('1234.50'), '1,234.50');
+  assert.equal(validation.formatSavedProjectCurrency('1,234.50'), '1,234.50');
+  assert.equal(validation.formatSavedProjectCurrency('0'), '0');
+  assert.equal(validation.formatSavedProjectCurrency(''), '');
+  assert.equal(validation.formatSavedProjectCurrency('-1234.50'), '-1234.50');
   assert.equal(validation.isValidProjectCurrency('1,234.56'), true);
   assert.equal(validation.isValidProjectCurrency('1,234.'), false);
   assert.equal(validation.isValidProjectCurrency('1\n2'), false);
@@ -205,4 +210,70 @@ test('edit accepts a new uploaded turnover attachment without removing existing 
   assert.equal(saved.attachments.length, 2);
   assert.equal(saved.attachments[0].storagePath, 'old/path');
   assert.equal(saved.attachments[1].staged, true);
+});
+
+test('editing saved monetary values groups commas, preserves decimals and submits numeric strings', async () => {
+  let saved;
+  const item = {
+    id: 'p1', name: 'Road improvement', type: 'National Road', location: 'Mabini', dateBuilt: '2026-01-01', condition: 'Good',
+    projectName: 'Road improvement', projectCategory: 'National Road', projectDescription: 'Description', dateStarted: '2026-01-01',
+    targetCompletionDate: '2026-02-01', actualCompletionDate: '2026-02-01', roadNetworkId: '1', barangay: 'Mabini', components: 'Road',
+    description: 'Road works', contractorName: 'Company', contractorAddress: 'Address', contactInformation: '123', pcadLicenseNo: 'ABC',
+    sourceOfFunds: 'Municipal', appropriation: '1234567.89', contractedAmount: '1,000.25', adjustProjectCost: '0.50',
+    completionDate: '2026-02-01', completionPercentage: '100', turnoverDate: '2026-02-02',
+    attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }],
+  };
+  await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
+  assert.equal(field('Appropriation').value, '1,234,567.89');
+  assert.equal(field('Contracted Amount').value, '1,000.25');
+  assert.equal(field('Adjust Project Cost').value, '0.50');
+  await submit();
+  assert.equal(saved.appropriation, '1234567.89');
+  assert.equal(saved.contractedAmount, '1000.25');
+  assert.equal(saved.adjustProjectCost, '0.50');
+  await change('Appropriation', '2,500,010.75');
+  await change('Contracted Amount', '1500.08');
+  await submit();
+  assert.equal(saved.appropriation, '2500010.75');
+  assert.equal(saved.contractedAmount, '1500.08');
+});
+
+test('currency cursor stays at the edited position after regrouping', async () => {
+  await reset(); await render(() => {});
+  await change('Appropriation', '1234.56');
+  const input = field('Appropriation');
+  input.focus();
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '12345.56');
+    input.setSelectionRange(5, 5);
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+  assert.equal(input.value, '12,345.56');
+  assert.equal(input.selectionStart, 6);
+});
+
+test('project details and printed financial information group saved values', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  let sections;
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
+    './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good',
+    appropriation: '1234567.89', contractedAmount: '1,000.25', adjustProjectCost: '0.50' };
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
+  await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
+  assert.match(container.textContent, /Php 1,234,567\.89/);
+  assert.match(container.textContent, /Php 1,000\.25/);
+  assert.match(container.textContent, /Php 0\.50/);
+  const printButton = [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent));
+  assert.ok(printButton); await act(async () => printButton.click());
+  const fields = sections.flatMap(section => section.fields);
+  assert.equal(fields.find(field => field.label === 'Appropriation').value, 'Php 1,234,567.89');
+  assert.equal(fields.find(field => field.label === 'Contracted Amount').value, 'Php 1,000.25');
+  assert.equal(fields.find(field => field.label === 'Adjust Project Cost').value, 'Php 0.50');
 });

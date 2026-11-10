@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
-import { formatProjectCurrency, hasFourDigitYear, isValidProjectCurrency } from '@/lib/project-form-validation';
+import { formatProjectCurrency, formatSavedProjectCurrency, hasFourDigitYear, isValidProjectCurrency } from '@/lib/project-form-validation';
 import { attachmentError } from '@/lib/attachment-validation';
 
 interface ProjectAttachment {
@@ -121,9 +121,9 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   contactInformation: road?.contactInformation || '',
   pcadLicenseNo: road?.pcadLicenseNo || '',
   sourceOfFunds: road?.sourceOfFunds || '',
-  appropriation: road?.appropriation || '',
-  contractedAmount: road?.contractedAmount || '',
-  adjustProjectCost: road?.adjustProjectCost || '',
+  appropriation: formatSavedProjectCurrency(road?.appropriation),
+  contractedAmount: formatSavedProjectCurrency(road?.contractedAmount),
+  adjustProjectCost: formatSavedProjectCurrency(road?.adjustProjectCost),
   completionDate: road?.completionDate || '',
   completionPercentage: road?.completionPercentage || '',
   turnoverDate: road?.turnoverDate || '',
@@ -138,6 +138,15 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
   const [otherCategorySelected, setOtherCategorySelected] = useState(() => Boolean(item?.projectCategory && !projectCategories.includes(item.projectCategory)));
 
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
+
+  const pendingCurrencyCursor = useRef<{ input: HTMLInputElement; position: number } | null>(null);
+  useLayoutEffect(() => {
+    const pending = pendingCurrencyCursor.current;
+    if (pending && document.activeElement === pending.input) {
+      pending.input.setSelectionRange(pending.position, pending.position);
+    }
+    pendingCurrencyCursor.current = null;
+  }, [formData]);
 
   const attachmentsInputRef = useRef<HTMLInputElement>(null);
   const formScrollRef = useRef<HTMLFormElement>(null);
@@ -284,8 +293,12 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     }));
   };
 
-  const handleCurrencyChange = (field: 'appropriation' | 'contractedAmount' | 'adjustProjectCost', value: string) => {
+  const handleCurrencyChange = (field: 'appropriation' | 'contractedAmount' | 'adjustProjectCost', input: HTMLInputElement) => {
+    const { value, selectionStart } = input;
     const formatted = formatProjectCurrency(value);
+    if (selectionStart !== null) {
+      pendingCurrencyCursor.current = { input, position: formatProjectCurrency(value.slice(0, selectionStart)).length };
+    }
     setFormData(prev => ({ ...prev, [field]: formatted }));
   };
 
@@ -702,7 +715,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                     inputMode="decimal"
                     data-field="Appropriation"
                     value={formData.appropriation}
-                    onChange={(e) => handleCurrencyChange('appropriation', e.target.value)}
+                    onChange={(e) => handleCurrencyChange('appropriation', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
                     required
                   />
@@ -719,7 +732,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                     inputMode="decimal"
                     data-field="Contracted Amount"
                     value={formData.contractedAmount}
-                    onChange={(e) => handleCurrencyChange('contractedAmount', e.target.value)}
+                    onChange={(e) => handleCurrencyChange('contractedAmount', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
                     required
                   />
@@ -736,7 +749,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                     inputMode="decimal"
                     data-field="Adjust Project Cost"
                     value={formData.adjustProjectCost}
-                    onChange={(e) => handleCurrencyChange('adjustProjectCost', e.target.value)}
+                    onChange={(e) => handleCurrencyChange('adjustProjectCost', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
                     required
                   />

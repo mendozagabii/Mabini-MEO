@@ -78,6 +78,12 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Project currency viewing and editing
+- **What & why:** Group the three project amounts with commas when viewing, printing and opening an edit form, preserving decimal digits without rounding. Keep the cursor in place while editing and send ungrouped numeric strings when saving. Invalid legacy values are displayed unchanged rather than silently rewritten.
+- **Files:** `src/app/components/{LocalRoadForm,LocalRoadList}.tsx`, `src/lib/project-form-validation.ts`, `tests/{project-form,role-crud}.test.cjs`, `MY-CHANGES.md`.
+- **Verification:** 37 local tests, including edit/save, details and print formatting, and TypeScript passed; no live database writes or end-to-end Supabase testing.
+
+
 ### 2026-11-10 — [mine] Encoder project saves and attachment validation
 - **What & why:** Keep project data when another module fails to refresh and load records after sign-in. Upload encoder project attachments directly to Storage through encoder-only signed URLs instead of embedding large files in the project request. Verify ownership, stored size, type and file signature before saving; report any post-save link failure explicitly. Require an existing or new turnover attachment during edit, preserve existing files, validate file type and 10 MiB size, and simplify location and road-name labels. Inspection selection and legacy server uploads also reject invalid types and oversized files.
 - **Files:** `src/app/App.tsx`, `src/app/api/local-road/{route.ts,attachment-upload/route.ts}`, `src/app/components/{LocalRoadForm,LocalRoadList,InspectionModule}.tsx`, `src/lib/{attachment-validation,load-records,supabase-data}.ts`, tests, `MY-CHANGES.md`.

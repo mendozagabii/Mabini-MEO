@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
+import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
   name: string;
@@ -129,9 +130,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
         title: 'Financial Information',
         fields: [
           { label: 'Source of Funds', value: item.sourceOfFunds, width: 'full' },
-          { label: 'Appropriation', value: item.appropriation ? `Php ${item.appropriation}` : undefined, width: 'third' },
-          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${item.contractedAmount}` : undefined, width: 'third' },
-          { label: 'Adjust Project Cost', value: item.adjustProjectCost ? `Php ${item.adjustProjectCost}` : undefined, width: 'third' },
+          { label: 'Appropriation', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'third' },
+          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: 'third' },
+          { label: 'Adjust Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' },
         ],
       },
       {
@@ -323,15 +324,15 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Appropriation *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {selectedItem.appropriation || 'N/A'}</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.appropriation) || 'N/A'}</p>
             </div>
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {selectedItem.contractedAmount || 'N/A'}</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.contractedAmount) || 'N/A'}</p>
             </div>
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Adjust Project Cost *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {selectedItem.adjustProjectCost || 'N/A'}</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.adjustProjectCost) || 'N/A'}</p>
             </div>
             </div>
             </section>
