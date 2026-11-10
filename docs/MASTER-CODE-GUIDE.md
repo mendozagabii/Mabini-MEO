@@ -51,7 +51,7 @@ need the PR merged and redeployed before they appear on `mabini-meo.vercel.app`.
 | # | Task | Who | Where |
 |---|---|---|---|
 | 1 | Merge this branch → Vercel deploys | you | GitHub PR |
-| 2 | **Set the first master code** | you (as `admin`) | app → System Management → Master Security Key |
+| 2 | ~~Set the first master code~~ **done 2026-11-10** (rotate it from the UI whenever you like) | you (as `admin`) | app → System Management → Master Security Key |
 | 3 | Confirm it registered | you | same screen shows *"A master code is already set"* (or `GET /api/auth/unlock`) |
 | 4 | Test the whole loop | you | lock `encoder`, unlock it with the code (steps below) |
 | 5 | Store the code somewhere the office can reach (envelope / password manager), **not** in chat or the repo | you | — |

@@ -78,6 +78,23 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Web icon: the Mabini seal as the browser-tab icon
+- **Type:** Added (assets only — no existing file edited, no UI/design change)
+- **Files:** `src/app/icon.png` (new, 256×256), `src/app/apple-icon.png` (new, 180×180), `docs/MASTER-CODE-GUIDE.md`, `MY-CHANGES.md` (this entry)
+- **What & why:** The app had **no favicon at all** — no `public/` folder, no `src/app/icon.*`, and `layout.tsx` declares only `title`/`description` — so the tab showed the browser/Vercel default. Both files are generated from `src/imports/logo.png` (300×300 RGBA) with a Lanczos3 downscale and a 128-colour palette (133 KB → 9.5 KB, alpha preserved, no visible banding) so the seal stays crisp and costs almost nothing. They rely on the Next.js App Router convention, so `/icon.png` and `/apple-icon.png` are served and linked automatically — `layout.tsx` is untouched and `src/imports/logo.png` (the in-app logo in LoginPage/Sidebar) is unchanged.
+- **Verified:** `npm run build` ✅ and both routes appear in the build output (`○ /icon.png`, `○ /apple-icon.png`).
+- **Status:** ✅ Kept — live after the next merge + redeploy
+- **Original code affected:** none
+
+### 2026-11-10 — [mine] Master code bootstrapped in Supabase at the owner's request
+- **Type:** DB state change (no code change)
+- **Files:** `docs/MASTER-CODE-GUIDE.md` (status line + storage section), `MY-CHANGES.md` (this entry)
+- **DB (live):** `select public.set_master_code('<the owner's chosen code>', null, null)` → the first row in `system_settings` now exists (`key='master_unlock_code_hash'`, bcrypt `$2a$06$…`, 60 chars, `updated_by = null` because a SQL bootstrap has no `auth.uid()`, `updated_at` 2026-11-10 04:31 UTC). **The value itself is deliberately not written in this repo or this log.**
+- **Verified:** `verify_master_code('…')` → `true` for the chosen code and `false` for a wrong one, so the login-screen unlock path is now live end-to-end.
+- **Note:** because the code was shared in writing, treat it as provisional — rotate it from System Management → Master Security Key before the system goes public. Rotation keeps the same row (upsert), so no schema change is involved.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-10 — [mine] Master code: walkthrough + setup guide
 - **Type:** Docs
 - **Files:** `docs/MASTER-CODE-GUIDE.md` (new), `MY-CHANGES.md` (this entry)

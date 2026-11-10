@@ -17,9 +17,9 @@ Generated from git on **2026-11-10** · baseline `ce9a474` · every row below is
 
 | | Files | Meaning |
 |---|---:|---|
-| Total tracked now | **136** | everything in the repo |
+| Total tracked now | **138** | everything in the repo |
 | 🟦 Inherited, untouched | **88** | original author's work, byte-for-byte |
-| 🟩 Added by me | **29** | files that did not exist at baseline |
+| 🟩 Added by me | **31** | files that did not exist at baseline |
 | 🟨 Modified by me | **19** | original files I edited (still their file) |
 | 🟥 Deleted by me | **0** | — |
 
@@ -38,7 +38,7 @@ grep -rn "@mine" src/                # markers inside the code I wrote/edited
 
 ---
 
-## 🟩 Added by me (29 files)
+## 🟩 Added by me (31 files)
 
 Files that are entirely mine — safe to treat as "new work", nothing inherited inside them.
 
@@ -48,6 +48,13 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `src/app/api/auth/logout/route.ts` | added | +12 / -0 | New route for the Supabase session: clears the session cookies. |
 | `src/app/api/auth/me/route.ts` | added | +22 / -0 | New route: who am I? Used by the app shell to restore the session … |
+
+#### App shell — `src/app/`
+
+| File | Type | Δ lines | Note (from the `@mine` marker) |
+|---|---|---|---|
+| `src/app/apple-icon.png` | added | binary | — |
+| `src/app/icon.png` | added | binary | — |
 
 #### Data layer & helpers — `src/lib/`
 
@@ -79,7 +86,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +242 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +259 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -293,6 +300,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Toolkit refinements: stable provenance regeneration + @mine markers | 3 |
 | 2026-11-10 | [mine] Phase 1+2 verified, Phase 3 executed (backup + demo seed), Phase 4 test kit | 6 |
 | 2026-11-10 | [mine] Fix master code endpoint (service role + first-run setup), de-duplicate annual follow-ups, add walkthrough | 7 |
+| 2026-11-10 | [mine] Add Mabini seal as web icon; bootstrap master code (DB, value not recorded) | 5 |
 
 ---
 
