@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Plus, Edit, Trash2, Search, MapPin, Download, Paperclip, Printer, ClipboardCheck } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
@@ -6,8 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
-import { hasRevision, latestValidation, validationTask } from '@/lib/project-validation-workflow';
-import { startProjectSaveDelay } from '@/lib/project-save-delay';
+import { latestValidation, validationTask } from '@/lib/project-validation-workflow';
 import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
@@ -53,7 +52,6 @@ interface LocalRoad {
   attachments?: ProjectAttachment[];
   validationResult?: 'Validated' | 'Return for Revision';
   validationRemarks?: string;
-  validationResubmittedAt?: string;
   annualInspectionYears?: number[];
   annualValidationEntries?: Array<{
     year: number;
@@ -61,7 +59,6 @@ interface LocalRoad {
     result: 'Pending' | 'Validated' | 'Return for Revision';
     remarks: string;
     validatedAt?: string;
-    resubmittedAt?: string;
   }>;
 }
 
@@ -88,8 +85,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const [selectedAttachment, setSelectedAttachment] = useState<ProjectAttachment | null>(null);
   const [validationResult, setValidationResult] = useState<'Validated' | 'Return for Revision' | ''>('');
   const [validationRemarks, setValidationRemarks] = useState('');
-  const [savingValidation, setSavingValidation] = useState(false);
-  const savingValidationRef = useRef(false);
   const [selectedValidationYear, setSelectedValidationYear] = useState<number | null>(null);
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
   const canPrint = ['Admin', 'Head Engineer', 'Staff - Encoder'].includes(userRole);
@@ -207,7 +202,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
     <Dialog
       open={selectedItem !== null}
       onOpenChange={(open) => {
-        if (!open && !savingValidationRef.current) {
+        if (!open) {
           setSelectedItem(null);
           setSelectedAttachment(null);
           setValidationResult('');
@@ -420,22 +415,12 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                 className="validation-entry-form md:col-span-2 border-t border-gray-200 pt-5 space-y-5"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  if (!validationResult || !validationRemarks.trim() || savingValidationRef.current) return;
-                  savingValidationRef.current = true;
-                  setSavingValidation(true);
-                  const minimumDelay = startProjectSaveDelay();
-                  try {
-                    const saved = await onSaveValidation?.(selectedItem.id, validationResult, validationRemarks, selectedValidationYear ?? undefined);
-                    await minimumDelay;
-                    if (saved) setSelectedItem(null);
-                  } finally {
-                    await minimumDelay;
-                    savingValidationRef.current = false;
-                    setSavingValidation(false);
-                  }
+                  if (!validationResult || !validationRemarks.trim()) return;
+                  const saved = await onSaveValidation?.(selectedItem.id, validationResult, validationRemarks, selectedValidationYear ?? undefined);
+                  if (saved) setSelectedItem(null);
                 }}
               >
-                <fieldset disabled={savingValidation}>
+                <fieldset>
                   <legend className="text-sm font-semibold text-gray-900">Validation Result<span className="text-red-600">*</span></legend>
                   <div className="mt-2 flex w-fit max-w-full flex-nowrap gap-6 overflow-x-auto">
                     {(['Validated', 'Return for Revision'] as const).map(result => (
@@ -448,7 +433,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                 </fieldset>
                 <div>
                   <label htmlFor="validation-remarks" className="block text-sm font-semibold text-gray-900">Remarks<span className="text-red-600">*</span></label>
-                  <AutoGrowTextarea disabled={savingValidation} id="validation-remarks" value={validationRemarks} onChange={event => setValidationRemarks(event.target.value)} required className="mt-2 w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-[#0ea5e9] focus:outline-none focus:ring-2 focus:ring-[#0ea5e9]" />
+                  <AutoGrowTextarea id="validation-remarks" value={validationRemarks} onChange={event => setValidationRemarks(event.target.value)} required className="mt-2 w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-[#0ea5e9] focus:outline-none focus:ring-2 focus:ring-[#0ea5e9]" />
                 </div>
                 <div className="text-sm text-gray-800">
                   <p>Validated by:</p>
@@ -456,9 +441,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                   <p>Validator</p>
                 </div>
                 <div className="flex justify-end gap-3">
-                  <button type="button" disabled={savingValidation} onClick={() => setSelectedItem(null)} className="rounded-md border border-gray-300 px-5 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
-                  <button type="submit" disabled={savingValidation} className="rounded-md bg-[#0ea5e9] px-5 py-2 text-sm font-medium text-white hover:bg-[#0284c7] disabled:opacity-50">
-                    <span aria-live="polite">{savingValidation ? (validationResult === 'Return for Revision' ? 'Saving…' : 'Submitting…') : (validationResult === 'Return for Revision' ? 'Save' : 'Submit')}</span>
+                  <button type="button" onClick={() => setSelectedItem(null)} className="rounded-md border border-gray-300 px-5 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+                  <button type="submit" className="rounded-md bg-[#0ea5e9] px-5 py-2 text-sm font-medium text-white hover:bg-[#0284c7]">
+                    {validationResult === 'Return for Revision' ? 'Save' : 'Submit'}
                   </button>
                 </div>
               </form>
@@ -583,7 +568,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredData.map(item => {
                   const task = validationTask(item);
-                  const status = task?.resubmittedAt ? 'Updated' : task?.result || 'Pending';
+                  const status = task?.result || 'Pending';
                   return (
                   <tr
                     key={item.id}
@@ -613,7 +598,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-center">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                        status === 'Updated' ? 'bg-blue-100 text-blue-800' :
                         status === 'Validated' ? 'bg-green-100 text-green-800' :
                         status === 'Return for Revision' ? 'bg-amber-100 text-amber-800' :
                         'bg-gray-100 text-gray-700'
@@ -671,8 +655,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         Inspection: {item.lastInspection || 'Not recorded'}
                       </span>
                       <div className="flex shrink-0 items-center gap-3">
-                        {userRole === 'Staff - Encoder' && hasRevision(item) && (
-                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">For Revision</span>
+                        {userRole === 'Staff - Encoder' && latestValidation(item).result === 'Return for Revision' && (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Revision</span>
                         )}
                         {!isAdminReadDeleteOnly && (
                           <button

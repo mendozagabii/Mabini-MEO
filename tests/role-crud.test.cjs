@@ -109,7 +109,6 @@ test('validator can only send validation fields; head engineer cannot edit proje
 const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
 const ui = new Proxy({}, { get: () => Dummy });
 const componentMocks = {
-  '@/lib/project-save-delay': loadTs('src/lib/project-save-delay.ts', {}),
   './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
   '@/lib/activity-log-client': { recordClientActivity() {} },
   '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
