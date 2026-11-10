@@ -82,6 +82,39 @@ export async function PATCH(request: Request) {
       if (!String(payload.name ?? '').trim() || !String(payload.email ?? '').trim() || !String(payload.username ?? '').trim() || !String(payload.role ?? '').trim()) {
         return NextResponse.json({ message: 'Name, email, username, and role are required.' }, { status: 400 });
       }
+      // @mine — the sign-in identity lives in auth.users; profiles only holds the
+      // display copy. Editing either one alone leaves the account unusable (name/email
+      // resolve through profiles, the credential is checked against auth.users), so an
+      // email or password edit must be applied to auth.users FIRST and profiles second.
+      const userId = String(payload.id);
+      const nextEmail = String(payload.email).trim().toLowerCase();
+      const nextPassword = String(payload.password ?? '');
+      if (nextPassword && nextPassword.length < 8) {
+        return NextResponse.json({ message: 'The password must be at least 8 characters long.' }, { status: 400 });
+      }
+      const { data: current, error: currentError } = await auth.admin
+        .from('profiles')
+        .select('email')
+        .eq('id', userId)
+        .is('archived_at', null)
+        .maybeSingle();
+      if (currentError) throw currentError;
+      if (!current) return NextResponse.json({ message: 'User not found.' }, { status: 404 });
+
+      const emailChanged = nextEmail !== String(current.email ?? '').trim().toLowerCase();
+      if (emailChanged || nextPassword) {
+        const { error: authError } = await auth.admin.auth.admin.updateUserById(userId, {
+          ...(emailChanged ? { email: nextEmail, email_confirm: true } : {}),
+          ...(nextPassword ? { password: nextPassword } : {}),
+        });
+        if (authError) {
+          const message = /already|registered|exists|duplicate/i.test(authError.message)
+            ? 'That email is already registered to another account.'
+            : `Unable to update the sign-in account: ${authError.message}`;
+          return NextResponse.json({ message }, { status: 409 });
+        }
+      }
+
       const { error, count } = await auth.admin
         .from('profiles')
         .update({

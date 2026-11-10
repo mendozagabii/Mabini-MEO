@@ -78,6 +78,14 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Fixed account editing: e-mail and password now reach the Supabase Auth identity
+- **Type:** Modified (API route `PATCH` + user-management form)
+- **Files:** `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)
+- **What & why:** Editing an account from System Management silently half-applied the change, in two ways. (1) **E-mail:** `PATCH` wrote `profiles.email` only, never `auth.users.email` — and since login resolves `username → profiles.email → signInWithPassword()`, the very next login used an address that no auth user had, so **every password failed** and the person got locked out; password reset to the new address also failed silently. (2) **Password:** the edit branch never wrote the password at all, so a password typed by the Head Engineer was accepted by the UI and discarded. Live proof: `ortegajeicel` had `profiles.email = ryanbarraca1905@gmail.com` vs `auth.users.email = ortegajeicel@gmail.com` (MISMATCH) after an edit at 04:46 UTC. Fix: the edit branch now reads the current profile, and when the e-mail changed or a password was supplied it calls `auth.admin.auth.admin.updateUserById(id, { email, email_confirm: true, password })` **before** touching `profiles` — so a failure (e-mail already taken, too-short password) aborts with a real message and can never leave the two sides out of sync. Minimum password length 8, matching the rest of the app; blank password keeps the current one. The form now says so, and the activity log records `email old → new` (never the password).
+- **Verified:** `npx tsc --noEmit` ✅ · `npm run build` ✅
+- **Status:** ✅ Kept — needs a merge + redeploy; the affected account still has to be repaired (see below)
+- **Original code affected:** `src/app/api/auth/status/route.ts` and `UserManagementModule.tsx` are my own migrated files (already carried `@mine` markers)
+
 ### 2026-11-10 — [mine] Web icon: the Mabini seal as the browser-tab icon
 - **Type:** Added (assets only — no existing file edited, no UI/design change)
 - **Files:** `src/app/icon.png` (new, 256×256), `src/app/apple-icon.png` (new, 180×180), `docs/MASTER-CODE-GUIDE.md`, `MY-CHANGES.md` (this entry)
