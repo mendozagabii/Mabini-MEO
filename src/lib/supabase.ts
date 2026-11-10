@@ -44,6 +44,35 @@ export const ROLE_FROM_DB: Record<string, string> = Object.fromEntries(
   Object.entries(ROLE_TO_DB).map(([display, db]) => [db, display]),
 );
 
+// @mine — one tolerant resolver for the three role vocabularies in play:
+// the DB enum ('head_engineer'), the session labels in ROLE_TO_DB
+// ('Staff - Encoder') and the short labels the user form used to send
+// ('Encoder'). The old `ROLE_TO_DB[role] ?? 'encoder'` fallback silently turned
+// every unknown value — i.e. every role picked in the UI — into an Encoder.
+const ROLE_ALIASES: Record<string, string> = {
+  'head engineer': 'head_engineer',
+  head_engineer: 'head_engineer',
+  admin: 'head_engineer',
+  encoder: 'encoder',
+  'staff - encoder': 'encoder',
+  staff_encoder: 'encoder',
+  inspector: 'inspector',
+  'staff - inspector': 'inspector',
+  staff_inspector: 'inspector',
+  validator: 'validator',
+  'staff - validator': 'validator',
+  staff_validator: 'validator',
+};
+
+/** Map any accepted role spelling to the DB enum value; null when unrecognised. */
+export function toDbRole(input: unknown): string | null {
+  const key = String(input ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return ROLE_ALIASES[key] ?? null;
+}
+
 export interface SessionProfile {
   id: string;
   name: string;

@@ -78,6 +78,16 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Fixed role editing (every choice was silently saved as Encoder) + restored 2 demoted accounts
+- **Type:** Modified (role resolver in `src/lib/supabase.ts`, API route, user-management form) + DB data repair
+- **Files:** `src/lib/supabase.ts` (`toDbRole()`), `src/app/api/auth/status/route.ts`, `src/app/components/UserManagementModule.tsx`, `MY-CHANGES.md` (this entry)
+- **What & why:** Three role vocabularies existed and none agreed. The DB enum uses `head_engineer|encoder|inspector|validator`; the session/API labels are `Head Engineer|Staff - Encoder|Staff - Inspector|Staff - Validator`; the edit form sent the short list `Admin|Encoder|Validator|Inspector`. The server did `ROLE_TO_DB[payload.role] ?? 'encoder'`, so **every** role chosen in the UI missed the map and became `'encoder'` — the form reported success and the role never changed (or changed *to* Encoder). On create it was worse: adding an Inspector created an Encoder. Fix: one tolerant resolver `toDbRole()` accepting all three spellings (plus `staff_encoder` style), used by both create and edit; an unrecognised value is now a **400 "Unknown role"** instead of a silent fallback. The dropdown now uses the labels the API returns (so the current role actually shows), its defaults match the options, the "is this me?" check compares the real label, the Role select is disabled when editing yourself, and the activity log records `role old → new`.
+- **DB (live repair):** the bug had already demoted two accounts (edits at 05:18–05:20). Restored `inspector → inspector` and `validator → validator`; `encoder`, `ortegajeicel` (encoder) and `admin` (head_engineer) needed no change.
+- **Guards added:** a Head Engineer can no longer change their **own** role (400) — self-demotion would leave the system with nobody able to administer users, and the master code does not grant roles.
+- **Verified:** `npx tsc --noEmit` ✅ · `npm run build` ✅ · `toDbRole()` exercised against all 13 spellings (correct mapping, `null` for nonsense) by compiling the module and running it
+- **Status:** ✅ Kept — needs a merge + redeploy
+- **Original code affected:** `src/lib/supabase.ts` and the two app files are already `@mine` (migrated), not baseline
+
 ### 2026-11-10 — [mine] Fixed password reset: every link reported "invalid or expired"
 - **Type:** Modified (API route rewrite + reset page)
 - **Files:** `src/app/api/auth/reset-password/route.ts`, `src/app/reset-password/page.tsx`, `MY-CHANGES.md` (this entry)

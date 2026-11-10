@@ -63,7 +63,10 @@ interface ArchivedRecord {
   description?: string;
 }
 
-const AVAILABLE_ROLES = ['Admin', 'Encoder', 'Validator', 'Inspector'] as const;
+// @mine — these are the labels the API/session already use (ROLE_FROM_DB); the old
+// short list ('Admin', 'Encoder', …) matched no stored role, so the select showed
+// blank and the server coerced every choice into an Encoder.
+const AVAILABLE_ROLES = ['Head Engineer', 'Staff - Encoder', 'Staff - Inspector', 'Staff - Validator'] as const;
 
 const getRoleDisplayName = (role: string) => {
   const displayNames: Record<string, string> = {
@@ -217,7 +220,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
     email: '',
     username: '',
     password: '',
-    role: 'Admin',
+    role: 'Staff - Encoder',
     status: 'Active' as UserData['status'],
   });
   const [passwordForm, setPasswordForm] = useState({
@@ -463,10 +466,16 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       if (!response.ok) throw new Error(payload?.message || 'Unable to update the user account.');
       await refreshUserAccounts();
       // @mine — record whether the sign-in email changed (never the password).
-      const detail =
-        editingUser.email.toLowerCase() !== formData.email.trim().toLowerCase()
-          ? `Updated user ${formData.name} (email ${editingUser.email} → ${formData.email.trim()})`
-          : `Updated user ${formData.name}`;
+      const changes: string[] = [];
+      if (editingUser.email.toLowerCase() !== formData.email.trim().toLowerCase()) {
+        changes.push(`email ${editingUser.email} → ${formData.email.trim()}`);
+      }
+      if (editingUser.role !== formData.role) {
+        changes.push(`role ${editingUser.role} → ${formData.role}`);
+      }
+      const detail = changes.length
+        ? `Updated user ${formData.name} (${changes.join(', ')})`
+        : `Updated user ${formData.name}`;
       void recordActivity('User Updated', detail);
     } catch (error) {
       setDialog({
@@ -479,7 +488,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
     }
 
     setEditingUser(null);
-    setFormData({ name: '', email: '', username: '', password: '', role: 'Encoder', status: 'Active' });
+    setFormData({ name: '', email: '', username: '', password: '', role: 'Staff - Encoder', status: 'Active' });
     setShowAddForm(false);
   };
 
@@ -803,7 +812,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
     setShowPasswordForm(false);
     setActiveUserFormTab('account');
     setEditingUser(null);
-    setFormData({ name: '', email: '', username: '', password: '', role: 'Encoder', status: 'Active' });
+    setFormData({ name: '', email: '', username: '', password: '', role: 'Staff - Encoder', status: 'Active' });
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
 
@@ -849,7 +858,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
         </div>
         {activeTab === 'accounts' && (
           <div className="flex items-center gap-3">
-            <button onClick={() => { setEditingUser(null); setShowUserPassword(false); setFormData({ name: '', email: '', username: '', password: '', role: 'Encoder', status: 'Active' }); setActiveUserFormTab('account'); setShowAddForm(true); }} className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 font-semibold text-white shadow-[0_8px_16px_rgba(37,99,235,0.2)] transition hover:brightness-105">
+            <button onClick={() => { setEditingUser(null); setShowUserPassword(false); setFormData({ name: '', email: '', username: '', password: '', role: 'Staff - Encoder', status: 'Active' }); setActiveUserFormTab('account'); setShowAddForm(true); }} className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 font-semibold text-white shadow-[0_8px_16px_rgba(37,99,235,0.2)] transition hover:brightness-105">
               <Plus className="w-5 h-5" />
               Create User Account
             </button>
@@ -1002,7 +1011,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex gap-2">
-                        {lockedUsers[user.username.toLowerCase()] && user.role !== 'Admin' && (
+                        {lockedUsers[user.username.toLowerCase()] && user.role !== 'Head Engineer' && (
                           <button onClick={() => handleUnlock(user)} title="Unlock this account" className="text-green-500 hover:text-green-700 p-1" aria-label={`Unlock ${user.name}`}>
                             <Unlock className="w-5 h-5" />
                           </button>
@@ -1407,6 +1416,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-sm font-semibold text-slate-600">Role</label>
                 <Select
+                  disabled={Boolean(editingUser && editingUser.email.toLowerCase() === currentUserEmail.toLowerCase())}
                   value={formData.role}
                   onValueChange={(value) => setFormData({ ...formData, role: value as UserData['role'] })}
                 >
