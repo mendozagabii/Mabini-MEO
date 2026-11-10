@@ -1,13 +1,13 @@
-<!-- @mine — PREP ONLY (2026-11-09). Nothing in Supabase has been deleted or inserted yet.
-     Waiting for the owner's signal before executing. -->
+<!-- @mine — EXECUTED 2026-11-10 (Phase 3), after the owner's go signal.
+     Results, before/after counts and the restore SQL: docs/PHASE-STATUS.md §3. -->
 
-# 🎬 Demo Data Plan — STATUS: ⏸️ PREPPED, WAITING FOR SIGNAL
+# 🎬 Demo Data Plan — STATUS: ✅ EXECUTED 2026-11-10 (see [`PHASE-STATUS.md`](PHASE-STATUS.md) §3)
 
 ## 📌 Standing notes
-1. **AI key (noted as requested):** `AI_GATEWAY_API_KEY` **does not exist** anywhere yet
-   (not in repo, not in Vercel env, not locally). AI tab (`meta/llama-4-scout` via Vercel AI
-   Gateway) stays dormant until the owner creates a key in Vercel AI Gateway and adds it
-   to the `mabini-meo` Vercel project. Supabase keys cannot substitute for it.
+1. **AI key:** ✅ resolved — `AI_GATEWAY_API_KEY` now exists in the Vercel project for
+   `production`, `preview` and `development` (verified 2026-11-10). The AI tab
+   (`meta/llama-4-scout` via Vercel AI Gateway) can run for real; the seeded run below is
+   still useful as a fallback so the screen is never empty during the demo.
 2. **This plan:** on signal → wipe all test/transactional data in Supabase **except the
    accounts**, then seed **10 synthetic-but-realistic** datasets for the client demo.
 3. The ready-to-run script is prepared at `supabase/demo/seed-demo-data.sql`

@@ -1,4 +1,4 @@
--- @mine — PREPARED 2026-11-09, **DO NOT RUN UNTIL THE OWNER SAYS GO**.
+-- @mine — EXECUTED 2026-11-10 (owner gave the go signal for Phase 3).
 -- Demo reset for Supabase project WBLRMS (jowcyoziuqzoezxboffx):
 --   1) backs up current roads/projects/inspections/ai rows into demo_backup_2026_*,
 --   2) deletes ALL transactional/test data EXCEPT accounts (auth.users/profiles)
@@ -10,15 +10,38 @@
 
 BEGIN;
 
--- ---------- safety snapshot (droppable after the demo) ----------
-DROP TABLE IF EXISTS demo_backup_2026_roads;
-DROP TABLE IF EXISTS demo_backup_2026_projects;
-DROP TABLE IF EXISTS demo_backup_2026_inspections;
-DROP TABLE IF EXISTS demo_backup_2026_ai_results;
-CREATE TABLE demo_backup_2026_roads AS SELECT * FROM public.roads;
-CREATE TABLE demo_backup_2026_projects AS SELECT * FROM public.projects;
-CREATE TABLE demo_backup_2026_inspections AS SELECT * FROM public.inspections;
-CREATE TABLE demo_backup_2026_ai_results AS SELECT * FROM public.ai_priority_results;
+-- ---------- safety snapshot (droppable after the demo, Phase 5.1) ----------
+-- IF NOT EXISTS = "first snapshot wins": re-running never overwrites the original backup.
+CREATE TABLE IF NOT EXISTS demo_backup_2026_roads AS SELECT * FROM public.roads;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_projects AS SELECT * FROM public.projects;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_inspections AS SELECT * FROM public.inspections;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_inspection_items AS SELECT * FROM public.inspection_items;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_maintenance_records AS SELECT * FROM public.maintenance_records;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_progress_updates AS SELECT * FROM public.project_progress_updates;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_ai_runs AS SELECT * FROM public.ai_analysis_runs;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_ai_results AS SELECT * FROM public.ai_priority_results;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_attachments AS SELECT * FROM public.attachments;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_activity_logs AS SELECT * FROM public.activity_logs;
+CREATE TABLE IF NOT EXISTS demo_backup_2026_login_attempts AS SELECT * FROM public.login_attempts;
+
+-- Backups are for the owner only: RLS on with NO policies = unreadable by anon/authenticated
+-- (the app never queries these tables; only the SQL console / service role can see them).
+ALTER TABLE demo_backup_2026_roads              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_projects           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_inspections        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_inspection_items   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_maintenance_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_progress_updates   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_ai_runs            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_ai_results         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_attachments        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_activity_logs      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demo_backup_2026_login_attempts     ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON demo_backup_2026_roads, demo_backup_2026_projects, demo_backup_2026_inspections,
+  demo_backup_2026_inspection_items, demo_backup_2026_maintenance_records,
+  demo_backup_2026_progress_updates, demo_backup_2026_ai_runs, demo_backup_2026_ai_results,
+  demo_backup_2026_attachments, demo_backup_2026_activity_logs, demo_backup_2026_login_attempts
+  FROM anon, authenticated;
 
 -- ---------- wipe (FK-safe order; accounts & reference data untouched) ----------
 DELETE FROM public.ai_priority_results;
@@ -36,8 +59,7 @@ DELETE FROM public.login_attempts;
 -- deterministic id helper for this script
 CREATE OR REPLACE FUNCTION pg_temp.du(text) RETURNS uuid
 LANGUAGE sql IMMUTABLE AS
-$$ SELECT (regexp_replace(md5('wblrms-demo-' || $1),
-          '(.{8})(.{4})(.{4})(.{4})(.{12})', '\1-\2-\3-\4-\5'))::uuid $$;
+$$ SELECT md5('wblrms-demo-' || $1)::uuid $$;   -- md5 hex (32 chars) casts straight to uuid
 
 -- ---------- 10 roads ----------
 INSERT INTO public.roads (id, road_network_id, road_name, barangay_id, components, description, date_built, length_km, width_m, current_condition, last_inspection_date)
@@ -120,7 +142,8 @@ FROM (VALUES
 -- ---------- inspection items: 7 standard components per inspection ----------
 -- Ratings are derived from the inspection's overall score (side drains one notch
 -- lower on poor roads) so the demo story is internally consistent.
-INSERT INTO public.inspection_items (id, inspection_id, component, rating, score, remarks)
+-- NOTE: inspection_items.score is a GENERATED column (derived from rating) — do not insert it.
+INSERT INTO public.inspection_items (id, inspection_id, component, rating, remarks)
 SELECT pg_temp.du('item-' || i.id::text || '-' || c.comp),
        i.id,
        c.comp::public.road_component,
@@ -129,7 +152,6 @@ SELECT pg_temp.du('item-' || i.id::text || '-' || c.comp),
           WHEN adj >= 5 THEN 'fair'
           WHEN adj >= 3 THEN 'poor'
           ELSE 'bad' END)::public.condition_rating,
-       adj,
        NULL
 FROM public.inspections i
 CROSS JOIN (VALUES ('concrete',0.0),('asphalt',-0.3),('gravel',-0.6),('earth',-0.9),('shoulder',-0.5),('side_drain',-1.2),('sidewalk',-0.4))
@@ -179,7 +201,7 @@ FROM (VALUES
 -- ---------- AI priority results (mirrors road conditions; regenerate live once AI key exists) ----------
 INSERT INTO public.ai_analysis_runs (id, run_by, model, total_projects, notes)
 VALUES (pg_temp.du('ai-run-1'), (SELECT id FROM public.profiles WHERE username = 'admin'),
-        'meta/llama-4-scout', 10, 'Demo seed run (synthetic) — regenerate with live AI when AI_GATEWAY_API_KEY is set.');
+        'meta/llama-4-scout', 10, 'Demo seed run (synthetic) - regenerate with live AI when AI_GATEWAY_API_KEY is set.');
 
 INSERT INTO public.ai_priority_results (id, run_id, project_id, risk_level, priority_score, justification, recommendation, factors, decision)
 SELECT pg_temp.du('ai-result-' || p.id::text), pg_temp.du('ai-run-1'), p.id,
@@ -197,8 +219,13 @@ FROM public.projects p JOIN public.roads r ON r.id = p.road_id;
 
 COMMIT;
 
--- Expected after running:
---   roads 10, projects 10, inspections 18, inspection_items 126,
+-- Verified after running (2026-11-10, matches the above exactly):
+--   roads 10, projects 10, inspections 18, inspection_items 126 (7 per inspection),
 --   maintenance_records 10, project_progress_updates 8,
 --   ai_analysis_runs 1, ai_priority_results 10,
---   profiles 4 (untouched), auth.users 4 (untouched).
+--   profiles 4, barangays 34, project_categories 5, contractors 4,
+--   role_module_access 14 (all reference data untouched).
+-- activity_logs was emptied by the wipe and then re-filled by the audit triggers
+-- for the seeded rows (252 entries) — that is the seed's own audit trail.
+-- annual_validation_entries stays at 0 on purpose: the app's ensureAnnualFollowUps()
+-- backfills it on first read, which also demos the Phase 2 feature live.

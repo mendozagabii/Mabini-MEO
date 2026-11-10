@@ -12,6 +12,8 @@ interface ProjectAttachment {
   type: string;
   dataUrl: string;
   category: string;
+  // @mine — Supabase Storage path for the file (Phase 2, 2026-11-09);
+  // optional so records created before Storage still type-check.
   storagePath?: string;
 }
 
