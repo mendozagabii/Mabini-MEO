@@ -13,10 +13,12 @@ export function isValidProjectCurrency(value: string): boolean {
   return /^\d+(?:\.\d+)?$/.test(value.replace(/,/g, '').trim());
 }
 
-/** Group saved values without rounding or silently altering invalid legacy data. */
+/** Group saved values and show at least two decimal places without rounding. */
 export function formatSavedProjectCurrency(value?: string | null): string {
   if (value == null || value === '') return '';
-  return isValidProjectCurrency(value) ? formatProjectCurrency(value.trim()) : value;
+  if (!isValidProjectCurrency(value)) return value;
+  const [integer, fraction = ''] = value.trim().split('.');
+  return `${formatProjectCurrency(integer)}.${fraction.padEnd(2, '0')}`;
 }
 
 export function hasFourDigitYear(value: string): boolean {

@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { formatProjectCurrency, formatSavedProjectCurrency, hasFourDigitYear, isValidProjectCurrency } from '@/lib/project-form-validation';
 import { attachmentError } from '@/lib/attachment-validation';
+import { startProjectSaveDelay } from '@/lib/project-save-delay';
 
 interface ProjectAttachment {
   name: string;
@@ -135,6 +136,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
   const [formData, setFormData] = useState<ProjectFormData>(() => getInitialFormData(item));
   const [attachmentNotice, setAttachmentNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [otherCategorySelected, setOtherCategorySelected] = useState(() => Boolean(item?.projectCategory && !projectCategories.includes(item.projectCategory)));
 
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
@@ -206,8 +208,11 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       return;
     }
 
-    if (isSubmitting) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setAttachmentNotice('');
     setIsSubmitting(true);
+    const minimumDelay = startProjectSaveDelay();
     try {
       const uploadedAttachments: ProjectAttachment[] = [];
       for (const file of formData.attachments) {
@@ -262,9 +267,13 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         attachments: [...(item?.attachments || []), ...uploadedAttachments],
       };
       await onSave(editId ? { ...localRoadData, id: editId } : localRoadData);
+      await minimumDelay;
+      onClose();
     } catch (error) {
-      setAttachmentNotice(error instanceof Error ? error.message : 'Unable to upload attachments. Please try again.');
+      await minimumDelay;
+      setAttachmentNotice(error instanceof Error ? error.message : 'Unable to save the project. Please try again.');
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -353,7 +362,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
             </h2>
             <p className="text-sm text-blue-100">Municipal Engineering Office · Infrastructure Encoder Entry</p>
           </div>
-          <button type="button" onClick={onClose} className="text-gray-300 hover:text-white" aria-label="Close form">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="text-gray-300 hover:text-white disabled:opacity-50" aria-label="Close form">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -395,6 +404,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           onScroll={updateActiveFormTab}
           className="form-modal-fields min-h-0 flex-1 overflow-y-auto px-6 py-5"
         >
+          <fieldset disabled={isSubmitting}>
           {/* Project Information */}
           <section ref={projectSectionRef} className="scroll-mt-4 border-b pb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h3>
@@ -894,9 +904,10 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               disabled={isSubmitting}
               className="disabled:opacity-50 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
-              {isSubmitting ? 'Uploading…' : 'Submit'}
+              <span aria-live="polite">{isSubmitting ? (editId ? 'Updating…' : 'Saving…') : 'Submit'}</span>
             </button>
           </div>
+          </fieldset>
         </form>
 
         {/* File Preview Modal */}

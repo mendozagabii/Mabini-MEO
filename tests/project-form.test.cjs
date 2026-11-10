@@ -24,6 +24,7 @@ function loadTs(relative, mocks = {}) {
 const validation = loadTs('src/lib/project-form-validation.ts');
 const attachmentValidation = loadTs('src/lib/attachment-validation.ts');
 let uploadCalls = [];
+let startDelay = () => Promise.resolve();
 global.fetch = async (url, options) => {
   uploadCalls.push({ url, options });
   return url === '/api/local-road/attachment-upload'
@@ -34,6 +35,7 @@ const { LocalRoadForm } = loadTs('src/app/components/LocalRoadForm.tsx', {
   './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
   '@/lib/project-form-validation': validation,
   '@/lib/attachment-validation': attachmentValidation,
+  '@/lib/project-save-delay': { startProjectSaveDelay: () => startDelay() },
 });
 const container = document.getElementById('root');
 const root = createRoot(container);
@@ -71,7 +73,11 @@ test('currency and date helpers preserve decimals and require a four-digit year'
   assert.equal(validation.formatProjectCurrency('1234.'), '1,234.');
   assert.equal(validation.formatSavedProjectCurrency('1234.50'), '1,234.50');
   assert.equal(validation.formatSavedProjectCurrency('1,234.50'), '1,234.50');
-  assert.equal(validation.formatSavedProjectCurrency('0'), '0');
+  assert.equal(validation.formatSavedProjectCurrency('0'), '0.00');
+  assert.equal(validation.formatSavedProjectCurrency('10000'), '10,000.00');
+  assert.equal(validation.formatSavedProjectCurrency('10000.0'), '10,000.00');
+  assert.equal(validation.formatSavedProjectCurrency('10000.00'), '10,000.00');
+  assert.equal(validation.formatSavedProjectCurrency('10000.125'), '10,000.125');
   assert.equal(validation.formatSavedProjectCurrency(''), '');
   assert.equal(validation.formatSavedProjectCurrency('-1234.50'), '-1234.50');
   assert.equal(validation.isValidProjectCurrency('1,234.56'), true);
@@ -276,4 +282,75 @@ test('project details and printed financial information group saved values', asy
   assert.equal(fields.find(field => field.label === 'Appropriation').value, 'Php 1,234,567.89');
   assert.equal(fields.find(field => field.label === 'Contracted Amount').value, 'Php 1,000.25');
   assert.equal(fields.find(field => field.label === 'Adjust Project Cost').value, 'Php 0.50');
+});
+
+test('whole peso values retain .00 in editing, saving, viewing and printing', async () => {
+  let saved;
+  const item = { id: 'p1', name: 'Road', type: 'National Road', location: 'Mabini', dateBuilt: '2026-01-01', condition: 'Good',
+    appropriation: '10000', contractedAmount: '10000.0', adjustProjectCost: '10000.00',
+    attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] };
+  await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
+  for (const name of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) assert.equal(field(name).value, '10,000.00');
+  await fill();
+  for (const name of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) await change(name, '10,000.00');
+  await submit();
+  assert.equal(saved.appropriation, '10000.00'); assert.equal(saved.contractedAmount, '10000.00'); assert.equal(saved.adjustProjectCost, '10000.00');
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  let sections;
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
+    './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-form-validation': validation,
+  });
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
+  await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
+  assert.equal((container.textContent.match(/Php 10,000\.00/g) || []).length, 3);
+  await act(async () => [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
+  const fields = sections.flatMap(section => section.fields);
+  for (const label of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
+});
+
+for (const editing of [false, true]) {
+  test(`${editing ? 'updating' : 'saving'} waits for both progress delay and the actual save`, async () => {
+    let releaseDelay, releaseSave, savedCount = 0, closed = 0;
+    startDelay = () => new Promise(resolve => { releaseDelay = resolve; });
+    const onSave = () => { savedCount++; return new Promise(resolve => { releaseSave = resolve; }); };
+    const item = editing ? { id: 'p1', name: 'Road', type: 'National Road', location: 'Mabini', dateBuilt: '2026-01-01', condition: 'Good',
+      attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] } : null;
+    try {
+      await reset(); await render(onSave, { item, editId: editing ? 'p1' : undefined, onClose: () => { closed++; } });
+      await fill(); if (!editing) await file();
+      await submit();
+      const button = container.querySelector('button[type=submit]');
+      assert.equal(savedCount, 1); assert.equal(button.disabled, true);
+      assert.match(button.textContent, editing ? /Updating/ : /Saving/);
+      assert.equal(container.querySelector('[aria-label="Close form"]').disabled, true);
+      await submit(); assert.equal(savedCount, 1);
+      if (editing) {
+        await act(async () => releaseSave());
+        assert.equal(closed, 0); assert.equal(button.disabled, true);
+        await act(async () => releaseDelay());
+      } else {
+        await act(async () => releaseDelay());
+        assert.equal(closed, 0); assert.equal(button.disabled, true);
+        await act(async () => releaseSave());
+      }
+      assert.equal(closed, 1);
+    } finally { startDelay = () => Promise.resolve(); }
+  });
+}
+
+test('save failures leave the form open and display the error after the delay', async () => {
+  let releaseDelay, closed = 0;
+  startDelay = () => new Promise(resolve => { releaseDelay = resolve; });
+  try {
+    await reset(); await render(async () => { throw new Error('Save failed'); }, { onClose: () => { closed++; } });
+    await fill(); await file(); await submit();
+    assert.equal(closed, 0); assert.equal(container.querySelector('button[type=submit]').disabled, true);
+    await act(async () => releaseDelay());
+    assert.equal(closed, 0); assert.equal(container.querySelector('button[type=submit]').disabled, false);
+    assert.match(container.querySelector('[role=alert]').textContent, /Save failed/);
+  } finally { startDelay = () => Promise.resolve(); }
 });

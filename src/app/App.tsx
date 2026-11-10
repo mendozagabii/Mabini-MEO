@@ -419,13 +419,11 @@ export default function App() {
             : prediction
         ));
       }
-      setShowLocalRoadForm(false);
-      setEditingLocalRoad(null);
       if (typeof payload.data?.attachmentWarning === 'string') window.alert(payload.data.attachmentWarning);
       window.dispatchEvent(new Event('local-road-records-changed'));
     } catch (error) {
       console.error('Failed to save local road record.', error);
-      window.alert(error instanceof Error ? error.message : 'Unable to save this road.');
+      throw error;
     }
   };
 

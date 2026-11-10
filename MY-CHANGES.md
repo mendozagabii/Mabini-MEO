@@ -78,6 +78,12 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Whole-peso decimals and project save progress
+- **What & why:** Show at least two decimal places, including `.00`, for saved project amounts in details, print and edit without rounding additional digits. During both add and edit, show saving/updating for at least three seconds while waiting for the actual request, prevent duplicate submissions or dismissal, and keep the form open on errors.
+- **Files:** `src/app/App.tsx`, `src/app/components/LocalRoadForm.tsx`, `src/lib/{project-form-validation,project-save-delay}.ts`, `tests/{project-form,project-save-delay}.test.cjs`, `MY-CHANGES.md`.
+- **Verification:** 42 local tests, including mocked-timer checks and save/update failure cases, and TypeScript passed. No live database changes or live CRUD testing.
+
+
 ### 2026-11-10 — [mine] Project currency viewing and editing
 - **What & why:** Group the three project amounts with commas when viewing, printing and opening an edit form, preserving decimal digits without rounding. Keep the cursor in place while editing and send ungrouped numeric strings when saving. Invalid legacy values are displayed unchanged rather than silently rewritten.
 - **Files:** `src/app/components/{LocalRoadForm,LocalRoadList}.tsx`, `src/lib/project-form-validation.ts`, `tests/{project-form,role-crud}.test.cjs`, `MY-CHANGES.md`.
