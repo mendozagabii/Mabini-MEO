@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Read-first handoff brief for new sessions (docs/SESSION-HANDOFF.md)
+- **Type:** Added (docs)
+- **Files:** `docs/SESSION-HANDOFF.md` (new), `README.md` (pointer at the top), `MY-CHANGES.md` (this entry)
+- **What & why:** a single short brief at the top of a fresh session so nothing is re-done or assumed — what is merged (`0fd23e7`), what is open (PR #10), what is already live in the database but not yet deployed, what is **still unverified by the owner**, the gated items (Phase 3.2/3.3, master-code rotation, Phase 5), the offer-only items, the hard rules (changelog in the same commit, `[mine]` convention, no secrets, one approval per PR), plus the commands and the traps that already cost time on this project.
+- **Status:** ✅ Kept — update it whenever the state it describes changes
+- **Original code affected:** none (new document; the README gains one pointer line)
+
 ### 2026-11-10 — [mine] Follow-up: a saved project can no longer be reported as a failure
 - **Type:** Modified (save path hardening)
 - **Files:** `src/lib/supabase-data.ts`, `src/app/api/local-road/route.ts`, `MY-CHANGES.md` (this entry)

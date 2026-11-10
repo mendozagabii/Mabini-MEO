@@ -17,10 +17,10 @@ Generated from git on **2026-11-10** · baseline `ce9a474` · every row below is
 
 | | Files | Meaning |
 |---|---:|---|
-| Total tracked now | **141** | everything in the repo |
-| 🟦 Inherited, untouched | **88** | original author's work, byte-for-byte |
-| 🟩 Added by me | **34** | files that did not exist at baseline |
-| 🟨 Modified by me | **19** | original files I edited (still their file) |
+| Total tracked now | **142** | everything in the repo |
+| 🟦 Inherited, untouched | **87** | original author's work, byte-for-byte |
+| 🟩 Added by me | **35** | files that did not exist at baseline |
+| 🟨 Modified by me | **20** | original files I edited (still their file) |
 | 🟥 Deleted by me | **0** | — |
 
 **I deleted none of the original files** — the original author's tree is preserved.
@@ -38,7 +38,7 @@ grep -rn "@mine" src/                # markers inside the code I wrote/edited
 
 ---
 
-## 🟩 Added by me (34 files)
+## 🟩 Added by me (35 files)
 
 Files that are entirely mine — safe to treat as "new work", nothing inherited inside them.
 
@@ -77,6 +77,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | `docs/PHASE-4-TEST-PLAN.md` | added | +103 / -0 | Phase 4 live-smoke-test kit, written 2026-11-10 against the freshly seeded data. |
 | `docs/PHASE-STATUS.md` | added | +143 / -0 | Phase verification (2026-11-10). Every row below was checked against the live |
 | `docs/PROVENANCE.md` | added | (this file) | this generated report |
+| `docs/SESSION-HANDOFF.md` | added | +181 / -0 | Created 2026-11-10 at the owner's request: a read-first brief so a new Arena |
 | `docs/SUPABASE-CHECK-2026-11-09.md` | added | +80 / -0 | Supabase inspection by me on 2026-11-09. Read-only; nothing in Supabase was changed. |
 | `docs/SUPABASE-MIGRATION.md` | added | +111 / -0 | SQLite -> Supabase migration, done 2026-11-09. Login page design unchanged. |
 | `docs/baseline-files.txt` | added | +107 / -0 | — |
@@ -87,7 +88,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 |---|---|---|---|
 | `.env.example` | added | +5 / -0 | Copy to .env.local and fill in (Supabase Dashboard → WBLRMS → Settings → API). … |
 | `.gitignore` | added | +27 / -0 | Added by me (repo had no .gitignore at baseline). See MY-CHANGES.md. |
-| `MY-CHANGES.md` | added | +340 / -0 | the change log itself — one entry per adjustment |
+| `MY-CHANGES.md` | added | +347 / -0 | the change log itself — one entry per adjustment |
 
 #### Supabase SQL — `supabase/`
 
@@ -111,7 +112,7 @@ Files that are entirely mine — safe to treat as "new work", nothing inherited 
 | `scripts/my-diff.sh` | added | +59 / -0 | Show everything I changed vs the inherited baseline commit. … |
 | `scripts/setup-hooks.sh` | added | +31 / -0 | Turn the "log every change" rule on (or off) for this clone. … |
 
-## 🟨 Modified by me (19 files)
+## 🟨 Modified by me (20 files)
 
 These are **originally the other author's files** that I edited. The file still counts as
 theirs in origin; only the lines listed in the note / diff are mine.
@@ -157,18 +158,19 @@ theirs in origin; only the lines listed in the note / diff are mine.
 
 | File | Type | Δ lines | Note (from the `@mine` marker) |
 |---|---|---|---|
+| `README.md` | modified | +3 / -0 | Pointer added 2026-11-10 so a fresh session reads the handoff first. |
 | `package-lock.json` | modified | +103 / -0 | lockfile for the new `@supabase/supabase-js` dependency |
 | `package.json` | modified | +1 / -0 | added the `@supabase/supabase-js` dependency |
 
 ---
 
-## 🟦 Inherited, untouched (88 files)
+## 🟦 Inherited, untouched (87 files)
 
 Original author's work, exactly as received (including the ~40 stock shadcn/ui
 components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 <details>
-<summary><b>Show the full list of 88 untouched files</b></summary>
+<summary><b>Show the full list of 87 untouched files</b></summary>
 
 **App shell — `src/app/`**
 
@@ -215,7 +217,6 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 
 **Root config & assets**
 
-- `README.md`
 - `components.json`
 - `database-schema.sql`
 - `index.ts`
@@ -318,6 +319,7 @@ components and the Vite leftovers `src/main.tsx` / `src/styles/*`).
 | 2026-11-10 | [mine] Username equals the display name (unique identity); retire legacy handles | 4 |
 | 2026-11-10 | [mine] Encoder can add local road projects (RLS insert on barangays/categories) and gets a Delete button beside Edit | 6 |
 | 2026-11-10 | [mine] Never report failure after a project is saved; explain barangay failures instead of blaming the role | 4 |
+| 2026-11-10 | [mine] Add docs/SESSION-HANDOFF.md — read-first brief for new sessions | 4 |
 
 ---
 
