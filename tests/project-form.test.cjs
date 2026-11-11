@@ -64,8 +64,8 @@ async function fill() {
     'Location': 'Mabini', 'Date Started': '2026-01-01', 'Target Completion Date': '2026-02-01', 'Actual Completion Date': '2026-02-01',
     'Road Network ID No.': '1', 'Barangay': 'Mabini', 'Components': 'Road', 'Description': 'Road works',
     'Contractor Name': 'Company', 'Contractor Address': 'Address', 'Contact Information': '123',
-    'Source of Funds': 'Municipal', 'Appropriation': '1234.56', 'Contracted Amount': '1000.25', 'Actual Project Cost': '999.99',
-    'Completion Date': '2026-02-01', 'Turnover and Acceptance Date': '2026-02-02',
+    'Source of Funds': 'Municipal', 'Approved Budget for the Contract (ABC)': '1234.56', 'Contracted Amount': '1000.25',
+    'Turnover and Acceptance Date': '2026-02-02',
   })) await change(name, value);
 }
 
@@ -101,7 +101,8 @@ test('missing category and turnover attachment are reported; extensions are opti
   await act(async () => { await submit(); await new Promise(resolve => setTimeout(resolve, 30)); });
   assert.ok(saved); assert.equal(saved.noOfExtensions, '');
   assert.equal(saved.appropriation, '1234.56'); assert.equal(saved.contractedAmount, '1000.25');
-  assert.equal(saved.adjustProjectCost, '999.99'); assert.equal(saved.dateStarted, '2026-01-01');
+  assert.equal(saved.dateStarted, '2026-01-01'); assert.equal(saved.completionDate, saved.actualCompletionDate);
+  assert.equal(Object.hasOwn(saved, 'adjustProjectCost'), false);
   for (const key of ['pcadLicenseNo', 'completionPercentage']) assert.equal(Object.hasOwn(saved, key), false);
   assert.equal(saved.attachments[0].category, 'Turnover Certificate');
   assert.equal(saved.attachments[0].staged, true);
@@ -129,7 +130,7 @@ test('form has only a turnover attachment and bounds all date inputs', async () 
 test('each editable project field blocks submission when empty', async () => {
   let saved; await act(async () => root.render(null)); await render(value => { saved = value; });
   await fill(); await file();
-  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Road Network ID No.', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Contact Information', 'Source of Funds', 'Appropriation', 'Contracted Amount', 'Actual Project Cost', 'Completion Date', 'Turnover and Acceptance Date'];
+  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Source of Funds', 'Approved Budget for the Contract (ABC)', 'Contracted Amount', 'Turnover and Acceptance Date'];
   for (const name of names) {
     const old = field(name).value;
     await change(name, ''); await submit();
@@ -143,9 +144,9 @@ test('each editable project field blocks submission when empty', async () => {
 test('rejects incomplete currency and non-four-digit date', async () => {
   let saved; await act(async () => root.render(null)); await render(value => { saved = value; });
   await fill(); await file();
-  await change('Appropriation', '1000.'); await submit();
-  assert.equal(field('Appropriation').validationMessage, 'Enter a valid amount.');
-  await change('Appropriation', '1000.50');
+  await change('Approved Budget for the Contract (ABC)', '1000.'); await submit();
+  assert.equal(field('Approved Budget for the Contract (ABC)').validationMessage, 'Enter a valid amount.');
+  await change('Approved Budget for the Contract (ABC)', '1000.50');
   await change('Date Started', '10000-01-01'); await submit();
   assert.equal(field('Date Started').validity.rangeOverflow, true);
   assert.equal(saved, undefined);
@@ -235,14 +236,14 @@ test('editing saved monetary values groups commas, preserves decimals and submit
     attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }],
   };
   await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
-  assert.equal(field('Appropriation').value, '1,234,567.89');
+  assert.equal(field('Approved Budget for the Contract (ABC)').value, '1,234,567.89');
   assert.equal(field('Contracted Amount').value, '1,000.25');
-  assert.equal(field('Actual Project Cost').value, '0.50');
+  assert.equal(field('Actual Project Cost'), null);
   await submit();
   assert.equal(saved.appropriation, '1234567.89');
   assert.equal(saved.contractedAmount, '1000.25');
-  assert.equal(saved.adjustProjectCost, '0.50');
-  await change('Appropriation', '2,500,010.75');
+  assert.equal(Object.hasOwn(saved, 'adjustProjectCost'), false);
+  await change('Approved Budget for the Contract (ABC)', '2,500,010.75');
   await change('Contracted Amount', '1500.08');
   await submit();
   assert.equal(saved.appropriation, '2500010.75');
@@ -251,8 +252,8 @@ test('editing saved monetary values groups commas, preserves decimals and submit
 
 test('currency cursor stays at the edited position after regrouping', async () => {
   await reset(); await render(() => {});
-  await change('Appropriation', '1234.56');
-  const input = field('Appropriation');
+  await change('Approved Budget for the Contract (ABC)', '1234.56');
+  const input = field('Approved Budget for the Contract (ABC)');
   input.focus();
   await act(async () => {
     Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '12345.56');
@@ -281,11 +282,11 @@ test('project details and printed financial information group saved values', asy
   await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
   assert.match(container.textContent, /Php 1,234,567\.89/);
   assert.match(container.textContent, /Php 1,000\.25/);
-  assert.match(container.textContent, /Php 0\.50/);
+  assert.doesNotMatch(container.textContent, /Php 0\.50|Actual Project Cost/);
   const printButton = [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent));
   assert.ok(printButton); await act(async () => printButton.click());
   const fields = sections.flatMap(section => section.fields);
-  assert.equal(fields.find(field => field.label === 'Appropriation').value, 'Php 1,234,567.89');
+  assert.equal(fields.find(field => field.label === 'Approved Budget for the Contract (ABC)').value, 'Php 1,234,567.89');
   assert.equal(fields.find(field => field.label === 'Contracted Amount').value, 'Php 1,000.25');
   assert.equal(fields.find(field => field.label === 'Actual Project Cost').value, 'Php 0.50');
 });
@@ -296,11 +297,11 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
     appropriation: '10000', contractedAmount: '10000.0', adjustProjectCost: '10000.00',
     attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] };
   await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
-  for (const name of ['Appropriation', 'Contracted Amount', 'Actual Project Cost']) assert.equal(field(name).value, '10,000.00');
+  for (const name of ['Approved Budget for the Contract (ABC)', 'Contracted Amount']) assert.equal(field(name).value, '10,000.00');
   await fill();
-  for (const name of ['Appropriation', 'Contracted Amount', 'Actual Project Cost']) await change(name, '10,000.00');
+  for (const name of ['Approved Budget for the Contract (ABC)', 'Contracted Amount']) await change(name, '10,000.00');
   await submit();
-  assert.equal(saved.appropriation, '10000.00'); assert.equal(saved.contractedAmount, '10000.00'); assert.equal(saved.adjustProjectCost, '10000.00');
+  assert.equal(saved.appropriation, '10000.00'); assert.equal(saved.contractedAmount, '10000.00'); assert.equal(Object.hasOwn(saved, 'adjustProjectCost'), false);
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
   const ui = new Proxy({}, { get: () => Dummy });
   let sections;
@@ -313,10 +314,10 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
   await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
-  assert.equal((container.textContent.match(/Php 10,000\.00/g) || []).length, 3);
+  assert.equal((container.textContent.match(/Php 10,000\.00/g) || []).length, 2);
   await act(async () => [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
   const fields = sections.flatMap(section => section.fields);
-  for (const label of ['Appropriation', 'Contracted Amount', 'Actual Project Cost']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
+  for (const label of ['Approved Budget for the Contract (ABC)', 'Contracted Amount', 'Actual Project Cost']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
 });
 
 for (const editing of [false, true]) {
@@ -419,7 +420,38 @@ test('edit, encoder details and validator form hide the requested fields', async
     assert.ok(button); await act(async () => button.click());
     assert.doesNotMatch(container.textContent, /PCAD License No\.|OLD-LICENSE/);
     assert.match(container.textContent, /Road Network ID No\./);
-    if (validationMode) assert.doesNotMatch(container.textContent, /Completion Percentage/);
-    else assert.match(container.textContent, /Completion Percentage/); // view was not requested for removal
+    assert.doesNotMatch(container.textContent, /Completion Percentage/);
+    if (!validationMode) assert.doesNotMatch(container.textContent, /Actual Project Cost/);
   }
+});
+
+// @mine — optional fields, derived dates and two-column financial layout.
+test('new projects save without optional ID and contact and copy actual completion date', async () => {
+  let saved; await reset(); await render(value => { saved = value; });
+  await fill(); await file();
+  await change('Road Network ID No.', ''); await change('Contact Information', '');
+  assert.equal(field('Road Network ID No.').required, false);
+  assert.equal(field('Contact Information').required, false);
+  assert.equal(field('Completion Date').disabled, true);
+  await change('Actual Completion Date', '2027-04-05');
+  assert.equal(field('Completion Date').value, '2027-04-05');
+  assert.equal(field('Actual Project Cost'), null);
+  const row = field('Contracted Amount').parentElement.parentElement.parentElement;
+  assert.match(row.className, /md:grid-cols-2/); assert.equal(row.children.length, 2);
+  assert.equal(row, field('Approved Budget for the Contract (ABC)').parentElement.parentElement.parentElement);
+  await submit();
+  assert.ok(saved); assert.equal(saved.roadNetworkId, ''); assert.equal(saved.contactInformation, '');
+  assert.equal(saved.actualCompletionDate, '2027-04-05'); assert.equal(saved.completionDate, '2027-04-05');
+});
+
+test('editing shows and saves completion date from actual date even when old dates differ', async () => {
+  let saved;
+  const item = { id: 'p1', name: 'Road', type: 'National Road', location: 'Mabini', dateBuilt: '2026-01-01', condition: 'Good',
+    actualCompletionDate: '2026-03-01', completionDate: '2025-01-01',
+    attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] };
+  await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
+  assert.equal(field('Completion Date').value, '2026-03-01');
+  await fill(); await change('Actual Completion Date', '2028-06-07');
+  assert.equal(field('Completion Date').value, '2028-06-07');
+  await submit(); assert.equal(saved.completionDate, '2028-06-07');
 });

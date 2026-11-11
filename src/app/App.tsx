@@ -394,7 +394,6 @@ export default function App() {
       sourceOfFunds: data.sourceOfFunds || '',
       appropriation: data.appropriation || '',
       contractedAmount: data.contractedAmount || '',
-      adjustProjectCost: data.adjustProjectCost || '',
       completionDate: data.completionDate || '',
       turnoverDate: data.turnoverDate || '',
       attachments: data.attachments || [],

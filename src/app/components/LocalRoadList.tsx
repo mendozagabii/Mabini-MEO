@@ -134,7 +134,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
         title: 'Financial Information',
         fields: [
           { label: 'Source of Funds', value: item.sourceOfFunds, width: 'full' },
-          { label: 'Appropriation', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'third' },
+          { label: 'Approved Budget for the Contract (ABC)', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'third' },
           { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: 'third' },
           { label: 'Actual Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' },
         ],
@@ -262,7 +262,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Road Information</h3>
               <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Road Network ID No. *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Road Network ID No.</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadNetworkId || 'N/A'}</p>
             </div>
             <div>
@@ -295,7 +295,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractorAddress || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contact Information *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contact Information</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contactInformation || 'N/A'}</p>
             </div>
               </div>
@@ -306,19 +306,21 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Source of Funds *</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.sourceOfFunds || 'N/A'}</p>
             </div>
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className={`mt-4 grid grid-cols-1 gap-4 ${userRole === 'Staff - Encoder' ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Appropriation *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Approved Budget for the Contract (ABC) *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.appropriation) || 'N/A'}</p>
             </div>
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.contractedAmount) || 'N/A'}</p>
             </div>
+            {userRole !== 'Staff - Encoder' && (
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Actual Project Cost *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.adjustProjectCost) || 'N/A'}</p>
             </div>
+            )}
             </div>
             </section>
             <section className="border-b pb-6 pt-5">
@@ -327,7 +329,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Completion Date *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionDate || 'N/A'}</p>
             </div>
-            {!validationMode && (
+            {!validationMode && userRole !== 'Staff - Encoder' && (
             <div className="mt-4">
               <p className="mb-2 block text-sm font-medium text-gray-700">Completion Percentage *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionPercentage || 'N/A'}</p>

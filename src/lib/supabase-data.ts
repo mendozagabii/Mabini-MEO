@@ -439,7 +439,8 @@ async function resolveContractorId(db: SupabaseClient, rec: StoredRecord): Promi
   const payload = {
     name,
     address: str(rec.contractorAddress) || null,
-    contact_information: str(rec.contactInformation) || null,
+    // @mine — blank optional contact information does not erase a shared contractor's value.
+    ...(str(rec.contactInformation).trim() ? { contact_information: str(rec.contactInformation).trim() } : {}),
     // @mine — never overwrite the hidden license on an existing shared contractor.
   };
   const { data } = await db.from('contractors').select('id').ilike('name', name).maybeSingle();
@@ -489,7 +490,8 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
   }
   const roadPayload = {
     road_name: str(rec.roadName || rec.name) || 'Unnamed Road',
-    road_network_id: str(rec.roadNetworkId) || null,
+    // @mine — omit blank optional IDs, preserving an existing road's value.
+    ...(str(rec.roadNetworkId).trim() ? { road_network_id: str(rec.roadNetworkId).trim() } : {}),
     barangay_id: barangayId,
     components: str(rec.components) || null,
     description: str(rec.description || rec.projectDescription) || null,
@@ -524,7 +526,7 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     source_of_funds: str(rec.sourceOfFunds) || null,
     appropriation: rec.appropriation === '' || rec.appropriation == null ? null : Number(rec.appropriation),
     contracted_amount: rec.contractedAmount === '' || rec.contractedAmount == null ? null : Number(rec.contractedAmount),
-    adjusted_project_cost: rec.adjustProjectCost === '' || rec.adjustProjectCost == null ? null : Number(rec.adjustProjectCost),
+    // @mine — preserve the hidden actual project cost when saving.
     completion_date: str(rec.completionDate) || null,
     // @mine — preserve existing completion percentage; new rows use the database default.
     turnover_date: str(rec.turnoverDate) || null,

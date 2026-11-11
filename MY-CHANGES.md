@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Simplify encoder financial and completion fields
+
+- Hide Completion Percentage and Actual Project Cost in encoder details, and hide Actual Project Cost in add/edit; align the remaining two financial inputs. Rename Appropriation to Approved Budget for the Contract (ABC).
+- Make road network ID and contact information optional; blank values are omitted from updates so existing values are not cleared. Preserve existing actual project costs by omitting that hidden column from saves.
+- Derive the disabled Completion Date from Actual Completion Date in add/edit and submit the same value for both; saving an older record with different dates updates its completion date to match the actual date. No schema migration or live data writes.
+- Retain actual cost in non-encoder details and printed reports. Local tests cover optional inputs, date synchronization, layout and preservation.
+
 ### 2026-11-10 — [mine] Hide license and completion fields from requested forms
 
 - Hide PCAD License No. in project add, edit and details, and hide Completion Percentage in project add/edit and validator details. Keep Road Network ID unchanged and retain Completion Percentage in encoder details as requested.
