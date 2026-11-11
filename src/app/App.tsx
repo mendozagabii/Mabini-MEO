@@ -81,6 +81,9 @@ interface Inspection {
   inspector: string;
   inspectionType?: string;
   conditionRatings?: Record<string, string>;
+  // @mine 2026-11-11 — remark + attachments underneath each assessment category.
+  conditionRemarks?: Record<string, string>;
+  conditionAttachments?: Record<string, Array<{ name: string; type: string; dataUrl: string; storagePath?: string; staged?: boolean; stored?: boolean; size?: number }>>;
   attachment?: {
     name: string;
     type: string;
