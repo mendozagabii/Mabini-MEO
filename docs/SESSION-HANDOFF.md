@@ -4,6 +4,32 @@
 
 # ⚠️ READ THIS FIRST — session handoff
 
+> **2026-11-11 follow-up — inspection condition assessment (owner-approved):**
+> The owner asked for remarks and attachments underneath **each** category of *Local Road
+> Condition Assessment* (add/edit inspection and the inspection details view), plus four new
+> categories: **Drainage, Solar Lights, Slope Protection, Retaining Wall** (11 total). The five
+> ratings Good/Fair/Poor/Bad/N/A are unchanged, and the field-condition wording for the four new
+> categories was written by the agent and accepted.
+>
+> **Database (applied live, owner approved "apply the migration now"):** migration
+> `inspection_item_remarks_attachments` — four additive `road_component` enum values, plus
+> `attachments.inspection_item_id uuid` (ON DELETE CASCADE) and its index. Per-category remarks
+> reuse the pre-existing `inspection_items.remarks` column. Repo copy:
+> `supabase/migrations/20261111_inspection_item_attachments.sql`. Verified with a
+> begin/insert/rollback probe (0 rows left; 126 items untouched).
+>
+> **What is new in code:** optional remark + multi-file attachments under every category; a new
+> inspector-only signed-upload route `/api/inspections/item-attachment-upload`; server-side
+> re-verification (folder, size, MIME, file signature, not-already-used) before rows are written;
+> `saveInspection` now updates item rows in place instead of delete+insert, so re-saving can no
+> longer cascade away already-attached photos. Existing 34 inspections keep their 7 items and show
+> the new categories as **"Not assessed"** — nothing was backfilled.
+>
+> **Verified:** `tsc --noEmit`, `next build`, `node --test tests/*.test.cjs` = 48/48 (6 new).
+> **Not verified:** clicking through the live app (the sandbox cannot reach `*.supabase.co`), and
+> no real inspector upload has been exercised end to end — that needs the owner.
+> **Still gated:** `20261110_staff_archive_permissions.sql` remains unapplied; no PR merged.
+
 > **2026-11-10 current follow-up — supersedes historical notes below:**
 > The owner approved merging the role and icon-button work on `arena/1e3bf832-mabini-meo`.
 > Earlier PR #10 is **closed without merging**; relevant project-save fixes and its reference-data

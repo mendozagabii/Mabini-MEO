@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { ClipboardCheck, Calendar, X, Search, FileText, AlertCircle, Pencil, Trash2, Printer, Plus } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
@@ -18,6 +18,9 @@ interface Inspection {
   inspector: string;
   inspectionType?: string;
   conditionRatings?: Record<string, string>;
+  // @mine 2026-11-11 — remark and files per category.
+  conditionRemarks?: Record<string, string>;
+  conditionAttachments?: Record<string, ConditionAttachment[]>;
   attachment?: {
     name: string;
     type: string;
@@ -59,15 +62,156 @@ const inspectionFormTabs = [
   { id: 'inspection', label: 'Inspection Details' },
 ] as const;
 
-const conditionAssessmentLabels = [
-  'Concrete',
-  'Asphalt',
-  'Gravel',
-  'Earth',
-  'Shoulder',
-  'Side Drain',
-  'Sidewalk',
+// @mine 2026-11-11 — the Local Road Condition Assessment catalogue. The first seven
+// categories and their wording are unchanged; the last four (Drainage, Solar Lights,
+// Slope Protection, Retaining Wall) were added at the owner's request, with field
+// condition descriptions written to match the existing engineering tone.
+export type ConditionRating = 'Good' | 'Fair' | 'Poor' | 'Bad' | 'N/A';
+export interface InspectionCategory {
+  label: string;
+  /** DB enum value in public.road_component (see supabase-data.ts). */
+  key: string;
+  details: Record<ConditionRating, string>;
+}
+
+const NOT_APPLICABLE = 'Not applicable – type/element not present.';
+
+export const inspectionCategories: InspectionCategory[] = [
+  {
+    label: 'Concrete',
+    key: 'concrete',
+    details: {
+      Good: 'Sound, even, and no cracks or scaling, normal speed ok at 70-80 kph.',
+      Fair: 'Even with very minimal hair-line cracks and very minimal surface wearing, normal speed ok at 50-60 kph.',
+      Poor: 'Slightly uneven with minor cracks (<=3mm. width) and wearing surface, joint sealant deterioration, normal speed ok at 30-40 kph.',
+      Bad: 'With major cracks, shattered slabs, joint deterioration and cut/slip, can only travel very slowly, normal speed ok at 20-30 kph.',
+      'N/A': NOT_APPLICABLE,
+    },
+  },
+  {
+    label: 'Asphalt',
+    key: 'asphalt',
+    details: {
+      Good: 'Sound, well-shaped, even and waterproof, normal speed ok at 70-80 kph.',
+      Fair: 'Even with minor patches and very minimal wearing surface but still waterproof, normal speed ok at 50-60 kph.',
+      Poor: 'Very uneven and porous, with potholes and cracks (<=3mm. Width) normal speed 30-40 kph.',
+      Bad: 'Very broken up, rough, with base failures, edge break, can only travel very slowly, normal speed ok at 20-30 kph.',
+      'N/A': NOT_APPLICABLE,
+    },
+  },
+  {
+    label: 'Gravel',
+    key: 'gravel',
+    details: {
+      Good: 'Good shape and surface, does not hold water.',
+      Fair: 'Flat camber with minor potholes and holding some water.',
+      Poor: 'Depressions common, drainage impeded.',
+      Bad: 'Extensive ponding, water tends to flow on the road.',
+      'N/A': NOT_APPLICABLE,
+    },
+  },
+  {
+    label: 'Earth',
+    key: 'earth',
+    details: {
+      Good: 'Good shape and surface, does not hold water.',
+      Fair: 'Flat camber with minor potholes and holding some water.',
+      Poor: 'Depressions common, drainage impeded.',
+      Bad: 'Extensive ponding, water tends to flow on the road, impassable when wet.',
+      'N/A': NOT_APPLICABLE,
+    },
+  },
+  {
+    label: 'Shoulder',
+    key: 'shoulder',
+    details: {
+      Good: 'Adequate width, even surface and well maintained.',
+      Fair: 'Adequate width, slightly uneven, with few potholes, inadequate maintenance.',
+      Poor: 'Inadequate width, very uneven or with many edge break and no maintenance.',
+      Bad: 'No effective shoulders, very silted road edge and with plenty of vegetation.',
+      'N/A': NOT_APPLICABLE,
+    },
+  },
+  {
+    label: 'Side Drain',
+    key: 'side_drain',
+    details: {
+      Good: 'Road edge well above side drains, well defined side drains, sufficient depth, sufficient side slopes to drain water.',
+      Fair: 'Road edge slightly level with side drains, not fully efficient side drains, water can cross the road.',
+      Poor: 'Road edge slightly below ground level, no side drains or totally blocked side drains, some ponding of water.',
+      Bad: 'Road edge well below ground level — road serving as a drain to surrounding areas.',
+      'N/A': NOT_APPLICABLE,
+    },
+  },
+  {
+    label: 'Sidewalk',
+    key: 'sidewalk',
+    details: {
+      Good: 'Sufficient width, even surface, no vegetation, not holding water.',
+      Fair: 'Sufficient width, with minimal vegetation and slightly uneven.',
+      Poor: 'Insufficient width, with ponding of water, insufficient maintenance.',
+      Bad: 'No maintenance or no sidewalk.',
+      'N/A': NOT_APPLICABLE,
+    },
+  },
+  {
+    label: 'Drainage',
+    key: 'drainage',
+    details: {
+      Good: 'Well-aligned and lined drains with adequate capacity and free flow; no siltation, scouring or ponding; outlets discharge clear of the roadway.',
+      Fair: 'Drains functional but partly silted or with minor vegetation; occasional overflow in heavy rain; slight cracking of the lining, no structural damage.',
+      Poor: 'Drains heavily silted, blocked or undersized; water ponds along the carriageway and crosses the road; broken lining or missing covers.',
+      Bad: 'No functional drainage or drains destroyed; the roadway itself serves as the drain; persistent flooding and erosion of the road edge.',
+      'N/A': 'Not applicable – no drainage facility present.',
+    },
+  },
+  {
+    label: 'Solar Lights',
+    key: 'solar_lights',
+    details: {
+      Good: 'All units installed on sound posts and lighting every night; panels clean, batteries holding charge, no outages observed.',
+      Fair: 'Most units working; isolated dim or non-functional lights, light panel soiling or slightly tilted posts, batteries near end of life.',
+      Poor: 'Several units not working or lighting intermittently; corroded wiring or controllers, damaged panels, leaning or vandalised posts.',
+      Bad: 'System not functioning; missing or destroyed luminaires, posts down, exposed wiring — a hazard to road users at night.',
+      'N/A': 'Not applicable – no solar lighting along this road section.',
+    },
+  },
+  {
+    label: 'Slope Protection',
+    key: 'slope_protection',
+    details: {
+      Good: 'Slopes stable at the designed angle, vegetation established, revetment or riprap intact — no cracking, bulging or seepage.',
+      Fair: 'Minor erosion or rill formation, sparse vegetation, slight cracking or displacement of the slope cover; carriageway unaffected.',
+      Poor: 'Moderate erosion, shallow slides or scouring at the toe; cracked or detached revetment, blocked slope drainage; road edge affected.',
+      Bad: 'Active slide or slope failure, deep erosion or undercutting threatening the road; protection works destroyed; road partly blocked or unsafe.',
+      'N/A': 'Not applicable – no slope protection works or cut/fill slope in this section.',
+    },
+  },
+  {
+    label: 'Retaining Wall',
+    key: 'retaining_wall',
+    details: {
+      Good: 'Wall plumb and sound; no cracks, bulging or settlement; weep holes open and backfill draining freely.',
+      Fair: 'Hairline cracks, staining or slight bulging; some weep holes clogged; no loss of function.',
+      Poor: 'Wide or structural cracks, noticeable tilt or displacement, spalling with exposed reinforcement, blocked drainage building water pressure; repair needed.',
+      Bad: 'Wall leaning, separating or partly collapsed, sections missing, embankment failing behind it, shoulder undermined — immediate intervention required.',
+      'N/A': 'Not applicable – no retaining wall present.',
+    },
+  },
 ];
+
+const conditionAssessmentLabels = inspectionCategories.map((category) => category.label);
+
+/** One file attached underneath a category (signed URL once stored). */
+export interface ConditionAttachment {
+  name: string;
+  type: string;
+  dataUrl: string;
+  storagePath?: string;
+  staged?: boolean;
+  stored?: boolean;
+  size?: number;
+}
 
 export function InspectionModule({ inspections, localRoadList, onAddInspection, onEditInspection, onDeleteInspection, currentUser, userRole = '' }: InspectionModuleProps) {
   // @mine — Admin accounts are displayed as Head Engineer.
@@ -92,6 +236,11 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const [selectedInspectionAttachment, setSelectedInspectionAttachment] = useState<Inspection['attachment'] | null>(null);
   const canPrint = ['Admin', 'Head Engineer', 'Staff - Inspector'].includes(userRole);
   const [conditionRatings, setConditionRatings] = useState<Record<string, string>>({});
+  // @mine 2026-11-11 — per-category remark + attachments (both optional).
+  const [conditionRemarks, setConditionRemarks] = useState<Record<string, string>>({});
+  const [conditionAttachments, setConditionAttachments] = useState<Record<string, ConditionAttachment[]>>({});
+  const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
+  const [categoryNotice, setCategoryNotice] = useState('');
   const [formData, setFormData] = useState({
     localRoadId: '',
     projectName: '',
@@ -115,6 +264,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const startNewInspection = () => {
     setEditingInspection(null);
     setConditionRatings({});
+    setConditionRemarks({});
+    setConditionAttachments({});
+    setCategoryNotice('');
     setSelectedAttachment(null);
     setAttachmentName('No file chosen');
     setValidationNotice('');
@@ -236,6 +388,69 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     setValidationNotice('');
   };
 
+  // @mine 2026-11-11 — per-category remark (optional; kept even when the rating is N/A).
+  const handleCategoryRemarkChange = (rowLabel: string, value: string) => {
+    setConditionRemarks(prev => ({ ...prev, [rowLabel]: value }));
+  };
+
+  const removeCategoryAttachment = (rowLabel: string, index: number) => {
+    setConditionAttachments(prev => ({
+      ...prev,
+      [rowLabel]: (prev[rowLabel] ?? []).filter((_, position) => position !== index),
+    }));
+  };
+
+  /** Upload files straight to Storage through a short-lived signed URL (no 10 MB JSON body). */
+  const handleCategoryAttachmentChange = async (
+    rowLabel: string,
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    setCategoryNotice('');
+    for (const file of files) {
+      const problem = attachmentError(file);
+      if (problem) {
+        setCategoryNotice(problem);
+        continue;
+      }
+      setUploadingCategory(rowLabel);
+      try {
+        const response = await fetch('/api/inspections/item-attachment-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
+        });
+        const upload = await response.json().catch(() => ({}));
+        if (!response.ok || !upload.signedUrl || !upload.path) {
+          throw new Error(upload.message || 'Unable to prepare the attachment.');
+        }
+        const body = new FormData();
+        body.append('cacheControl', '3600');
+        body.append('file', new Blob([file], { type: upload.type }), file.name);
+        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+        const storageResponse = await fetch(upload.signedUrl, {
+          method: 'PUT',
+          headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+          body,
+        });
+        if (!storageResponse.ok) throw new Error(`Could not upload ${file.name}. Please try again.`);
+        setConditionAttachments(prev => ({
+          ...prev,
+          [rowLabel]: [
+            ...(prev[rowLabel] ?? []),
+            { name: file.name, type: upload.type, dataUrl: '', size: file.size, storagePath: upload.path, staged: true },
+          ],
+        }));
+      } catch (error) {
+        setCategoryNotice(error instanceof Error ? error.message : 'Unable to upload the attachment.');
+      } finally {
+        setUploadingCategory(null);
+      }
+    }
+  };
+
   const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -261,6 +476,10 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     setConditionRatings(inspection.conditionRatings || Object.fromEntries(
       conditionAssessmentLabels.map((label) => [label, overallRating === 'Pending Validation' ? 'N/A' : overallRating]),
     ));
+    // @mine 2026-11-11 — restore the per-category remark and file sets.
+    setConditionRemarks(inspection.conditionRemarks || {});
+    setConditionAttachments(inspection.conditionAttachments || {});
+    setCategoryNotice('');
     setFormData((previous) => ({
       ...previous,
       localRoadId: inspection.localRoadId,
@@ -298,7 +517,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     if (!formData.date) validationMessages.push('Enter the inspection date.');
     if (!formData.inspectionType) validationMessages.push('Select an inspection type.');
     if (missingConditionRatings.length > 0) {
-      validationMessages.push('Select a condition rating for every road element. Choose N/A when it does not apply.');
+      validationMessages.push('Select a condition rating for every category. Choose N/A when it does not apply.');
     }
     if (!formData.remarks.trim()) validationMessages.push('Enter the inspection findings.');
     if (!selectedAttachment && !editingInspection?.attachment) validationMessages.push('Attach a PDF, JPG, or PNG file (10 MB maximum).');
@@ -340,11 +559,17 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       const averageRating = selectedRatings.length
         ? selectedRatings.reduce((total, rating) => total + getRatingScore(rating), 0) / selectedRatings.length
         : 0;
+      // @mine 2026-11-11 — per-category remarks + files travel with the inspection.
+      const categoryRemarks = Object.fromEntries(
+        Object.entries(conditionRemarks).filter(([, value]) => value.trim() !== ''),
+      );
       const inspectionData = {
         ...formData,
         attachment,
         conditionRating: averageRating,
         conditionRatings,
+        conditionRemarks: categoryRemarks,
+        conditionAttachments,
         validationStatus: editingInspection?.validationStatus || 'Pending Validation',
         localRoadName: localRoad.name,
         inspector: editingInspection?.inspector || currentUser,
@@ -357,6 +582,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       }
       setEditingInspection(null);
       setConditionRatings({});
+      setConditionRemarks({});
+      setConditionAttachments({});
+      setCategoryNotice('');
       setSelectedAttachment(null);
       setValidationNotice('');
       setAttachmentName('No file chosen');
@@ -386,10 +614,15 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const printInspection = (inspection: Inspection, referenceId: string) => {
     const road = localRoadList.find((item) => item.id === inspection.localRoadId);
     const projectName = road?.projectName || road?.name || inspection.projectName || inspection.localRoadName;
-    const assessmentFields = conditionAssessmentLabels.map((label) => ({
-      label,
-      value: inspection.conditionRatings?.[label] || 'N/A',
-    }));
+    // @mine 2026-11-11 — the printed assessment carries each category's remark.
+    const assessmentFields = inspectionCategories.map(({ label }) => {
+      const rating = inspection.conditionRatings?.[label];
+      const remark = inspection.conditionRemarks?.[label];
+      return {
+        label,
+        value: [rating || 'Not assessed', remark ? `Remarks: ${remark}` : ''].filter(Boolean).join(' — '),
+      };
+    });
     void recordClientActivity(
       currentUser,
       'Print Requested',
@@ -709,79 +942,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         </tr>
                       </thead>
                       <tbody>
-                        {[
-                          {
-                            label: 'Concrete',
-                            details: {
-                              Good: 'Sound, even, and no cracks or scaling, normal speed ok at 70-80 kph.',
-                              Fair: 'Even with very minimal hair-line cracks and very minimal surface wearing, normal speed ok at 50-60 kph.',
-                              Poor: 'Slightly uneven with minor cracks (<=3mm. width) and wearing surface, joint sealant deterioration, normal speed ok at 30-40 kph.',
-                              Bad: 'With major cracks, shattered slabs, joint deterioration and cut/slip, can only travel very slowly, normal speed ok at 20-30 kph.',
-                              'N/A': 'Not applicable – type/element not present.'
-                            }
-                          },
-                          {
-                            label: 'Asphalt',
-                            details: {
-                              Good: 'Sound, well-shaped, even and waterproof, normal speed ok at 70-80 kph.',
-                              Fair: 'Even with minor patches and very minimal wearing surface but still waterproof, normal speed ok at 50-60 kph.',
-                              Poor: 'Very uneven and porous, with potholes and cracks (<=3mm. Width) normal speed 30-40 kph.',
-                              Bad: 'Very broken up, rough, with base failures, edge break, can only travel very slowly, normal speed ok at 20-30 kph.',
-                              'N/A': 'Not applicable – type/element not present.'
-                            }
-                          },
-                          {
-                            label: 'Gravel',
-                            details: {
-                              Good: 'Good shape and surface, does not hold water.',
-                              Fair: 'Flat camber with minor potholes and holding some water.',
-                              Poor: 'Depressions common, drainage impeded.',
-                              Bad: 'Extensive ponding, water tends to flow on the road.',
-                              'N/A': 'Not applicable – type/element not present.'
-                            }
-                          },
-                          {
-                            label: 'Earth',
-                            details: {
-                              Good: 'Good shape and surface, does not hold water.',
-                              Fair: 'Flat camber with minor potholes and holding some water.',
-                              Poor: 'Depressions common, drainage impeded.',
-                              Bad: 'Extensive ponding, water tends to flow on the road, impassable when wet.',
-                              'N/A': 'Not applicable – type/element not present.'
-                            }
-                          },
-                          {
-                            label: 'Shoulder',
-                            details: {
-                              Good: 'Adequate width, even surface and well maintained.',
-                              Fair: 'Adequate width, slightly uneven, with few potholes, inadequate maintenance.',
-                              Poor: 'Inadequate width, very uneven or with many edge break and no maintenance.',
-                              Bad: 'No effective shoulders, very silted road edge and with plenty of vegetation.',
-                              'N/A': 'Not applicable – type/element not present.'
-                            }
-                          },
-                          {
-                            label: 'Side Drain',
-                            details: {
-                              Good: 'Road edge well above side drains, well defined side drains, sufficient depth, sufficient side slopes to drain water.',
-                              Fair: 'Road edge slightly level with side drains, not fully efficient side drains, water can cross the road.',
-                              Poor: 'Road edge slightly below ground level, no side drains or totally blocked side drains, some ponding of water.',
-                              Bad: 'Road edge well below ground level — road serving as a drain to surrounding areas.',
-                              'N/A': 'Not applicable – type/element not present.'
-                            }
-                          },
-                          {
-                            label: 'Sidewalk',
-                            details: {
-                              Good: 'Sufficient width, even surface, no vegetation, not holding water.',
-                              Fair: 'Sufficient width, with minimal vegetation and slightly uneven.',
-                              Poor: 'Insufficient width, with ponding of water, insufficient maintenance.',
-                              Bad: 'No maintenance or no sidewalk.',
-                              'N/A': 'Not applicable – type/element not present.'
-                            }
-                          }
-                        ].map((row) => (
-                          <tr key={row.label} className="border-t border-gray-300 align-top">
+                        {inspectionCategories.map((row) => (
+                          <Fragment key={row.label}>
+                          <tr className="border-t border-gray-300 align-top">
                             <td className="border-r border-gray-300 px-3 py-3 align-top font-medium">{row.label}</td>
                             <td className="border-r border-gray-300 px-3 py-3 align-top">
                               <div className="flex flex-col gap-3">
@@ -824,6 +987,79 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                               </div>
                             </td>
                           </tr>
+                          {/* @mine 2026-11-11 — remark + attachments underneath each category. */}
+                          <tr className="border-t border-gray-300 bg-slate-50 align-top">
+                            <td colSpan={3} className="px-3 py-3">
+                              {/* @mine 2026-11-11 — remarks first, attachments directly underneath. */}
+                              <div className="flex flex-col gap-3">
+                                <div>
+                                  <label
+                                    htmlFor={`category-remark-${row.key}`}
+                                    className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
+                                  >
+                                    {row.label} — Remarks <span className="font-normal normal-case text-slate-500">(optional)</span>
+                                  </label>
+                                  <AutoGrowTextarea
+                                    id={`category-remark-${row.key}`}
+                                    data-category-remark={row.label}
+                                    value={conditionRemarks[row.label] ?? ''}
+                                    onChange={(event) => handleCategoryRemarkChange(row.label, event.target.value)}
+                                    placeholder={`Observations, defects, or notes for ${row.label}...`}
+                                    className="min-h-[2.75rem] w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[#0ea5e9]"
+                                  />
+                                </div>
+                                <div>
+                                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                    {row.label} — Attachments <span className="font-normal normal-case text-slate-500">(optional)</span>
+                                  </span>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 hover:bg-gray-50">
+                                      <input
+                                        type="file"
+                                        multiple
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        className="hidden"
+                                        aria-label={`Attach files for ${row.label}`}
+                                        onChange={(event) => void handleCategoryAttachmentChange(row.label, event)}
+                                      />
+                                      {uploadingCategory === row.label ? 'Uploading...' : 'Add file'}
+                                    </label>
+                                    {(conditionAttachments[row.label] ?? []).map((file, index) => (
+                                      <span
+                                        key={`${file.name}-${index}`}
+                                        className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2 py-1 text-xs text-slate-700"
+                                      >
+                                        <FileText className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                                        {file.dataUrl && !file.staged ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedInspectionAttachment(file as Inspection['attachment'])}
+                                            className="max-w-[12rem] truncate text-left hover:underline"
+                                          >
+                                            {file.name}
+                                          </button>
+                                        ) : (
+                                          <span className="max-w-[12rem] truncate" title={file.name}>{file.name}</span>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => removeCategoryAttachment(row.label, index)}
+                                          aria-label={`Remove ${file.name} from ${row.label}`}
+                                          className="rounded-full p-0.5 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                    {(conditionAttachments[row.label] ?? []).length === 0 && uploadingCategory !== row.label && (
+                                      <span className="text-xs text-slate-500">No files attached.</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>
@@ -831,7 +1067,13 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
                   <div className="mt-3 text-xs text-gray-600">
                     <span className="font-medium">N/A: Not applicable – type/element not present.</span>
+                    <span className="ml-2">Remarks and attachments under each category are optional; files are limited to PDF, JPG, or PNG and 10 MB each.</span>
                   </div>
+                  {categoryNotice && (
+                    <div role="alert" className="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                      {categoryNotice}
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-b pb-6">
@@ -991,20 +1233,64 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                   )}
 
                   <section>
-                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">Condition Assessment</h3>
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">Local Road Condition Assessment</h3>
                     {details.length > 0 ? (
-                      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {details.map(([element, rating]) => (
-                          <li key={element} className="flex items-center justify-between gap-3 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm">
-                            <span className="text-slate-600">{element}</span>
-                            <span className={`shrink-0 rounded-lg px-2 py-1 text-xs font-semibold ${
-                              rating === 'Good' ? 'bg-emerald-50 text-emerald-700' :
-                              rating === 'Fair' ? 'bg-amber-50 text-amber-700' :
-                              'bg-rose-50 text-rose-700'
-                            }`}>{rating}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="space-y-2">
+                        {inspectionCategories.map(({ label, details: descriptors }) => {
+                          const storedRating = inspection.conditionRatings?.[label];
+                          const rating = storedRating && storedRating !== 'N/A' ? storedRating : '';
+                          const remark = inspection.conditionRemarks?.[label] || '';
+                          const files = inspection.conditionAttachments?.[label] ?? [];
+                          return (
+                            <div
+                              key={label}
+                              data-category={label}
+                              className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-medium text-slate-700">{label}</span>
+                                {rating ? (
+                                  <span className={`shrink-0 rounded-lg px-2 py-1 text-xs font-semibold ${
+                                    rating === 'Good' ? 'bg-emerald-50 text-emerald-700' :
+                                    rating === 'Fair' ? 'bg-amber-50 text-amber-700' :
+                                    rating === 'N/A' ? 'bg-slate-200 text-slate-600' :
+                                    'bg-rose-50 text-rose-700'
+                                  }`}>{rating}</span>
+                                ) : (
+                                  <span className="shrink-0 text-xs italic text-slate-500">
+                                    {storedRating === 'N/A' ? 'N/A' : 'Not assessed'}
+                                  </span>
+                                )}
+                              </div>
+                              {rating ? (
+                                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                                  {descriptors[rating as ConditionRating]}
+                                </p>
+                              ) : null}
+                              {remark ? (
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                                  <span className="font-semibold">Remarks: </span>{remark}
+                                </p>
+                              ) : null}
+                              {files.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-2">
+                                  {files.map((file, index) => (
+                                    <button
+                                      key={`${file.name}-${index}`}
+                                      type="button"
+                                      onClick={() => setSelectedInspectionAttachment(file as Inspection['attachment'])}
+                                      className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
+                                    >
+                                      <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                                      <span className="max-w-[14rem] truncate">{file.name}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     ) : (
                       <p className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-3 text-sm text-gray-500">
                         No condition details recorded.

@@ -78,6 +78,10 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Integrate latest inspection changes
+
+- Integrate main’s inspection category and attachment changes with the project validation workflow, preserving both change histories. No database changes were made in this session.
+
 ### 2026-11-10 — [mine] Revision badge and validation save feedback
 
 - Rename the encoder badge to For Revision. After an encoder successfully saves a returned project, requeue the corresponding initial or annual decision as Pending while retaining the validator's remarks; this removes the badge and permits another validation without a schema change.
@@ -96,6 +100,19 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 - Display the latest decision and remarks and an encoder-only Revision badge; keep those fields independent of encoder edits. Refresh project lists on module entry, focus, and periodically.
 - Save initial validation with a narrowly scoped service-role update after server-side role, input and due-task checks; update existing annual entries through validator RLS and detect denied or missing updates. Surface annual generation/read errors instead of silently hiding projects.
 - Local automated tests exercise dates, annual backlog, role restrictions, badge, and validation writes. No database migration or live test was performed; preview shares the live database and reads can generate annual records.
+### 2026-11-11 — [mine] Stack each category's attachments underneath its remarks
+- **Type:** Modified
+- **Files:** `src/app/components/InspectionModule.tsx` (modified)
+- **What & why:** Owner request: in Local Road Condition Assessment the attachment control sat beside the remarks box on wide screens; it now sits directly below the remarks so each category reads top-to-bottom (remarks, then files). Layout-only change in the inspection form; no data, query or database change, and the details view already stacked them that way. Verified with tsc, next build and all 48 local tests.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-11 — [mine] Inspection categories: remarks + attachments per category, four new categories
+- **Type:** Added
+- **Files:** `src/app/App.tsx` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/lib/supabase-data.ts` (modified), `src/app/api/inspections/item-attachment-upload/` (new), `supabase/migrations/20261111_inspection_item_attachments.sql` (new), `tests/inspection-categories.test.cjs` (new), `docs/SESSION-HANDOFF.md` (modified), `MY-CHANGES.md`
+- **What & why:** Owner request: under Local Road Condition Assessment every category now carries an optional remark and its own attachments, and four categories were added (Drainage, Solar Lights, Slope Protection, Retaining Wall) with field-condition descriptions written for Good/Fair/Poor/Bad/N/A. Ratings, scores and averages are unchanged: the new values are additive enum labels and new categories default to N/A, which the generated score already treats as not scored. Additive migration applied live (owner-approved): road_component x4 values + attachments.inspection_item_id with cascade delete; per-category remarks reuse the existing inspection_items.remarks column. Uploads go straight to Storage through a new inspector-only signed-upload route so files never pass through the JSON body; the server re-verifies folder, size, MIME type and file signature before any row is written, and re-saving now updates item rows in place so existing photos are not cascaded away. Verified: tsc, next build, 48 local tests (6 new), and a rolled-back SQL probe against the live database.
+- **Status:** ✅ Kept
+- **Original code affected:** none
 
 ### 2026-11-10 — [mine] Undo multi-barangay location task
 - **What & why:** Reverted the location filter, persistence guard, tests and unapplied migration at the user's request. Earlier currency and save-progress changes remain intact.

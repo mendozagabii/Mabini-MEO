@@ -102,12 +102,13 @@ const ATTACH_CATEGORY_FROM_DB: Record<string, string> = Object.fromEntries(
 
 interface AttachmentInput {
   name?: unknown; type?: unknown; dataUrl?: unknown; category?: unknown; storagePath?: unknown; staged?: unknown; size?: unknown;
+  stored?: unknown;
 }
 
 /** Upload one base64 data URL to Storage and record it in public.attachments. Best-effort. */
 async function storeAttachment(
   db: SupabaseClient,
-  link: { project_id?: string; inspection_id?: string; maintenance_id?: string },
+  link: { project_id?: string; inspection_id?: string; inspection_item_id?: string; maintenance_id?: string },
   input: AttachmentInput,
   userId: string,
 ): Promise<void> {
@@ -139,7 +140,7 @@ async function storeAttachment(
 /** Persist any newly-added (dataUrl, not yet stored) attachments of a project/inspection. */
 async function syncAttachments(
   db: SupabaseClient,
-  link: { project_id?: string; inspection_id?: string },
+  link: { project_id?: string; inspection_id?: string; inspection_item_id?: string },
   inputs: AttachmentInput[] | undefined,
   userId: string,
 ): Promise<void> {
@@ -189,15 +190,62 @@ async function prepareProjectAttachments(db: SupabaseClient, inputs: AttachmentI
   return prepared;
 }
 
+/**
+ * @mine — verify the per-category inspection uploads before a single row is written.
+ * Same rules as project uploads: our own folder, a UUID file name, the declared size,
+ * the declared MIME type, real file signature bytes, and "not already attached".
+ */
+const ITEM_UPLOAD_FOLDER = 'inspection-item-uploads';
+
+async function prepareInspectionItemAttachments(
+  db: SupabaseClient,
+  uploaded: Record<string, AttachmentInput[]>,
+  userId: string,
+): Promise<Array<{ component: string; name: string; type: string; size: number; path: string }>> {
+  const prefix = `${ITEM_UPLOAD_FOLDER}/${userId}/`;
+  const seen = new Set<string>();
+  const prepared: Array<{ component: string; name: string; type: string; size: number; path: string }> = [];
+  for (const [component, inputs] of Object.entries(uploaded ?? {})) {
+    if (!COMPONENT_TO_DB[component] || !Array.isArray(inputs)) continue;
+    for (const input of inputs) {
+      if (input.stored === true) continue; // already recorded against this inspection
+      const path = str(input.storagePath);
+      if (!path) continue; // legacy data-URL path is handled by syncAttachments
+      const name = str(input.name);
+      const type = str(input.type);
+      if (!path.startsWith(prefix) || !/^[0-9a-f-]{36}\.(pdf|jpg|jpeg|png)$/.test(path.slice(prefix.length)) || seen.has(path)) {
+        throw new Error('Invalid inspection attachment upload.');
+      }
+      seen.add(path);
+      const { data: info, error } = await db.storage.from(ATTACHMENT_BUCKET).info(path);
+      if (error || !info || typeof info.size !== 'number') throw new Error('Attachment upload could not be verified. Please upload it again.');
+      const problem = attachmentError({ name, type, size: info.size });
+      if (problem || attachmentMime(name, type) !== info.contentType || info.size !== Number(input.size) || !path.endsWith(`.${name.split('.').pop()?.toLowerCase()}`)) {
+        throw new Error(problem || 'Attachment type or size could not be verified.');
+      }
+      const { data: blob, error: downloadError } = await db.storage.from(ATTACHMENT_BUCKET).download(path);
+      if (downloadError || !blob || !matchesAttachmentSignature(name, new Uint8Array(await blob.slice(0, 8).arrayBuffer()))) {
+        throw new Error('The attachment content does not match its file type.');
+      }
+      const { data: linked, error: lookupError } = await db.from('attachments').select('id').eq('storage_path', path).limit(1);
+      if (lookupError || linked?.length) throw new Error('Attachment has already been used or could not be verified.');
+      prepared.push({ component, name, type, size: info.size, path });
+    }
+  }
+  return prepared;
+}
+
 /** Map an attachments row to the UI shape (signed URL in place of the old dataUrl). */
-async function mapAttachmentRow(db: SupabaseClient, row: Joined): Promise<StoredRecord> {
-  const { data } = await db.storage.from(ATTACHMENT_BUCKET).createSignedUrl(str(row.storage_path), 60 * 60);
+async function mapAttachmentRow(db: SupabaseClient, row: Joined): Promise<StoredRecord> {  const { data } = await db.storage.from(ATTACHMENT_BUCKET).createSignedUrl(str(row.storage_path), 60 * 60);
   return {
     name: row.file_name ?? '',
     type: row.mime_type ?? '',
     dataUrl: data?.signedUrl ?? '',
     category: ATTACH_CATEGORY_FROM_DB[row.category] ?? 'Project Attachment',
     storagePath: row.storage_path,
+    // @mine — distinguishes an already-recorded file from a freshly staged upload.
+    stored: true,
+    ...(row.inspection_item_id ? { inspectionItemId: row.inspection_item_id } : {}),
   } as unknown as StoredRecord;
 }
 
@@ -569,15 +617,23 @@ const RATING_TO_DB: Record<string, string> = { Good: 'good', Fair: 'fair', Poor:
 const COMPONENT_TO_DB: Record<string, string> = {
   Concrete: 'concrete', Asphalt: 'asphalt', Gravel: 'gravel', Earth: 'earth',
   Shoulder: 'shoulder', 'Side Drain': 'side_drain', Sidewalk: 'sidewalk',
+  // @mine 2026-11-11 — four owner-requested categories (migration
+  // 20261111_inspection_item_attachments.sql adds the enum values).
+  Drainage: 'drainage', 'Solar Lights': 'solar_lights',
+  'Slope Protection': 'slope_protection', 'Retaining Wall': 'retaining_wall',
 };
 const COMPONENT_FROM_DB: Record<string, string> = Object.fromEntries(Object.entries(COMPONENT_TO_DB).map(([a, b]) => [b, a]));
 
 function mapInspection(i: Joined): StoredRecord {
   const items = (i.inspection_items ?? []) as Joined[];
   const conditionRatings: Record<string, string> = {};
+  // @mine 2026-11-11 — per-category remark (inspection_items.remarks already existed).
+  const conditionRemarks: Record<string, string> = {};
   for (const item of items) {
     const label = COMPONENT_FROM_DB[item.component] ?? item.component;
     conditionRatings[label] = cap(item.rating);
+    const remark = str(item.remarks);
+    if (remark) conditionRemarks[label] = remark;
   }
   return {
     id: i.id,
@@ -589,6 +645,9 @@ function mapInspection(i: Joined): StoredRecord {
     date: str(i.inspection_date),
     conditionRating: i.overall_score == null ? 0 : Number(i.overall_score),
     conditionRatings,
+    conditionRemarks,
+    // @mine 2026-11-11 — per-category files, filled by the list functions below.
+    conditionAttachments: {} as Record<string, StoredRecord[]>,
     remarks: i.remarks ?? '',
     inspector: i.profiles?.full_name ?? i.profiles?.name ?? '',
     inspectorId: i.inspector_id ?? undefined,
@@ -609,6 +668,37 @@ function mapInspection(i: Joined): StoredRecord {
 
 const INSPECTION_SELECT = '*, inspection_items(*), profiles!inspections_inspector_id_fkey(full_name, name), projects!inspections_project_id_fkey(project_name)';
 
+/**
+ * @mine 2026-11-11 — attach stored files to mapped inspections:
+ *   * one inspection-level file  -> `attachment`  (unchanged behaviour)
+ *   * item-level files           -> `conditionAttachments[<category label>]`
+ */
+async function attachInspectionAttachments(db: SupabaseClient, records: StoredRecord[]): Promise<void> {
+  if (!records.length) return;
+  const ids = records.map((r) => r.id);
+  const { data: attachRows } = await db.from('attachments').select('*')
+    .in('inspection_id', ids).is('inspection_item_id', null).order('created_at');
+  for (const row of (attachRows ?? []) as Joined[]) {
+    const target = records.find((r) => r.id === row.inspection_id);
+    if (target && !target.attachment) target.attachment = await mapAttachmentRow(db, row);
+  }
+  const { data: itemRows } = await db.from('inspection_items').select('id, component').in('inspection_id', ids);
+  const labelByItem = new Map<string, string>();
+  for (const item of (itemRows ?? []) as Joined[]) {
+    labelByItem.set(str(item.id), COMPONENT_FROM_DB[str(item.component)] ?? str(item.component));
+  }
+  const { data: itemAttachRows } = await db.from('attachments').select('*')
+    .in('inspection_id', ids).not('inspection_item_id', 'is', null).order('created_at');
+  for (const row of (itemAttachRows ?? []) as Joined[]) {
+    const label = labelByItem.get(str(row.inspection_item_id));
+    const target = records.find((r) => r.id === row.inspection_id);
+    if (!label || !target) continue;
+    const bucket = (target.conditionAttachments ?? {}) as Record<string, StoredRecord[]>;
+    bucket[label] = [...(bucket[label] ?? []), await mapAttachmentRow(db, row)];
+    target.conditionAttachments = bucket;
+  }
+}
+
 async function listInspectionsWhere(db: SupabaseClient, archived: boolean, admin?: SupabaseClient): Promise<StoredRecord[]> {
   if (!archived) await ensureAnnualFollowUps(db, admin).catch(() => undefined);
   let q = db.from('inspections').select(INSPECTION_SELECT).order('inspection_date', { ascending: false });
@@ -616,15 +706,7 @@ async function listInspectionsWhere(db: SupabaseClient, archived: boolean, admin
   const { data, error } = await q;
   if (error) throw error;
   const records = (data ?? []).map(mapInspection);
-  // @mine — attach each inspection's stored file (signed URL) as `attachment`.
-  if (records.length) {
-    const { data: attachRows } = await db.from('attachments').select('*')
-      .in('inspection_id', records.map((r) => r.id)).order('created_at');
-    for (const row of (attachRows ?? []) as Joined[]) {
-      const target = records.find((r) => r.id === row.inspection_id);
-      if (target && !target.attachment) target.attachment = await mapAttachmentRow(db, row);
-    }
-  }
+  await attachInspectionAttachments(db, records);
   return records;
 }
 export const listInspections = (db: SupabaseClient, admin?: SupabaseClient) => listInspectionsWhere(db, false, admin);
@@ -653,19 +735,43 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
     id = data.id as string;
   }
   const ratings = (rec.conditionRatings ?? {}) as Record<string, string>;
-  const entries = Object.entries(ratings);
+  // @mine 2026-11-11 — per-category remarks travel with each item row.
+  const remarks = (rec.conditionRemarks ?? {}) as Record<string, string>;
+  const entries = Object.entries(ratings).filter(([component]) => COMPONENT_TO_DB[component]);
   if (entries.length) {
-    await db.from('inspection_items').delete().eq('inspection_id', id);
-    const rows = entries
-      .filter(([component]) => COMPONENT_TO_DB[component])
-      .map(([component, rating]) => ({
-        inspection_id: id,
-        component: COMPONENT_TO_DB[component],
+    // @mine 2026-11-11 — update in place instead of delete+insert: deleting an item
+    // cascades to its attachments (attachments.inspection_item_id ON DELETE CASCADE),
+    // so a re-save would silently drop every photo already recorded for that category.
+    const { data: existingItems } = await db.from('inspection_items')
+      .select('id, component').eq('inspection_id', id);
+    const idByComponent = new Map<string, string>();
+    for (const item of (existingItems ?? []) as Joined[]) idByComponent.set(str(item.component), str(item.id));
+    const kept = new Set<string>();
+    for (const [component, rating] of entries) {
+      const componentDb = COMPONENT_TO_DB[component];
+      const row = {
         rating: RATING_TO_DB[rating] ?? 'n/a',
-      }));
-    if (rows.length) {
-      const { error } = await db.from('inspection_items').insert(rows);
-      if (error) throw error;
+        remarks: str(remarks[component]) || null,
+      };
+      const existingId = idByComponent.get(componentDb);
+      if (existingId) {
+        const { error } = await db.from('inspection_items').update(row).eq('id', existingId);
+        if (error) throw error;
+        kept.add(existingId);
+      } else {
+        const { data: inserted, error } = await db.from('inspection_items')
+          .insert({ inspection_id: id, component: componentDb, ...row }).select('id').single();
+        if (error) throw error;
+        kept.add(str(inserted?.id));
+      }
+    }
+    // Only a category the inspector genuinely removed disappears (with its files).
+    for (const [componentDb, itemId] of idByComponent) {
+      if (!kept.has(itemId)) {
+        console.warn(`Removing inspection item ${componentDb} that is no longer part of the assessment.`);
+        const { error } = await db.from('inspection_items').delete().eq('id', itemId);
+        if (error) throw error;
+      }
     }
   }
   // @mine — persist the inspection's file attachment to Storage (best-effort).
@@ -678,12 +784,35 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
       userId,
     );
   }
+  // @mine 2026-11-11 — per-category attachments. Staged uploads are verified against
+  // Storage before any row is written; already-stored files are left untouched.
+  const itemAttachments = (rec.conditionAttachments ?? {}) as Record<string, AttachmentInput[]>;
+  const preparedItemFiles = await prepareInspectionItemAttachments(db, itemAttachments, userId);
+  if (preparedItemFiles.length) {
+    const { data: currentItems } = await db.from('inspection_items').select('id, component').eq('inspection_id', id);
+    const itemIdByComponent = new Map<string, string>();
+    for (const item of (currentItems ?? []) as Joined[]) itemIdByComponent.set(str(item.component), str(item.id));
+    for (const file of preparedItemFiles) {
+      const inspectionItemId = itemIdByComponent.get(COMPONENT_TO_DB[file.component]);
+      if (!inspectionItemId) throw new Error('Save the category ratings before adding their attachments.');
+      const { error } = await db.from('attachments').insert({
+        inspection_id: id,
+        inspection_item_id: inspectionItemId,
+        category: 'inspection_photo',
+        file_name: file.name,
+        storage_path: file.path,
+        mime_type: file.type,
+        file_size: file.size,
+        uploaded_by: userId,
+      });
+      if (error) throw error;
+    }
+  }
 
   const { data, error } = await db.from('inspections').select(INSPECTION_SELECT).eq('id', id).single();
   if (error) throw error;
   const mapped = mapInspection(data as Joined);
-  const { data: rows } = await db.from('attachments').select('*').eq('inspection_id', id).order('created_at').limit(1);
-  if (rows?.length) mapped.attachment = await mapAttachmentRow(db, rows[0] as Joined);
+  await attachInspectionAttachments(db, [mapped]);
   return mapped;
 }
 
