@@ -375,7 +375,7 @@ test('validation buttons show Saving... and Submitting... while awaiting the req
   });
   for (const result of ['Return for Revision', 'Validated']) {
     let finishSave, calls = 0;
-    const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good', actualCompletionDate: '2000-01-01', validationResult: 'Return for Revision', validationRemarks: 'Fix it' };
+    const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good', actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Return for Revision', remarks: 'Fix it', dueDate: '2000-12-02' }] };
     await reset();
     await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Validator', validationMode: true, onAdd() {}, onEdit() {}, onDelete() {}, onSaveValidation: () => { calls++; return new Promise(resolve => { finishSave = resolve; }); } })));
     await act(async () => container.querySelector('tr[aria-label]').click());
@@ -396,7 +396,7 @@ test('validation buttons show Saving... and Submitting... while awaiting the req
 // @mine — the requested fields are hidden without removing the road identifier.
 test('edit, encoder details and validator form hide the requested fields', async () => {
   const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good',
-    actualCompletionDate: '2000-01-01', roadNetworkId: 'R-1', pcadLicenseNo: 'OLD-LICENSE', completionPercentage: '75' };
+    actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Pending', remarks: '', dueDate: '2000-12-02' }], roadNetworkId: 'R-1', pcadLicenseNo: 'OLD-LICENSE', completionPercentage: '75' };
   await reset(); await render(() => {}, { item, editId: 'p' });
   assert.equal(field('PCAD License No.'), null);
   assert.equal(field('Completion Percentage'), null);
@@ -469,7 +469,7 @@ test('head engineer print and validator details hide requested fields and align 
     '@/lib/project-form-validation': validation,
   });
   const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good',
-    actualCompletionDate: '2000-01-01', pcadLicenseNo: 'LIC', adjustProjectCost: '987.50', completionPercentage: '75', appropriation: '1000', contractedAmount: '900' };
+    actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Pending', remarks: '', dueDate: '2000-12-02' }], pcadLicenseNo: 'LIC', adjustProjectCost: '987.50', completionPercentage: '75', appropriation: '1000', contractedAmount: '900' };
   for (const [role, validationMode] of [['Head Engineer', false], ['Staff - Validator', true]]) {
     await reset(); sections = undefined;
     await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], userRole: role, validationMode, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} })));

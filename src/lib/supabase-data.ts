@@ -388,20 +388,9 @@ export async function saveAnnualValidation(
   if (!data) throw new Error('Could not update this annual validation.');
 }
 
-/** Only called after the API has checked the authenticated validator and eligible project. */
-export async function saveInitialValidation(admin: SupabaseClient, projectId: string, result: string, remarks: string, userId: string): Promise<void> {
-  const { data, error } = await admin.from('projects')
-    .update({ validation_status: VALIDATION_TO_DB[result], validation_remarks: remarks.trim(), validated_by: userId, validated_at: new Date().toISOString() })
-    .eq('id', projectId).is('archived_at', null).select('id').maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error('Could not update this project validation.');
-}
-
-/** Requeue the same returned decision after a successful encoder update; leave remarks intact. */
-export async function requeueReturnedValidation(admin: SupabaseClient, projectId: string, year: number | undefined, validatedAt: string | undefined, remarks: string): Promise<boolean> {
-  let query = year === undefined
-    ? admin.from('projects').update({ validation_status: 'pending' }).eq('id', projectId).is('archived_at', null).eq('validation_status', 'rejected').eq('validation_remarks', remarks)
-    : admin.from('annual_validation_entries').update({ result: 'pending' }).eq('project_id', projectId).eq('year', year).eq('result', 'rejected').eq('remarks', remarks);
+/** @mine — requeue the same returned annual decision, retaining its remarks. */
+export async function requeueReturnedValidation(admin: SupabaseClient, projectId: string, year: number, validatedAt: string | undefined, remarks: string): Promise<boolean> {
+  let query = admin.from('annual_validation_entries').update({ result: 'pending' }).eq('project_id', projectId).eq('year', year).eq('result', 'rejected').eq('remarks', remarks);
   query = validatedAt ? query.eq('validated_at', validatedAt) : query.is('validated_at', null);
   const { data, error } = await query.select('id').maybeSingle();
   if (error) throw error;

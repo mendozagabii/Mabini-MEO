@@ -78,6 +78,12 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Start validation at the first anniversary
+
+- Remove initial validation. Projects become eligible 30 days before the first anniversary of Actual Completion Date, then before later anniversaries; annual entries no longer depend on a legacy initial approval. Legacy initial decisions remain in the database but no longer produce tasks or revision badges.
+- Continue to handle annual returns and requeue their remarks; an annual return remains actionable after a date change only once the first-anniversary window has opened. Oldest unresolved annual work is processed first.
+- Local tests cover Nov 11 → Oct 12 of the next year, Jan 1 → Dec 2 across years, generator boundaries, validation authorization and revision. No database changes or live test.
+
 ### 2026-11-10 — [mine] Clean up view labels and head engineer print
 
 - Remove PCAD license number, actual project cost and completion percentage from Head Engineer project print; arrange remaining financial and completion dates in two columns. Hide actual cost and completion percentage in Head Engineer details and hide actual cost in Validator details, with the two financial fields evenly arranged.

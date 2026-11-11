@@ -5,7 +5,7 @@ import { validationTask, type ValidationProject } from '@/lib/project-validation
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveRoad, listArchivedRoads, listRoads,
-  permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, saveInitialValidation, requeueReturnedValidation, saveRoad, type StoredRecord,
+  permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, requeueReturnedValidation, saveRoad, type StoredRecord,
 } from '@/lib/supabase-data';
 
 export const runtime = 'nodejs';
@@ -86,18 +86,14 @@ export async function PATCH(request: Request) {
     if (auth.profile.roleDb === 'validator') {
       const task = validationTask(current as unknown as ValidationProject);
       const year = payload.annualValidationYear;
-      if (!task || (task.year === undefined ? year !== undefined : year !== task.year)) {
+      if (!task || year !== task.year) {
         return NextResponse.json({ message: 'This validation is not currently due. Refresh the project list and try again.' }, { status: 409 });
       }
       const result = String(payload.validationResult);
       const remarks = String(payload.validationRemarks);
-      if (task.year !== undefined) {
-        await saveAnnualValidation(auth.db, payload.id, task.year, result, remarks, auth.userId);
-      } else {
-        // Scoped service-role update: only validation columns, after role and eligibility checks.
-        await saveInitialValidation(auth.admin, payload.id, result, remarks, auth.userId);
-      }
-      await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Validation Saved', details: `Saved ${task.year ? `${task.year} annual` : 'initial'} validation for project ${String(current.projectName || current.name || payload.id)}` });
+      // @mine — only anniversary entries are actionable; legacy initial decisions remain untouched.
+      await saveAnnualValidation(auth.db, payload.id, task.year, result, remarks, auth.userId);
+      await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Validation Saved', details: `Saved ${task.year} annual validation for project ${String(current.projectName || current.name || payload.id)}` });
       let updated: StoredRecord | undefined;
       try { updated = (await listRoads(auth.db, auth.admin)).find((road) => road.id === payload.id); }
       catch (error) { console.error('Validation saved but refresh failed.', error); }
@@ -108,12 +104,9 @@ export async function PATCH(request: Request) {
     const project = current as unknown as ValidationProject;
     // A project may have multiple outstanding returned annual decisions. Requeue each
     // one that was visible before the edit, without overwriting newer validator work.
-    const returned = [
-      ...(project.validationResult === 'Return for Revision'
-        ? [{ year: undefined, validatedAt: project.validationValidatedAt, remarks: project.validationRemarks ?? '' }] : []),
-      ...(project.annualValidationEntries ?? []).filter(entry => entry.result === 'Return for Revision')
-        .map(entry => ({ year: entry.year as number | undefined, validatedAt: entry.validatedAt, remarks: entry.remarks })),
-    ];
+    const returned = (project.annualValidationEntries ?? [])
+      .filter(entry => entry.result === 'Return for Revision')
+      .map(entry => ({ year: entry.year, validatedAt: entry.validatedAt, remarks: entry.remarks }));
     const saved = await saveRoad(auth.db, { ...current, ...payload, id: current.id }, auth.userId);
     if (returned.length && !saved.attachmentWarning) {
       let requeueFailed = false;
