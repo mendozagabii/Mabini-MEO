@@ -78,6 +78,12 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Hide license and completion fields from requested forms
+
+- Hide PCAD License No. in project add, edit and details, and hide Completion Percentage in project add/edit and validator details. Keep Road Network ID unchanged and retain Completion Percentage in encoder details as requested.
+- Arrange the two completion dates equally in the add/edit row. Omit the hidden fields from contractor and project writes to preserve existing values; new projects use the existing database default (zero) for completion percentage. No schema or database changes were made.
+- Printed reports remain unchanged. Local form and mock save tests cover field visibility, layout and preservation.
+
 ### 2026-11-10 — [mine] Integrate latest inspection changes
 
 - Integrate main’s inspection category and attachment changes with the project validation workflow, preserving both change histories. No database changes were made in this session.

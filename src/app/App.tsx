@@ -391,13 +391,11 @@ export default function App() {
       contractorName: data.contractorName || '',
       contractorAddress: data.contractorAddress || '',
       contactInformation: data.contactInformation || '',
-      pcadLicenseNo: data.pcadLicenseNo || '',
       sourceOfFunds: data.sourceOfFunds || '',
       appropriation: data.appropriation || '',
       contractedAmount: data.contractedAmount || '',
       adjustProjectCost: data.adjustProjectCost || '',
       completionDate: data.completionDate || '',
-      completionPercentage: data.completionPercentage || '',
       turnoverDate: data.turnoverDate || '',
       attachments: data.attachments || [],
     };

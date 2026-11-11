@@ -63,9 +63,9 @@ async function fill() {
     'Project / Program / Activity Name': 'Road improvement', 'Project Category': 'National Road', 'Project Description': 'Description',
     'Location': 'Mabini', 'Date Started': '2026-01-01', 'Target Completion Date': '2026-02-01', 'Actual Completion Date': '2026-02-01',
     'Road Network ID No.': '1', 'Barangay': 'Mabini', 'Components': 'Road', 'Description': 'Road works',
-    'Contractor Name': 'Company', 'Contractor Address': 'Address', 'Contact Information': '123', 'PCAD License No.': 'ABC',
+    'Contractor Name': 'Company', 'Contractor Address': 'Address', 'Contact Information': '123',
     'Source of Funds': 'Municipal', 'Appropriation': '1234.56', 'Contracted Amount': '1000.25', 'Actual Project Cost': '999.99',
-    'Completion Date': '2026-02-01', 'Completion Percentage': '100', 'Turnover and Acceptance Date': '2026-02-02',
+    'Completion Date': '2026-02-01', 'Turnover and Acceptance Date': '2026-02-02',
   })) await change(name, value);
 }
 
@@ -102,6 +102,7 @@ test('missing category and turnover attachment are reported; extensions are opti
   assert.ok(saved); assert.equal(saved.noOfExtensions, '');
   assert.equal(saved.appropriation, '1234.56'); assert.equal(saved.contractedAmount, '1000.25');
   assert.equal(saved.adjustProjectCost, '999.99'); assert.equal(saved.dateStarted, '2026-01-01');
+  for (const key of ['pcadLicenseNo', 'completionPercentage']) assert.equal(Object.hasOwn(saved, key), false);
   assert.equal(saved.attachments[0].category, 'Turnover Certificate');
   assert.equal(saved.attachments[0].staged, true);
   assert.equal(saved.attachments[0].dataUrl, '');
@@ -117,12 +118,18 @@ test('form has only a turnover attachment and bounds all date inputs', async () 
   assert.equal(inputs.length, 5);
   for (const input of inputs) { assert.equal(input.min, '1000-01-01'); assert.equal(input.max, '9999-12-31'); }
   assert.doesNotMatch(container.textContent, /No\. of Extensions \*/);
+  for (const name of ['PCAD License No.', 'Completion Percentage']) assert.equal(field(name), null);
+  assert.ok(field('Road Network ID No.'));
+  const dates = field('Completion Date').parentElement.parentElement;
+  assert.match(dates.className, /md:grid-cols-2/);
+  assert.equal(dates, field('Turnover and Acceptance Date').parentElement.parentElement);
+  assert.equal(dates.children.length, 2);
 });
 
 test('each editable project field blocks submission when empty', async () => {
   let saved; await act(async () => root.render(null)); await render(value => { saved = value; });
   await fill(); await file();
-  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Road Network ID No.', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Contact Information', 'PCAD License No.', 'Source of Funds', 'Appropriation', 'Contracted Amount', 'Actual Project Cost', 'Completion Date', 'Completion Percentage', 'Turnover and Acceptance Date'];
+  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Road Network ID No.', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Contact Information', 'Source of Funds', 'Appropriation', 'Contracted Amount', 'Actual Project Cost', 'Completion Date', 'Turnover and Acceptance Date'];
   for (const name of names) {
     const old = field(name).value;
     await change(name, ''); await submit();
@@ -133,15 +140,12 @@ test('each editable project field blocks submission when empty', async () => {
   }
 });
 
-test('rejects incomplete currency, out-of-range percentage, and non-four-digit date', async () => {
+test('rejects incomplete currency and non-four-digit date', async () => {
   let saved; await act(async () => root.render(null)); await render(value => { saved = value; });
   await fill(); await file();
   await change('Appropriation', '1000.'); await submit();
   assert.equal(field('Appropriation').validationMessage, 'Enter a valid amount.');
   await change('Appropriation', '1000.50');
-  await change('Completion Percentage', '101'); await submit();
-  assert.equal(field('Completion Percentage').validity.rangeOverflow, true);
-  await change('Completion Percentage', '100');
   await change('Date Started', '10000-01-01'); await submit();
   assert.equal(field('Date Started').validity.rangeOverflow, true);
   assert.equal(saved, undefined);
@@ -385,5 +389,37 @@ test('validation buttons show Saving... and Submitting... while awaiting the req
     await act(async () => finishSave(false));
     assert.equal(button.disabled, false);
     assert.equal(button.textContent, result === 'Validated' ? 'Submit' : 'Save');
+  }
+});
+
+// @mine — the requested fields are hidden without removing the road identifier.
+test('edit, encoder details and validator form hide the requested fields', async () => {
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good',
+    actualCompletionDate: '2000-01-01', roadNetworkId: 'R-1', pcadLicenseNo: 'OLD-LICENSE', completionPercentage: '75' };
+  await reset(); await render(() => {}, { item, editId: 'p' });
+  assert.equal(field('PCAD License No.'), null);
+  assert.equal(field('Completion Percentage'), null);
+  assert.ok(field('Road Network ID No.'));
+  const dates = field('Completion Date').parentElement.parentElement;
+  assert.match(dates.className, /md:grid-cols-2/);
+  assert.equal(dates.children.length, 2);
+
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  for (const validationMode of [false, true]) {
+    await reset();
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: validationMode ? 'Staff - Validator' : 'Staff - Encoder', validationMode, onAdd() {}, onEdit() {}, onDelete() {} })));
+    const button = container.querySelector(validationMode ? '[aria-label="Open validation form for Road"]' : '[aria-label="View details for Road"]');
+    assert.ok(button); await act(async () => button.click());
+    assert.doesNotMatch(container.textContent, /PCAD License No\.|OLD-LICENSE/);
+    assert.match(container.textContent, /Road Network ID No\./);
+    if (validationMode) assert.doesNotMatch(container.textContent, /Completion Percentage/);
+    else assert.match(container.textContent, /Completion Percentage/); // view was not requested for removal
   }
 });

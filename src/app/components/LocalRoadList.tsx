@@ -298,10 +298,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Contact Information *</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contactInformation || 'N/A'}</p>
             </div>
-            <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">PCAD License No. *</p>
-              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.pcadLicenseNo || 'N/A'}</p>
-            </div>
               </div>
             </section>
             <section className="border-b pb-6 pt-5">
@@ -331,10 +327,12 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Completion Date *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionDate || 'N/A'}</p>
             </div>
+            {!validationMode && (
             <div className="mt-4">
               <p className="mb-2 block text-sm font-medium text-gray-700">Completion Percentage *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionPercentage || 'N/A'}</p>
             </div>
+            )}
             <div className="mt-4">
               <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date *</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.turnoverDate || 'N/A'}</p>

@@ -113,3 +113,16 @@ test('record refresh rejects failed or malformed module responses instead of cle
   await assert.rejects(loadRecords('/api/inspections', async () => ({ ok: false, status: 500 })), /500/);
   await assert.rejects(loadRecords('/api/local-road', async () => ({ ok: true, json: async () => ({ message: 'error' }) })), /Invalid record response/);
 });
+
+// @mine — hidden fields are omitted on writes, preserving values on shared contractors and projects.
+test('project saves do not overwrite hidden legacy fields', async () => {
+  for (const edit of [false, true]) {
+    const db = mockDb({ edit });
+    await dataModule.saveRoad(db, { ...payload, id: edit ? 'project-1' : '', contractorName: 'Company', pcadLicenseNo: '', completionPercentage: '' }, USER);
+    for (const [table, field] of [['contractors', 'pcab_license_no'], ['projects', 'completion_percentage']]) {
+      const write = db.writes.find(w => w.table === table);
+      assert.ok(write, table);
+      assert.equal(Object.hasOwn(write.value, field), false, `${table}.${field}`);
+    }
+  }
+});

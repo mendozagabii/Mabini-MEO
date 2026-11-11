@@ -68,13 +68,11 @@ interface ProjectFormData {
   contractorName: string;
   contractorAddress: string;
   contactInformation: string;
-  pcadLicenseNo: string;
   sourceOfFunds: string;
   appropriation: string;
   contractedAmount: string;
   adjustProjectCost: string;
   completionDate: string;
-  completionPercentage: string;
   turnoverDate: string;
   attachments: File[];
 }
@@ -120,13 +118,11 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   contractorName: road?.contractorName || '',
   contractorAddress: road?.contractorAddress || '',
   contactInformation: road?.contactInformation || '',
-  pcadLicenseNo: road?.pcadLicenseNo || '',
   sourceOfFunds: road?.sourceOfFunds || '',
   appropriation: formatSavedProjectCurrency(road?.appropriation),
   contractedAmount: formatSavedProjectCurrency(road?.contractedAmount),
   adjustProjectCost: formatSavedProjectCurrency(road?.adjustProjectCost),
   completionDate: road?.completionDate || '',
-  completionPercentage: road?.completionPercentage || '',
   turnoverDate: road?.turnoverDate || '',
   attachments: [],
 });
@@ -256,13 +252,11 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         contractorName: formData.contractorName,
         contractorAddress: formData.contractorAddress,
         contactInformation: formData.contactInformation,
-        pcadLicenseNo: formData.pcadLicenseNo,
         sourceOfFunds: formData.sourceOfFunds,
         appropriation: formData.appropriation.replace(/,/g, ''),
         contractedAmount: formData.contractedAmount.replace(/,/g, ''),
         adjustProjectCost: formData.adjustProjectCost.replace(/,/g, ''),
         completionDate: formData.completionDate,
-        completionPercentage: formData.completionPercentage,
         turnoverDate: formData.turnoverDate,
         attachments: [...(item?.attachments || []), ...uploadedAttachments],
       };
@@ -680,19 +674,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                PCAD License No. *
-              </label>
-              <AutoGrowTextarea
-                data-field="PCAD License No."
-                value={formData.pcadLicenseNo}
-                onChange={(e) => setFormData({ ...formData, pcadLicenseNo: e.target.value })}
-                rows={2}
-                className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                required
-              />
-            </div>
           </section>
 
           {/* Financial Information */}
@@ -772,7 +753,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           <section ref={turnoverSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Completion and Turnover Information</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Completion Date *
@@ -784,21 +765,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   data-field="Completion Date"
                   value={formData.completionDate}
                   onChange={(e) => setFormData({ ...formData, completionDate: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Completion Percentage *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  data-field="Completion Percentage"
-                  value={formData.completionPercentage}
-                  onChange={(e) => setFormData({ ...formData, completionPercentage: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
                   required
                 />

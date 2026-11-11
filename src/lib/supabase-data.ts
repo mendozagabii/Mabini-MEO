@@ -440,7 +440,7 @@ async function resolveContractorId(db: SupabaseClient, rec: StoredRecord): Promi
     name,
     address: str(rec.contractorAddress) || null,
     contact_information: str(rec.contactInformation) || null,
-    pcab_license_no: str(rec.pcadLicenseNo) || null,
+    // @mine — never overwrite the hidden license on an existing shared contractor.
   };
   const { data } = await db.from('contractors').select('id').ilike('name', name).maybeSingle();
   if (data) {
@@ -526,7 +526,7 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     contracted_amount: rec.contractedAmount === '' || rec.contractedAmount == null ? null : Number(rec.contractedAmount),
     adjusted_project_cost: rec.adjustProjectCost === '' || rec.adjustProjectCost == null ? null : Number(rec.adjustProjectCost),
     completion_date: str(rec.completionDate) || null,
-    completion_percentage: Number(rec.completionPercentage ?? 0) || 0,
+    // @mine — preserve existing completion percentage; new rows use the database default.
     turnover_date: str(rec.turnoverDate) || null,
 
   };
