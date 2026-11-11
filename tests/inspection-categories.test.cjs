@@ -1,0 +1,213 @@
+// @mine — 2026-11-11: Local Road Condition Assessment categories, per-category remarks
+// and attachments. Renders the real InspectionModule in an isolated DOM; no database calls.
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const Module = require('node:module');
+const ts = require('typescript');
+const { JSDOM } = require('jsdom');
+
+const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost' });
+Object.assign(global, {
+  window: dom.window,
+  document: dom.window.document,
+  HTMLElement: dom.window.HTMLElement,
+  HTMLInputElement: dom.window.HTMLInputElement,
+  HTMLTextAreaElement: dom.window.HTMLTextAreaElement,
+  Event: dom.window.Event,
+  MouseEvent: dom.window.MouseEvent,
+  IS_REACT_ACT_ENVIRONMENT: true,
+});
+dom.window.HTMLElement.prototype.scrollTo = function () {};
+
+const React = require('react');
+const { act } = require('react-dom/test-utils');
+const { createRoot } = require('react-dom/client');
+
+function loadTs(relative, mocks = {}) {
+  const filename = path.resolve(__dirname, '..', relative);
+  const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText;
+  const m = new Module(filename, module);
+  m.filename = filename;
+  m.paths = Module._nodeModulePaths(path.dirname(filename));
+  const originalRequire = m.require.bind(m);
+  m.require = (name) => (Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name));
+  m._compile(code, filename);
+  return m.exports;
+}
+
+const passthrough = (tag) => (props) => React.createElement(tag, { className: props.className, id: props.id, 'aria-label': props['aria-label'] }, props.children);
+const mocks = {
+  './ui/textarea': {
+    AutoGrowTextarea: React.forwardRef((props, ref) => React.createElement('textarea', { ...props, ref })),
+  },
+  './ui/dialog': {
+    Dialog: ({ children }) => React.createElement('div', null, children),
+    DialogContent: passthrough('div'),
+    DialogDescription: passthrough('p'),
+    DialogTitle: passthrough('h2'),
+  },
+  './ui/select': {
+    Select: ({ children }) => React.createElement('div', null, children),
+    SelectTrigger: passthrough('button'),
+    SelectValue: passthrough('span'),
+    SelectContent: ({ children }) => React.createElement('div', null, children),
+    SelectItem: passthrough('div'),
+  },
+  './ConfirmActionDialog': { ConfirmActionDialog: () => null },
+  './PrintDocument': { PrintDocument: () => null },
+  '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+  '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts'),
+};
+
+const { inspectionCategories, InspectionModule } = loadTs('src/app/components/InspectionModule.tsx', mocks);
+
+const NEW_CATEGORIES = ['Drainage', 'Solar Lights', 'Slope Protection', 'Retaining Wall'];
+const LEGACY_RATINGS = {
+  Concrete: 'Good', Asphalt: 'Fair', Gravel: 'N/A', Earth: 'N/A',
+  Shoulder: 'Good', 'Side Drain': 'Poor', Sidewalk: 'N/A',
+};
+
+function renderModule(inspections = []) {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const props = {
+    inspections,
+    localRoadList: [{ id: 'road-1', name: 'Poblacion Road', projectName: 'Poblacion Road' }],
+    onAddInspection: () => {},
+    onEditInspection: async () => true,
+    onDeleteInspection: async () => true,
+    currentUser: 'gabriel mendoza',
+    userRole: 'Staff - Inspector',
+  };
+  act(() => root.render(React.createElement(InspectionModule, props)));
+  return { container, root };
+}
+
+function click(element) {
+  act(() => {
+    element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  });
+}
+
+after(() => {
+  dom.window.close();
+});
+
+test('the assessment has eleven categories: the original seven plus the four new ones', () => {
+  assert.equal(inspectionCategories.length, 11);
+  assert.deepEqual(
+    inspectionCategories.map((category) => category.label),
+    ['Concrete', 'Asphalt', 'Gravel', 'Earth', 'Shoulder', 'Side Drain', 'Sidewalk', ...NEW_CATEGORIES],
+  );
+  assert.equal(new Set(inspectionCategories.map((category) => category.key)).size, 11);
+  assert.deepEqual(
+    inspectionCategories.slice(7).map((category) => category.key),
+    ['drainage', 'solar_lights', 'slope_protection', 'retaining_wall'],
+  );
+});
+
+test('every category keeps the five condition ratings with a written field condition', () => {
+  for (const category of inspectionCategories) {
+    assert.deepEqual(Object.keys(category.details), ['Good', 'Fair', 'Poor', 'Bad', 'N/A'], category.label);
+    for (const [rating, description] of Object.entries(category.details)) {
+      assert.ok(description && description.trim().length > 20, `${category.label}/${rating} needs a description`);
+    }
+  }
+  const drainage = inspectionCategories.find((category) => category.label === 'Drainage');
+  assert.match(drainage.details.Good, /free flow/i);
+  assert.match(drainage.details.Bad, /roadway itself serves as the drain/i);
+});
+
+test('the add-inspection form shows a remark box and an attach control under each category', () => {
+  const { container, root } = renderModule();
+  const addButton = [...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Add Inspection');
+  assert.ok(addButton, 'Add Inspection button should exist');
+  click(addButton);
+
+  const remarkBoxes = [...container.querySelectorAll('[data-category-remark]')];
+  assert.equal(remarkBoxes.length, 11);
+  assert.deepEqual(remarkBoxes.map((box) => box.getAttribute('data-category-remark')), inspectionCategories.map((c) => c.label));
+
+  for (const label of inspectionCategories.map((c) => c.label)) {
+    const fileInput = container.querySelector(`input[aria-label="Attach files for ${label}"]`);
+    assert.ok(fileInput, `${label} should have an attachment picker`);
+    assert.equal(fileInput.type, 'file');
+    assert.equal(fileInput.multiple, true);
+  }
+
+  act(() => root.unmount());
+  container.remove();
+});
+
+test('remarks stay editable while a category is rated N/A', () => {
+  const { container, root } = renderModule();
+  click([...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Add Inspection'));
+  const naRadio = container.querySelector('input[name="condition-Drainage"][value="N/A"]');
+  assert.ok(naRadio, 'Drainage should offer the N/A rating');
+  act(() => {
+    naRadio.checked = true;
+    naRadio.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  });
+  const remark = container.querySelector('[data-category-remark="Drainage"]');
+  assert.equal(remark.disabled, false);
+  act(() => root.unmount());
+  container.remove();
+});
+
+test('submitting without ratings asks for a rating on every category', () => {
+  const { container, root } = renderModule();
+  click([...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Add Inspection'));
+  const form = container.querySelector('form');
+  act(() => {
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  });
+  assert.match(container.textContent, /Select a condition rating for every category/);
+  act(() => root.unmount());
+  container.remove();
+});
+
+test('inspection details show stored remarks, attachments and "Not assessed" for missing categories', () => {
+  const inspection = {
+    id: 'insp-1',
+    localRoadId: 'road-1',
+    localRoadName: 'Poblacion Road',
+    date: '2026-11-11',
+    conditionRating: 7,
+    remarks: 'Cracked slab near the barangay hall.',
+    inspector: 'gabriel mendoza',
+    inspectionType: 'Routine',
+    validationStatus: 'Pending Validation',
+    conditionRatings: LEGACY_RATINGS,
+    conditionRemarks: {
+      'Side Drain': 'Silted outlet beside the basketball court.',
+      Drainage: 'Canal overflows during heavy rain.',
+    },
+    conditionAttachments: {
+      Drainage: [
+        { name: 'drainage-overflow.jpg', type: 'image/jpeg', dataUrl: 'https://example.test/drainage.jpg', stored: true },
+      ],
+    },
+  };
+  const { container, root } = renderModule([inspection]);
+  const card = container.querySelector('[aria-label^="View full inspection"]');
+  assert.ok(card, 'inspection card should render');
+  click(card);
+
+  const blocks = [...container.querySelectorAll('[data-category]')];
+  assert.equal(blocks.length, 11, 'details should list all eleven categories');
+  const drainage = blocks.find((block) => block.getAttribute('data-category') === 'Drainage');
+  assert.match(drainage.textContent, /Canal overflows during heavy rain/);
+  assert.match(drainage.textContent, /drainage-overflow\.jpg/);
+  const sideDrain = blocks.find((block) => block.getAttribute('data-category') === 'Side Drain');
+  assert.match(sideDrain.textContent, /Silted outlet beside the basketball court/);
+  assert.match(sideDrain.textContent, /Poor/);
+  // Categories the legacy record never assessed are labelled, not invented.
+  assert.equal((container.textContent.match(/Not assessed/g) || []).length, 4);
+  act(() => root.unmount());
+  container.remove();
+});
