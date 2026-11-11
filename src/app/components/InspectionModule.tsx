@@ -990,7 +990,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                           {/* @mine 2026-11-11 — remark + attachments underneath each category. */}
                           <tr className="border-t border-gray-300 bg-slate-50 align-top">
                             <td colSpan={3} className="px-3 py-3">
-                              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                              {/* @mine 2026-11-11 — remarks first, attachments directly underneath. */}
+                              <div className="flex flex-col gap-3">
                                 <div>
                                   <label
                                     htmlFor={`category-remark-${row.key}`}

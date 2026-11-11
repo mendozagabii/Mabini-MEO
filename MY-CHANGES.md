@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-11 — [mine] Stack each category's attachments underneath its remarks
+- **Type:** Modified
+- **Files:** `src/app/components/InspectionModule.tsx` (modified)
+- **What & why:** Owner request: in Local Road Condition Assessment the attachment control sat beside the remarks box on wide screens; it now sits directly below the remarks so each category reads top-to-bottom (remarks, then files). Layout-only change in the inspection form; no data, query or database change, and the details view already stacked them that way. Verified with tsc, next build and all 48 local tests.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-11 — [mine] Inspection categories: remarks + attachments per category, four new categories
 - **Type:** Added
 - **Files:** `src/app/App.tsx` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/lib/supabase-data.ts` (modified), `src/app/api/inspections/item-attachment-upload/` (new), `supabase/migrations/20261111_inspection_item_attachments.sql` (new), `tests/inspection-categories.test.cjs` (new), `docs/SESSION-HANDOFF.md` (modified), `MY-CHANGES.md`
