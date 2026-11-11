@@ -322,14 +322,30 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
     window.dispatchEvent(new Event('local-road-records-changed'));
   };
 
-  const handleDeleteRecord = async (id: string) => {
-    const response = await fetch(`/api/local-road?id=${encodeURIComponent(id)}&permanent=true`, { method: 'DELETE' });
-    if (!response.ok) {
-      setDialog({ isOpen: true, type: 'error', title: 'Delete Failed', message: 'Unable to permanently delete the archived record.' });
-      return;
-    }
-    await refreshArchivedRecords();
-    window.dispatchEvent(new Event('local-road-records-changed'));
+  // Ask before any permanent deletion; the request is sent only after confirmation.
+  const confirmDeleteArchivedRecord = (kind: 'project' | 'inspection' | 'maintenance', record: ArchivedRecord) => {
+    const name = record.projectName || record.localRoadName || record.roadName || record.name || 'Unnamed project';
+    const date = kind === 'inspection' ? record.date : kind === 'maintenance' ? record.scheduledDate : undefined;
+    setDialog({
+      isOpen: true,
+      type: 'confirmation',
+      title: `Delete Archived ${kind === 'project' ? 'Project' : kind === 'inspection' ? 'Inspection' : 'Maintenance'}`,
+      message: `Permanently delete the archived ${kind} record for ${name}${date ? ` (${date})` : ''}? This action cannot be undone and may also remove related data.`,
+      onConfirm: async () => {
+        try {
+          const response = kind === 'project'
+            ? await fetch(`/api/local-road?id=${encodeURIComponent(record.id)}&permanent=true`, { method: 'DELETE' })
+            : kind === 'inspection'
+              ? await fetch(`/api/inspections?id=${encodeURIComponent(record.id)}&permanent=true`, { method: 'DELETE' })
+              : await fetch('/api/maintenance?permanent=true', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id }) });
+          if (!response.ok) throw new Error(`Unable to permanently delete the archived ${kind} record.`);
+          await refreshArchivedRecords();
+          window.dispatchEvent(new Event('local-road-records-changed'));
+        } catch (error) {
+          setDialog({ isOpen: true, type: 'error', title: 'Delete Failed', message: error instanceof Error ? error.message : 'Unable to delete the archived record.' });
+        }
+      },
+    });
   };
 
   const refreshLockStatus = async () => {
@@ -1255,7 +1271,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                         <td className="px-6 py-4 text-sm text-gray-600">{record.location || '—'}</td>
                         <td className="px-6 py-4 text-sm">
                           <button onClick={() => handleRestoreRecord(record.id)} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                          <button onClick={() => handleDeleteRecord(record.id)} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                          <button onClick={() => confirmDeleteArchivedRecord('project', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
                         </td>
                       </tr>
                     ))}
@@ -1285,7 +1301,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm text-gray-600">{record.date || '—'}</td>
                           <td className="px-6 py-4 text-sm">
                             <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                            <button onClick={async () => { await fetch(`/api/inspections?id=${encodeURIComponent(record.id)}&permanent=true`, { method: 'DELETE' }); await refreshArchivedRecords(); }} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                            <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
                           </td>
                         </tr>
                       ))}
@@ -1319,7 +1335,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm text-gray-600">{record.status || '—'}</td>
                           <td className="px-6 py-4 text-sm">
                             <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                            <button onClick={async () => { await fetch('/api/maintenance?permanent=true', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id }) }); await refreshArchivedRecords(); }} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                            <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
                           </td>
                         </tr>
                       ))}
@@ -1604,7 +1620,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                     }`}
                   >
                     {dialog.title === 'Archive User' ? 'Archive' :
-                      dialog.title === 'Delete Archived User' ? 'Delete' :
+                      dialog.title.startsWith('Delete Archived ') ? 'Delete' :
                         dialog.title === 'Confirm Unlock' ? 'Unlock' : 'Confirm'}
                   </button>
                 </>
