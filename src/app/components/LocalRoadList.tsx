@@ -146,7 +146,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Turnover and Acceptance Date', value: item.turnoverDate, width: 'half' },
           { label: 'Condition', value: item.condition },
           { label: 'Last Inspection', value: item.lastInspection },
-          { label: 'Validation Result', value: latestValidation(item).result || 'Pending validation' },
+          { label: 'Validation Result', value: latestValidation(item).result && latestValidation(item).result !== 'Pending' ? latestValidation(item).result : 'Pending Validation' },
           { label: 'Validation Remarks', value: latestValidation(item).remarks },
         ],
       },
@@ -395,7 +395,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             </div>
             <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Validation Result</p>
-              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{latestValidation(selectedItem).result || 'Pending validation'}</p>
+              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{latestValidation(selectedItem).result && latestValidation(selectedItem).result !== 'Pending' ? latestValidation(selectedItem).result : 'Pending Validation'}</p>
             </div>
             <div className="md:col-span-2">
               <p className="mb-2 text-sm font-medium text-gray-700">Validation Remarks</p>
@@ -589,7 +589,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                       setSelectedItem(item);
                       setSelectedValidationYear(task?.year ?? null);
                       setValidationResult(task?.result || '');
-                      setValidationRemarks(task?.remarks || '');
+                      setValidationRemarks(task?.result === 'Return for Revision' ? task.remarks || '' : '');
                     }}
                     onKeyDown={(event) => {
                       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
@@ -597,7 +597,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         setSelectedItem(item);
                         setSelectedValidationYear(task?.year ?? null);
                         setValidationResult(task?.result || '');
-                        setValidationRemarks(task?.remarks || '');
+                        setValidationRemarks(task?.result === 'Return for Revision' ? task.remarks || '' : '');
                       }
                     }}
                     className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400"

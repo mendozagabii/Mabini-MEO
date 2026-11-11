@@ -535,3 +535,23 @@ test('all printing roles omit legacy fields and leave empty project fields blank
     for (const label of ['Road Network ID No.', 'Contact Information', 'No. of Extensions']) assert.ok(!fields.find(field => field.label === label).value);
   }
 });
+
+test('validator reopens an updated returned project with an empty remarks input', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
+    './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'), '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good', actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Pending', remarks: 'Previous revision remarks', dueDate: '2000-12-02' }] };
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], userRole: 'Staff - Validator', validationMode: true, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} })));
+  await act(async () => container.querySelector('[aria-label="Open validation form for Road"]').click());
+  assert.equal(container.querySelector('#validation-remarks').value, '');
+  const detail = container.querySelector('.project-details-dialog');
+  const label = [...detail.querySelectorAll('p')].find(el => el.textContent === 'Validation Result');
+  assert.equal(label.nextElementSibling.textContent, 'Pending Validation');
+  assert.match(detail.textContent, /Previous revision remarks/); // History remains visible separately.
+});

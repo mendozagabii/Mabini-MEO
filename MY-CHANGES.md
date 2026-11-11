@@ -423,3 +423,4 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 `scripts/log-change.sh` produces exactly this shape automatically.
 
 - Project printouts omit PCAD License No., Actual Project Cost, and Completion Percentage for every printing role. Empty project details and print fields are blank; zero extensions are displayed blank because the existing database saves omitted extension counts as zero. No stored data is removed.
+- Requeued validation forms start with an empty remarks input while retaining previous remarks as history; pending validation is capitalized consistently in project details and printouts.
