@@ -1175,10 +1175,10 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     <h3 className="mb-4 text-lg font-semibold text-gray-900">Project Information</h3>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {[
-                      { label: 'Project / Program / Activity Name *', value: projectName },
+                      { label: 'Project / Program / Activity Name', value: projectName },
                       { label: 'Project Category', value: road?.projectCategory || road?.type || inspection.projectCategory || 'Local Road' },
                       { label: 'Location', value: road?.location || inspection.location || 'Not specified' },
-                      { label: 'Inspection Date *', value: inspection.date || 'Not specified' },
+                      { label: 'Inspection Date', value: inspection.date || 'Not specified' },
                     ].map(({ label, value }) => (
                       <div key={label}>
                         <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
@@ -1204,8 +1204,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     <h3 className="mb-4 text-lg font-semibold text-gray-900">Inspection Details</h3>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       {[
-                        ['Inspector *', inspection.inspector || 'Not specified'],
-                        ['Inspection Type *', inspection.inspectionType || 'Not specified'],
+                        ['Inspector', inspection.inspector || 'Not specified'],
+                        ['Inspection Type', inspection.inspectionType || 'Not specified'],
                         ['Integrity', `${score}%`],
                         ['Condition', condition],
                         [inspection.isAnnualFollowUp ? 'Follow-up Status' : 'Validation Status', inspection.validationStatus || 'Pending Validation'],

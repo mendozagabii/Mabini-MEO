@@ -197,6 +197,8 @@ test('inspection details show stored remarks, attachments and "Not assessed" for
   const card = container.querySelector('[aria-label^="View full inspection"]');
   assert.ok(card, 'inspection card should render');
   click(card);
+  const labels = [...container.querySelectorAll('.inspection-detail-dialog span')].filter(el => el.className.includes('font-medium'));
+  assert.ok(labels.length); assert.ok(labels.every(el => !el.textContent.trim().endsWith('*')));
 
   const blocks = [...container.querySelectorAll('[data-category]')];
   assert.equal(blocks.length, 11, 'details should list all eleven categories');

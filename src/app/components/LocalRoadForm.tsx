@@ -68,13 +68,9 @@ interface ProjectFormData {
   contractorName: string;
   contractorAddress: string;
   contactInformation: string;
-  pcadLicenseNo: string;
   sourceOfFunds: string;
   appropriation: string;
   contractedAmount: string;
-  adjustProjectCost: string;
-  completionDate: string;
-  completionPercentage: string;
   turnoverDate: string;
   attachments: File[];
 }
@@ -120,13 +116,9 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   contractorName: road?.contractorName || '',
   contractorAddress: road?.contractorAddress || '',
   contactInformation: road?.contactInformation || '',
-  pcadLicenseNo: road?.pcadLicenseNo || '',
   sourceOfFunds: road?.sourceOfFunds || '',
   appropriation: formatSavedProjectCurrency(road?.appropriation),
   contractedAmount: formatSavedProjectCurrency(road?.contractedAmount),
-  adjustProjectCost: formatSavedProjectCurrency(road?.adjustProjectCost),
-  completionDate: road?.completionDate || '',
-  completionPercentage: road?.completionPercentage || '',
   turnoverDate: road?.turnoverDate || '',
   attachments: [],
 });
@@ -193,12 +185,11 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     }
     const invalidDate = [
       ['Date Started', formData.dateStarted], ['Target Completion Date', formData.targetCompletionDate],
-      ['Actual Completion Date', formData.actualCompletionDate], ['Completion Date', formData.completionDate],
+      ['Actual Completion Date', formData.actualCompletionDate],
       ['Turnover and Acceptance Date', formData.turnoverDate],
     ].find(([, value]) => !hasFourDigitYear(value));
     const invalidCurrency = [
-      ['Appropriation', formData.appropriation], ['Contracted Amount', formData.contractedAmount],
-      ['Adjust Project Cost', formData.adjustProjectCost],
+      ['Approved Budget for the Contract (ABC)', formData.appropriation], ['Contracted Amount', formData.contractedAmount],
     ].find(([, value]) => !isValidProjectCurrency(value));
     const invalidField = invalidDate || invalidCurrency;
     if (invalidField) {
@@ -256,13 +247,10 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         contractorName: formData.contractorName,
         contractorAddress: formData.contractorAddress,
         contactInformation: formData.contactInformation,
-        pcadLicenseNo: formData.pcadLicenseNo,
         sourceOfFunds: formData.sourceOfFunds,
         appropriation: formData.appropriation.replace(/,/g, ''),
         contractedAmount: formData.contractedAmount.replace(/,/g, ''),
-        adjustProjectCost: formData.adjustProjectCost.replace(/,/g, ''),
-        completionDate: formData.completionDate,
-        completionPercentage: formData.completionPercentage,
+        completionDate: formData.actualCompletionDate,
         turnoverDate: formData.turnoverDate,
         attachments: [...(item?.attachments || []), ...uploadedAttachments],
       };
@@ -302,7 +290,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     }));
   };
 
-  const handleCurrencyChange = (field: 'appropriation' | 'contractedAmount' | 'adjustProjectCost', input: HTMLInputElement) => {
+  const handleCurrencyChange = (field: 'appropriation' | 'contractedAmount', input: HTMLInputElement) => {
     const { value, selectionStart } = input;
     const formatted = formatProjectCurrency(value);
     if (selectionStart !== null) {
@@ -565,7 +553,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Road Network ID No. *
+                  Road Network ID No.
                 </label>
                 <AutoGrowTextarea
                   data-field="Road Network ID No."
@@ -573,7 +561,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   onChange={(e) => setFormData({ ...formData, roadNetworkId: e.target.value })}
                   rows={2}
                   className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                  required
                 />
               </div>
               <div>
@@ -668,7 +655,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contact Information *
+                Contact Information
               </label>
               <AutoGrowTextarea
                 data-field="Contact Information"
@@ -676,23 +663,9 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 onChange={(e) => setFormData({ ...formData, contactInformation: e.target.value })}
                 rows={2}
                 className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                required
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                PCAD License No. *
-              </label>
-              <AutoGrowTextarea
-                data-field="PCAD License No."
-                value={formData.pcadLicenseNo}
-                onChange={(e) => setFormData({ ...formData, pcadLicenseNo: e.target.value })}
-                rows={2}
-                className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                required
-              />
-            </div>
           </section>
 
           {/* Financial Information */}
@@ -713,17 +686,17 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Appropriation *
+                  Approved Budget for the Contract (ABC) *
                 </label>
                 <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0ea5e9]">
                   <span className="px-4 py-3 bg-gray-100 text-gray-700 font-medium">Php</span>
                   <input
                     type="text"
                     inputMode="decimal"
-                    data-field="Appropriation"
+                    data-field="Approved Budget for the Contract (ABC)"
                     value={formData.appropriation}
                     onChange={(e) => handleCurrencyChange('appropriation', e.currentTarget)}
                     className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
@@ -748,23 +721,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Adjust Project Cost *
-                </label>
-                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0ea5e9]">
-                  <span className="px-4 py-3 bg-gray-100 text-gray-700 font-medium">Php</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    data-field="Adjust Project Cost"
-                    value={formData.adjustProjectCost}
-                    onChange={(e) => handleCurrencyChange('adjustProjectCost', e.currentTarget)}
-                    className="min-h-[3rem] flex-1 resize-y px-4 py-3 border-0 text-gray-900 focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
             </div>
           </section>
 
@@ -772,7 +728,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           <section ref={turnoverSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Completion and Turnover Information</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Completion Date *
@@ -782,25 +738,9 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   min="1000-01-01"
                   max="9999-12-31"
                   data-field="Completion Date"
-                  value={formData.completionDate}
-                  onChange={(e) => setFormData({ ...formData, completionDate: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Completion Percentage *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  data-field="Completion Percentage"
-                  value={formData.completionPercentage}
-                  onChange={(e) => setFormData({ ...formData, completionPercentage: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                  required
+                  value={formData.actualCompletionDate}
+                  disabled
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed opacity-75"
                 />
               </div>
               <div>

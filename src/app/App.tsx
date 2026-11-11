@@ -239,10 +239,12 @@ export default function App() {
     void refreshRecords();
     const onChange = () => { void refreshRecords(); };
     window.addEventListener('local-road-records-changed', onChange);
-    const refreshInterval = window.setInterval(onChange, 60 * 60 * 1000);
+    const refreshInterval = window.setInterval(onChange, 60 * 1000);
+    window.addEventListener('focus', onChange);
     return () => {
       active = false;
       window.removeEventListener('local-road-records-changed', onChange);
+      window.removeEventListener('focus', onChange);
       window.clearInterval(refreshInterval);
     };
   }, [isLoggedIn]);
@@ -342,6 +344,7 @@ export default function App() {
     setShowLocalRoadForm(false);
     setEditingLocalRoad(null);
     setActiveTab(tab);
+    if (tab === 'validation-management' || tab === 'project-management') window.dispatchEvent(new Event('local-road-records-changed'));
   };
 
   const handleAiRecommendationsChange = (recommendations: PredictionResult[]) => {
@@ -388,13 +391,10 @@ export default function App() {
       contractorName: data.contractorName || '',
       contractorAddress: data.contractorAddress || '',
       contactInformation: data.contactInformation || '',
-      pcadLicenseNo: data.pcadLicenseNo || '',
       sourceOfFunds: data.sourceOfFunds || '',
       appropriation: data.appropriation || '',
       contractedAmount: data.contractedAmount || '',
-      adjustProjectCost: data.adjustProjectCost || '',
       completionDate: data.completionDate || '',
-      completionPercentage: data.completionPercentage || '',
       turnoverDate: data.turnoverDate || '',
       attachments: data.attachments || [],
     };

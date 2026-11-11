@@ -78,6 +78,53 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Start validation at the first anniversary
+
+- Remove initial validation. Projects become eligible 30 days before the first anniversary of Actual Completion Date, then before later anniversaries; annual entries no longer depend on a legacy initial approval. Legacy initial decisions remain in the database but no longer produce tasks or revision badges.
+- Continue to handle annual returns and requeue their remarks; an annual return remains actionable after a date change only once the first-anniversary window has opened. Oldest unresolved annual work is processed first.
+- Local tests cover Nov 11 → Oct 12 of the next year, Jan 1 → Dec 2 across years, generator boundaries, validation authorization and revision. No database changes or live test.
+
+### 2026-11-10 — [mine] Clean up view labels and head engineer print
+
+- Remove PCAD license number, actual project cost and completion percentage from Head Engineer project print; arrange remaining financial and completion dates in two columns. Hide actual cost and completion percentage in Head Engineer details and hide actual cost in Validator details, with the two financial fields evenly arranged.
+- Remove required-field asterisks from read-only Project, Inspection and Maintenance detail labels for all roles; keep markers on editable forms and validation inputs. Other roles' printed data is unchanged.
+- Local UI tests exercise Head Engineer print, Validator layout and all three detail dialogs. No database changes.
+
+### 2026-11-10 — [mine] Simplify encoder financial and completion fields
+
+- Hide Completion Percentage and Actual Project Cost in encoder details, and hide Actual Project Cost in add/edit; align the remaining two financial inputs. Rename Appropriation to Approved Budget for the Contract (ABC).
+- Make road network ID and contact information optional; blank values are omitted from updates so existing values are not cleared. Preserve existing actual project costs by omitting that hidden column from saves.
+- Derive the disabled Completion Date from Actual Completion Date in add/edit and submit the same value for both; saving an older record with different dates updates its completion date to match the actual date. No schema migration or live data writes.
+- Retain actual cost in non-encoder details and printed reports. Local tests cover optional inputs, date synchronization, layout and preservation.
+
+### 2026-11-10 — [mine] Hide license and completion fields from requested forms
+
+- Hide PCAD License No. in project add, edit and details, and hide Completion Percentage in project add/edit and validator details. Keep Road Network ID unchanged and retain Completion Percentage in encoder details as requested.
+- Arrange the two completion dates equally in the add/edit row. Omit the hidden fields from contractor and project writes to preserve existing values; new projects use the existing database default (zero) for completion percentage. No schema or database changes were made.
+- Printed reports remain unchanged. Local form and mock save tests cover field visibility, layout and preservation.
+
+### 2026-11-10 — [mine] Integrate latest inspection changes
+
+- Integrate main’s inspection category and attachment changes with the project validation workflow, preserving both change histories. No database changes were made in this session.
+
+### 2026-11-10 — [mine] Revision badge and validation save feedback
+
+- Rename the encoder badge to For Revision. After an encoder successfully saves a returned project, requeue the corresponding initial or annual decision as Pending while retaining the validator's remarks; this removes the badge and permits another validation without a schema change.
+- Guard the requeue against concurrent decisions using the existing validation timestamp and report partial failures. Validator save/submit buttons show Saving... or Submitting... and prevent duplicates until the request finishes.
+- Verified with local UI and mock tests only; no live database writes or migration were performed. Preview uses the live database.
+
+### 2026-11-10 — [mine] Undo revision resubmission task
+
+- Reverted the For Revision badge rename, Updated resubmission status, validator save loading indicator, and associated changes from commit `a02531f` at the user's request. The earlier project validation workflow is retained.
+- Removed the resubmission migration; it was never applied to the shared database. No database writes were made.
+
+### 2026-11-10 — [mine] Project validation and revision workflow
+
+- Rename the displayed project cost to Actual Project Cost without changing its stored column.
+- Show due initial and annual validations from 30 days before the actual completion date and anniversaries; handle overdue years in order, and preserve returned work for validator updates.
+- Display the latest decision and remarks and an encoder-only Revision badge; keep those fields independent of encoder edits. Refresh project lists on module entry, focus, and periodically.
+- Save initial validation with a narrowly scoped service-role update after server-side role, input and due-task checks; update existing annual entries through validator RLS and detect denied or missing updates. Surface annual generation/read errors instead of silently hiding projects.
+- Local automated tests exercise dates, annual backlog, role restrictions, badge, and validation writes. No database migration or live test was performed; preview shares the live database and reads can generate annual records.
 ### 2026-11-11 — [mine] Stack each category's attachments underneath its remarks
 - **Type:** Modified
 - **Files:** `src/app/components/InspectionModule.tsx` (modified)
@@ -374,3 +421,7 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 ```
 
 `scripts/log-change.sh` produces exactly this shape automatically.
+
+- Project printouts omit PCAD License No., Actual Project Cost, and Completion Percentage for every printing role. Empty project details and print fields are blank; zero extensions are displayed blank because the existing database saves omitted extension counts as zero. No stored data is removed.
+- Requeued validation forms start with an empty remarks input while retaining previous remarks as history; pending validation is capitalized consistently in project details and printouts.
+- Added irreversible-delete confirmation dialogs for archived projects, inspections and maintenance, including failure feedback. Existing active-record and user confirmations remain in place.

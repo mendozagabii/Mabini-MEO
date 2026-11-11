@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Plus, Edit, Trash2, Search, MapPin, Download, Paperclip, Printer, ClipboardCheck } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
+import { latestValidation, validationTask } from '@/lib/project-validation-workflow';
 import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
@@ -78,14 +79,19 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole) && !validationMode;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocation, setFilterLocation] = useState('All');
-  const [selectedItem, setSelectedItem] = useState<LocalRoad | null>(null);
+  const [selectedSnapshot, setSelectedItem] = useState<LocalRoad | null>(null);
+  const selectedItem = selectedSnapshot ? data.find(item => item.id === selectedSnapshot.id) ?? selectedSnapshot : null;
   const [pendingDelete, setPendingDelete] = useState<LocalRoad | null>(null);
   const [selectedAttachment, setSelectedAttachment] = useState<ProjectAttachment | null>(null);
   const [validationResult, setValidationResult] = useState<'Validated' | 'Return for Revision' | ''>('');
   const [validationRemarks, setValidationRemarks] = useState('');
+  const [savingValidation, setSavingValidation] = useState(false);
+  const savingValidationRef = useRef(false);
   const [selectedValidationYear, setSelectedValidationYear] = useState<number | null>(null);
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
   const canPrint = ['Admin', 'Head Engineer', 'Staff - Encoder'].includes(userRole);
+  // @mine — only non-encoder, non-validator, non-head-engineer views retain the legacy fields.
+  const showLegacyCost = !validationMode && !['Staff - Encoder', 'Head Engineer'].includes(userRole);
 
   const printSelectedProject = (item: LocalRoad) => {
     void recordClientActivity(
@@ -103,7 +109,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Location', value: item.location, width: 'full' },
           { label: 'Date Started', value: item.dateBuilt, width: 'quarter' },
           { label: 'Target Completion Date', value: item.targetCompletionDate, width: 'quarter' },
-          { label: 'No. of Extensions', value: item.noOfExtensions, width: 'quarter' },
+          { label: 'No. of Extensions', value: Number(item.noOfExtensions) === 0 ? '' : item.noOfExtensions, width: 'quarter' },
           { label: 'Actual Completion Date', value: item.actualCompletionDate, width: 'quarter' },
         ],
       },
@@ -123,28 +129,25 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Contractor Name', value: item.contractorName, width: 'full' },
           { label: 'Contractor Address', value: item.contractorAddress, width: 'full' },
           { label: 'Contact Information', value: item.contactInformation, width: 'full' },
-          { label: 'PCAD License No.', value: item.pcadLicenseNo, width: 'full' },
         ],
       },
       {
         title: 'Financial Information',
         fields: [
           { label: 'Source of Funds', value: item.sourceOfFunds, width: 'full' },
-          { label: 'Appropriation', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'third' },
-          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: 'third' },
-          { label: 'Adjust Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' },
+          { label: 'Approved Budget for the Contract (ABC)', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'half' },
+          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: 'half' },
         ],
       },
       {
         title: 'Completion and Turnover Information',
         fields: [
-          { label: 'Completion Date', value: item.completionDate, width: 'third' },
-          { label: 'Completion Percentage', value: item.completionPercentage, width: 'third' },
-          { label: 'Turnover and Acceptance Date', value: item.turnoverDate, width: 'third' },
+          { label: 'Completion Date', value: item.completionDate, width: 'half' },
+          { label: 'Turnover and Acceptance Date', value: item.turnoverDate, width: 'half' },
           { label: 'Condition', value: item.condition },
           { label: 'Last Inspection', value: item.lastInspection },
-          { label: 'Validation Result', value: item.validationResult || 'Pending validation' },
-          { label: 'Validation Remarks', value: item.validationRemarks },
+          { label: 'Validation Result', value: latestValidation(item).result && latestValidation(item).result !== 'Pending' ? latestValidation(item).result : 'Pending Validation' },
+          { label: 'Validation Remarks', value: latestValidation(item).remarks },
         ],
       },
     ]);
@@ -154,22 +157,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesLocation = filterLocation === 'All' || item.location === filterLocation;
-    const latestAnnualEntry = [...(item.annualValidationEntries ?? [])]
-      .sort((a, b) => b.year - a.year)[0];
-    const hasPendingAnnualValidation = latestAnnualEntry?.result === 'Pending' ||
-      latestAnnualEntry?.result === 'Return for Revision';
-    const completionDate = item.actualCompletionDate
-      ? new Date(`${item.actualCompletionDate}T00:00:00.000Z`)
-      : null;
-    const validationOpensOn = completionDate && Number.isFinite(completionDate.getTime())
-      ? new Date(completionDate.getTime() - 30 * 24 * 60 * 60 * 1000)
-      : null;
-    const today = new Date();
-    const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-    const isWithinValidationWindow = validationOpensOn !== null && todayUtc >= validationOpensOn.getTime();
-    const isEligibleForValidation = !validationMode ||
-      hasPendingAnnualValidation ||
-      (isWithinValidationWindow && item.validationResult !== 'Validated');
+    const isEligibleForValidation = !validationMode || validationTask(item) !== null;
     return matchesSearch && matchesLocation && isEligibleForValidation;
   });
 
@@ -215,7 +203,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
     <Dialog
       open={selectedItem !== null}
       onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !savingValidationRef.current) {
           setSelectedItem(null);
           setSelectedAttachment(null);
           setValidationResult('');
@@ -237,34 +225,34 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <h3 className="mb-4 text-lg font-semibold text-gray-900">Project Information</h3>
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Project / Program / Activity Name *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.projectName || selectedItem.name || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Project / Program / Activity Name</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.projectName || selectedItem.name || ''}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Project Category *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.projectCategory || selectedItem.type || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Project Category</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.projectCategory || selectedItem.type || ''}</p>
             </div>
             </div>
             <div className="md:col-span-2">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Project Description *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Project Description</p>
               <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
-                {selectedItem.projectDescription || selectedItem.description || 'N/A'}
+                {selectedItem.projectDescription || selectedItem.description || ''}
               </p>
             </div>
             <div className="mb-4 mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Location *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.location || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Location</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.location || ''}</p>
             </div>
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
               {[
-                ['Date Started *', selectedItem.dateBuilt],
-                ['Target Completion Date *', selectedItem.targetCompletionDate],
-                ['No. of Extensions', selectedItem.noOfExtensions],
-                ['Actual Completion Date *', selectedItem.actualCompletionDate],
+                ['Date Started', selectedItem.dateBuilt],
+                ['Target Completion Date', selectedItem.targetCompletionDate],
+                ['No. of Extensions', Number(selectedItem.noOfExtensions) === 0 ? '' : selectedItem.noOfExtensions],
+                ['Actual Completion Date', selectedItem.actualCompletionDate],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="mb-2 block text-sm font-medium text-gray-700">{label}</p>
-                  <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{value || 'N/A'}</p>
+                  <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{value || ''}</p>
                 </div>
               ))}
             </div>
@@ -273,82 +261,82 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Road Information</h3>
               <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Road Network ID No. *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadNetworkId || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Road Network ID No.</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadNetworkId || ''}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadName || selectedItem.location || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadName || selectedItem.location || ''}</p>
             </div>
               </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Barangay *</p>
-              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.barangay || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Barangay</p>
+              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.barangay || ''}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Components *</p>
-              <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.components || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Components</p>
+              <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.components || ''}</p>
             </div>
             <div className="mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Description *</p>
-              <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.description || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Description</p>
+              <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.description || ''}</p>
             </div>
             </section>
             <section className="border-b pb-6 pt-5">
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Contractor Information</h3>
               <div className="grid grid-cols-1 gap-4">
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Name *</p>
-              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractorName || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Name</p>
+              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractorName || ''}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Address *</p>
-              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractorAddress || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Address</p>
+              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractorAddress || ''}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contact Information *</p>
-              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contactInformation || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">PCAD License No. *</p>
-              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.pcadLicenseNo || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contact Information</p>
+              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contactInformation || ''}</p>
             </div>
               </div>
             </section>
             <section className="border-b pb-6 pt-5">
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Financial Information</h3>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Source of Funds *</p>
-              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.sourceOfFunds || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Source of Funds</p>
+              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.sourceOfFunds || ''}</p>
             </div>
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className={`mt-4 grid grid-cols-1 gap-4 ${showLegacyCost ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Appropriation *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.appropriation) || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.contractedAmount) || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Approved Budget for the Contract (ABC)</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.appropriation ? `Php ${formatSavedProjectCurrency(selectedItem.appropriation)}` : ''}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Adjust Project Cost *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.adjustProjectCost) || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractedAmount ? `Php ${formatSavedProjectCurrency(selectedItem.contractedAmount)}` : ''}</p>
             </div>
+            {showLegacyCost && (
+            <div>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Actual Project Cost</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.adjustProjectCost ? `Php ${formatSavedProjectCurrency(selectedItem.adjustProjectCost)}` : ''}</p>
+            </div>
+            )}
             </div>
             </section>
             <section className="border-b pb-6 pt-5">
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Completion and Turnover Information</h3>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Date *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionDate || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Date</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionDate || ''}</p>
             </div>
+            {showLegacyCost && (
             <div className="mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Percentage *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionPercentage || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Percentage</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionPercentage || ''}</p>
             </div>
+            )}
             <div className="mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date *</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.turnoverDate || 'N/A'}</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date</p>
+              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.turnoverDate || ''}</p>
             </div>
             <div className="project-attachments-section mt-5 border-t border-slate-200 pb-5 pt-5">
               <p className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -399,20 +387,20 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Condition</p>
-              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.condition || 'N/A'}</p>
+              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.condition || ''}</p>
             </div>
             <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Last Inspection</p>
-              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.lastInspection || 'N/A'}</p>
+              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.lastInspection || ''}</p>
             </div>
             <div>
               <p className="mb-2 text-sm font-medium text-gray-700">Validation Result</p>
-              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.validationResult || 'Pending validation'}</p>
+              <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{latestValidation(selectedItem).result && latestValidation(selectedItem).result !== 'Pending' ? latestValidation(selectedItem).result : 'Pending Validation'}</p>
             </div>
             <div className="md:col-span-2">
               <p className="mb-2 text-sm font-medium text-gray-700">Validation Remarks</p>
               <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
-                {selectedItem.validationRemarks || 'N/A'}
+                {latestValidation(selectedItem).remarks || ''}
               </p>
             </div>
             </div>
@@ -428,12 +416,22 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                 className="validation-entry-form md:col-span-2 border-t border-gray-200 pt-5 space-y-5"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  if (!validationResult || !validationRemarks.trim()) return;
-                  const saved = await onSaveValidation?.(selectedItem.id, validationResult, validationRemarks, selectedValidationYear ?? undefined);
-                  if (saved) setSelectedItem(null);
+                  if (!validationResult || !validationRemarks.trim() || savingValidationRef.current) return;
+                  savingValidationRef.current = true;
+                  setSavingValidation(true);
+                  try {
+                    const saved = await onSaveValidation?.(selectedItem.id, validationResult, validationRemarks, selectedValidationYear ?? undefined);
+                    if (saved) setSelectedItem(null);
+                  } catch (error) {
+                    console.error('Validation save failed.', error);
+                    window.alert('Unable to save validation. Please try again.');
+                  } finally {
+                    savingValidationRef.current = false;
+                    setSavingValidation(false);
+                  }
                 }}
               >
-                <fieldset>
+                <fieldset disabled={savingValidation}>
                   <legend className="text-sm font-semibold text-gray-900">Validation Result<span className="text-red-600">*</span></legend>
                   <div className="mt-2 flex w-fit max-w-full flex-nowrap gap-6 overflow-x-auto">
                     {(['Validated', 'Return for Revision'] as const).map(result => (
@@ -446,7 +444,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                 </fieldset>
                 <div>
                   <label htmlFor="validation-remarks" className="block text-sm font-semibold text-gray-900">Remarks<span className="text-red-600">*</span></label>
-                  <AutoGrowTextarea id="validation-remarks" value={validationRemarks} onChange={event => setValidationRemarks(event.target.value)} required className="mt-2 w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-[#0ea5e9] focus:outline-none focus:ring-2 focus:ring-[#0ea5e9]" />
+                  <AutoGrowTextarea disabled={savingValidation} id="validation-remarks" value={validationRemarks} onChange={event => setValidationRemarks(event.target.value)} required className="mt-2 w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-[#0ea5e9] focus:outline-none focus:ring-2 focus:ring-[#0ea5e9]" />
                 </div>
                 <div className="text-sm text-gray-800">
                   <p>Validated by:</p>
@@ -454,9 +452,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                   <p>Validator</p>
                 </div>
                 <div className="flex justify-end gap-3">
-                  <button type="button" onClick={() => setSelectedItem(null)} className="rounded-md border border-gray-300 px-5 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-                  <button type="submit" className="rounded-md bg-[#0ea5e9] px-5 py-2 text-sm font-medium text-white hover:bg-[#0284c7]">
-                    {validationResult === 'Return for Revision' ? 'Save' : 'Submit'}
+                  <button type="button" disabled={savingValidation} onClick={() => setSelectedItem(null)} className="rounded-md border border-gray-300 px-5 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+                  <button type="submit" disabled={savingValidation} className="rounded-md bg-[#0ea5e9] px-5 py-2 text-sm font-medium text-white hover:bg-[#0284c7] disabled:opacity-50">
+                    <span aria-live="polite">{savingValidation ? (validationResult === 'Return for Revision' ? 'Saving...' : 'Submitting...') : (validationResult === 'Return for Revision' ? 'Save' : 'Submit')}</span>
                   </button>
                 </div>
               </form>
@@ -580,14 +578,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredData.map(item => {
-                  const latestAnnualEntry = [...(item.annualValidationEntries ?? [])]
-                    .sort((a, b) => b.year - a.year)[0];
-                  const activeAnnualEntry = latestAnnualEntry && latestAnnualEntry.result !== 'Validated'
-                    ? latestAnnualEntry
-                    : undefined;
-                  const status = activeAnnualEntry?.result === 'Pending'
-                    ? 'Pending'
-                    : activeAnnualEntry?.result || item.validationResult || 'Pending';
+                  const task = validationTask(item);
+                  const status = task?.result || 'Pending';
                   return (
                   <tr
                     key={item.id}
@@ -595,17 +587,17 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     aria-label={`Open validation form for ${item.name}`}
                     onClick={() => {
                       setSelectedItem(item);
-                      setSelectedValidationYear(activeAnnualEntry?.year ?? null);
-                      setValidationResult(activeAnnualEntry?.result === 'Pending' ? '' : activeAnnualEntry?.result || item.validationResult || '');
-                      setValidationRemarks(activeAnnualEntry?.remarks || item.validationRemarks || '');
+                      setSelectedValidationYear(task?.year ?? null);
+                      setValidationResult(task?.result || '');
+                      setValidationRemarks(task?.result === 'Return for Revision' ? task.remarks || '' : '');
                     }}
                     onKeyDown={(event) => {
                       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
                         event.preventDefault();
                         setSelectedItem(item);
-                        setSelectedValidationYear(activeAnnualEntry?.year ?? null);
-                        setValidationResult(activeAnnualEntry?.result === 'Pending' ? '' : activeAnnualEntry?.result || item.validationResult || '');
-                        setValidationRemarks(activeAnnualEntry?.remarks || item.validationRemarks || '');
+                        setSelectedValidationYear(task?.year ?? null);
+                        setValidationResult(task?.result || '');
+                        setValidationRemarks(task?.result === 'Return for Revision' ? task.remarks || '' : '');
                       }
                     }}
                     className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400"
@@ -621,9 +613,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         status === 'Return for Revision' ? 'bg-amber-100 text-amber-800' :
                         'bg-gray-100 text-gray-700'
                       }`}>
-                        {status}{activeAnnualEntry ? ` · Annual ${activeAnnualEntry.year}` : ''}
+                        {status}{task?.year ? ` · Annual ${task.year}` : ''}
                       </span>
-                      {activeAnnualEntry && <p className="mt-1 text-xs text-slate-500">Due {activeAnnualEntry.dueDate}</p>}
+                      {task?.year && <p className="mt-1 text-xs text-slate-500">Due {task.dueDate}</p>}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
@@ -674,6 +666,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         Inspection: {item.lastInspection || 'Not recorded'}
                       </span>
                       <div className="flex shrink-0 items-center gap-3">
+                        {userRole === 'Staff - Encoder' && latestValidation(item).result === 'Return for Revision' && (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">For Revision</span>
+                        )}
                         {!isAdminReadDeleteOnly && (
                           <button
                             type="button"

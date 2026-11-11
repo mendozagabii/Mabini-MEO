@@ -33,6 +33,7 @@ global.fetch = async (url, options) => {
 };
 const { LocalRoadForm } = loadTs('src/app/components/LocalRoadForm.tsx', {
   './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
+  '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
   '@/lib/project-form-validation': validation,
   '@/lib/attachment-validation': attachmentValidation,
   '@/lib/project-save-delay': { startProjectSaveDelay: () => startDelay() },
@@ -62,9 +63,9 @@ async function fill() {
     'Project / Program / Activity Name': 'Road improvement', 'Project Category': 'National Road', 'Project Description': 'Description',
     'Location': 'Mabini', 'Date Started': '2026-01-01', 'Target Completion Date': '2026-02-01', 'Actual Completion Date': '2026-02-01',
     'Road Network ID No.': '1', 'Barangay': 'Mabini', 'Components': 'Road', 'Description': 'Road works',
-    'Contractor Name': 'Company', 'Contractor Address': 'Address', 'Contact Information': '123', 'PCAD License No.': 'ABC',
-    'Source of Funds': 'Municipal', 'Appropriation': '1234.56', 'Contracted Amount': '1000.25', 'Adjust Project Cost': '999.99',
-    'Completion Date': '2026-02-01', 'Completion Percentage': '100', 'Turnover and Acceptance Date': '2026-02-02',
+    'Contractor Name': 'Company', 'Contractor Address': 'Address', 'Contact Information': '123',
+    'Source of Funds': 'Municipal', 'Approved Budget for the Contract (ABC)': '1234.56', 'Contracted Amount': '1000.25',
+    'Turnover and Acceptance Date': '2026-02-02',
   })) await change(name, value);
 }
 
@@ -100,7 +101,9 @@ test('missing category and turnover attachment are reported; extensions are opti
   await act(async () => { await submit(); await new Promise(resolve => setTimeout(resolve, 30)); });
   assert.ok(saved); assert.equal(saved.noOfExtensions, '');
   assert.equal(saved.appropriation, '1234.56'); assert.equal(saved.contractedAmount, '1000.25');
-  assert.equal(saved.adjustProjectCost, '999.99'); assert.equal(saved.dateStarted, '2026-01-01');
+  assert.equal(saved.dateStarted, '2026-01-01'); assert.equal(saved.completionDate, saved.actualCompletionDate);
+  assert.equal(Object.hasOwn(saved, 'adjustProjectCost'), false);
+  for (const key of ['pcadLicenseNo', 'completionPercentage']) assert.equal(Object.hasOwn(saved, key), false);
   assert.equal(saved.attachments[0].category, 'Turnover Certificate');
   assert.equal(saved.attachments[0].staged, true);
   assert.equal(saved.attachments[0].dataUrl, '');
@@ -116,12 +119,18 @@ test('form has only a turnover attachment and bounds all date inputs', async () 
   assert.equal(inputs.length, 5);
   for (const input of inputs) { assert.equal(input.min, '1000-01-01'); assert.equal(input.max, '9999-12-31'); }
   assert.doesNotMatch(container.textContent, /No\. of Extensions \*/);
+  for (const name of ['PCAD License No.', 'Completion Percentage']) assert.equal(field(name), null);
+  assert.ok(field('Road Network ID No.'));
+  const dates = field('Completion Date').parentElement.parentElement;
+  assert.match(dates.className, /md:grid-cols-2/);
+  assert.equal(dates, field('Turnover and Acceptance Date').parentElement.parentElement);
+  assert.equal(dates.children.length, 2);
 });
 
 test('each editable project field blocks submission when empty', async () => {
   let saved; await act(async () => root.render(null)); await render(value => { saved = value; });
   await fill(); await file();
-  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Road Network ID No.', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Contact Information', 'PCAD License No.', 'Source of Funds', 'Appropriation', 'Contracted Amount', 'Adjust Project Cost', 'Completion Date', 'Completion Percentage', 'Turnover and Acceptance Date'];
+  const names = ['Project / Program / Activity Name', 'Project Category', 'Project Description', 'Location', 'Date Started', 'Target Completion Date', 'Actual Completion Date', 'Barangay', 'Components', 'Description', 'Contractor Name', 'Contractor Address', 'Source of Funds', 'Approved Budget for the Contract (ABC)', 'Contracted Amount', 'Turnover and Acceptance Date'];
   for (const name of names) {
     const old = field(name).value;
     await change(name, ''); await submit();
@@ -132,15 +141,12 @@ test('each editable project field blocks submission when empty', async () => {
   }
 });
 
-test('rejects incomplete currency, out-of-range percentage, and non-four-digit date', async () => {
+test('rejects incomplete currency and non-four-digit date', async () => {
   let saved; await act(async () => root.render(null)); await render(value => { saved = value; });
   await fill(); await file();
-  await change('Appropriation', '1000.'); await submit();
-  assert.equal(field('Appropriation').validationMessage, 'Enter a valid amount.');
-  await change('Appropriation', '1000.50');
-  await change('Completion Percentage', '101'); await submit();
-  assert.equal(field('Completion Percentage').validity.rangeOverflow, true);
-  await change('Completion Percentage', '100');
+  await change('Approved Budget for the Contract (ABC)', '1000.'); await submit();
+  assert.equal(field('Approved Budget for the Contract (ABC)').validationMessage, 'Enter a valid amount.');
+  await change('Approved Budget for the Contract (ABC)', '1000.50');
   await change('Date Started', '10000-01-01'); await submit();
   assert.equal(field('Date Started').validity.rangeOverflow, true);
   assert.equal(saved, undefined);
@@ -230,14 +236,14 @@ test('editing saved monetary values groups commas, preserves decimals and submit
     attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }],
   };
   await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
-  assert.equal(field('Appropriation').value, '1,234,567.89');
+  assert.equal(field('Approved Budget for the Contract (ABC)').value, '1,234,567.89');
   assert.equal(field('Contracted Amount').value, '1,000.25');
-  assert.equal(field('Adjust Project Cost').value, '0.50');
+  assert.equal(field('Actual Project Cost'), null);
   await submit();
   assert.equal(saved.appropriation, '1234567.89');
   assert.equal(saved.contractedAmount, '1000.25');
-  assert.equal(saved.adjustProjectCost, '0.50');
-  await change('Appropriation', '2,500,010.75');
+  assert.equal(Object.hasOwn(saved, 'adjustProjectCost'), false);
+  await change('Approved Budget for the Contract (ABC)', '2,500,010.75');
   await change('Contracted Amount', '1500.08');
   await submit();
   assert.equal(saved.appropriation, '2500010.75');
@@ -246,8 +252,8 @@ test('editing saved monetary values groups commas, preserves decimals and submit
 
 test('currency cursor stays at the edited position after regrouping', async () => {
   await reset(); await render(() => {});
-  await change('Appropriation', '1234.56');
-  const input = field('Appropriation');
+  await change('Approved Budget for the Contract (ABC)', '1234.56');
+  const input = field('Approved Budget for the Contract (ABC)');
   input.focus();
   await act(async () => {
     Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '12345.56');
@@ -266,7 +272,8 @@ test('project details and printed financial information group saved values', asy
     './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
     '@/lib/activity-log-client': { recordClientActivity: async () => {} },
-    '@/lib/project-form-validation': validation,
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+  '@/lib/project-form-validation': validation,
   });
   const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good',
     appropriation: '1234567.89', contractedAmount: '1,000.25', adjustProjectCost: '0.50' };
@@ -275,13 +282,13 @@ test('project details and printed financial information group saved values', asy
   await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
   assert.match(container.textContent, /Php 1,234,567\.89/);
   assert.match(container.textContent, /Php 1,000\.25/);
-  assert.match(container.textContent, /Php 0\.50/);
+  assert.doesNotMatch(container.textContent, /Php 0\.50|Actual Project Cost/);
   const printButton = [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent));
   assert.ok(printButton); await act(async () => printButton.click());
   const fields = sections.flatMap(section => section.fields);
-  assert.equal(fields.find(field => field.label === 'Appropriation').value, 'Php 1,234,567.89');
+  assert.equal(fields.find(field => field.label === 'Approved Budget for the Contract (ABC)').value, 'Php 1,234,567.89');
   assert.equal(fields.find(field => field.label === 'Contracted Amount').value, 'Php 1,000.25');
-  assert.equal(fields.find(field => field.label === 'Adjust Project Cost').value, 'Php 0.50');
+  assert.equal(fields.some(field => field.label === 'Actual Project Cost'), false);
 });
 
 test('whole peso values retain .00 in editing, saving, viewing and printing', async () => {
@@ -290,26 +297,27 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
     appropriation: '10000', contractedAmount: '10000.0', adjustProjectCost: '10000.00',
     attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] };
   await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
-  for (const name of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) assert.equal(field(name).value, '10,000.00');
+  for (const name of ['Approved Budget for the Contract (ABC)', 'Contracted Amount']) assert.equal(field(name).value, '10,000.00');
   await fill();
-  for (const name of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) await change(name, '10,000.00');
+  for (const name of ['Approved Budget for the Contract (ABC)', 'Contracted Amount']) await change(name, '10,000.00');
   await submit();
-  assert.equal(saved.appropriation, '10000.00'); assert.equal(saved.contractedAmount, '10000.00'); assert.equal(saved.adjustProjectCost, '10000.00');
+  assert.equal(saved.appropriation, '10000.00'); assert.equal(saved.contractedAmount, '10000.00'); assert.equal(Object.hasOwn(saved, 'adjustProjectCost'), false);
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
   const ui = new Proxy({}, { get: () => Dummy });
   let sections;
   const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
     './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
     './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
-    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-form-validation': validation,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} }, '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+  '@/lib/project-form-validation': validation,
   });
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
   await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
-  assert.equal((container.textContent.match(/Php 10,000\.00/g) || []).length, 3);
+  assert.equal((container.textContent.match(/Php 10,000\.00/g) || []).length, 2);
   await act(async () => [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
   const fields = sections.flatMap(section => section.fields);
-  for (const label of ['Appropriation', 'Contracted Amount', 'Adjust Project Cost']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
+  for (const label of ['Approved Budget for the Contract (ABC)', 'Contracted Amount']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
 });
 
 for (const editing of [false, true]) {
@@ -353,4 +361,197 @@ test('save failures leave the form open and display the error after the delay', 
     assert.equal(closed, 0); assert.equal(container.querySelector('button[type=submit]').disabled, false);
     assert.match(container.querySelector('[role=alert]').textContent, /Save failed/);
   } finally { startDelay = () => Promise.resolve(); }
+});
+
+test('validation buttons show Saving... and Submitting... while awaiting the request', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
+    './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  for (const result of ['Return for Revision', 'Validated']) {
+    let finishSave, calls = 0;
+    const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good', actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Return for Revision', remarks: 'Fix it', dueDate: '2000-12-02' }] };
+    await reset();
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Validator', validationMode: true, onAdd() {}, onEdit() {}, onDelete() {}, onSaveValidation: () => { calls++; return new Promise(resolve => { finishSave = resolve; }); } })));
+    await act(async () => container.querySelector('tr[aria-label]').click());
+    if (result === 'Validated') await act(async () => container.querySelector('input[value="Validated"]').click());
+    const form = container.querySelector('.validation-entry-form');
+    await act(async () => form.requestSubmit());
+    const button = form.querySelector('button[type=submit]');
+    assert.equal(button.disabled, true);
+    assert.equal(button.textContent, result === 'Validated' ? 'Submitting...' : 'Saving...');
+    await act(async () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })));
+    assert.equal(calls, 1);
+    await act(async () => finishSave(false));
+    assert.equal(button.disabled, false);
+    assert.equal(button.textContent, result === 'Validated' ? 'Submit' : 'Save');
+  }
+});
+
+// @mine — the requested fields are hidden without removing the road identifier.
+test('edit, encoder details and validator form hide the requested fields', async () => {
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good',
+    actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Pending', remarks: '', dueDate: '2000-12-02' }], roadNetworkId: 'R-1', pcadLicenseNo: 'OLD-LICENSE', completionPercentage: '75' };
+  await reset(); await render(() => {}, { item, editId: 'p' });
+  assert.equal(field('PCAD License No.'), null);
+  assert.equal(field('Completion Percentage'), null);
+  assert.ok(field('Road Network ID No.'));
+  const dates = field('Completion Date').parentElement.parentElement;
+  assert.match(dates.className, /md:grid-cols-2/);
+  assert.equal(dates.children.length, 2);
+
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  for (const validationMode of [false, true]) {
+    await reset();
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: validationMode ? 'Staff - Validator' : 'Staff - Encoder', validationMode, onAdd() {}, onEdit() {}, onDelete() {} })));
+    const button = container.querySelector(validationMode ? '[aria-label="Open validation form for Road"]' : '[aria-label="View details for Road"]');
+    assert.ok(button); await act(async () => button.click());
+    assert.doesNotMatch(container.textContent, /PCAD License No\.|OLD-LICENSE/);
+    assert.match(container.textContent, /Road Network ID No\./);
+    assert.doesNotMatch(container.textContent, /Completion Percentage/);
+    if (!validationMode) assert.doesNotMatch(container.textContent, /Actual Project Cost/);
+  }
+});
+
+// @mine — optional fields, derived dates and two-column financial layout.
+test('new projects save without optional ID and contact and copy actual completion date', async () => {
+  let saved; await reset(); await render(value => { saved = value; });
+  await fill(); await file();
+  await change('Road Network ID No.', ''); await change('Contact Information', '');
+  assert.equal(field('Road Network ID No.').required, false);
+  assert.equal(field('Contact Information').required, false);
+  assert.equal(field('Completion Date').disabled, true);
+  await change('Actual Completion Date', '2027-04-05');
+  assert.equal(field('Completion Date').value, '2027-04-05');
+  assert.equal(field('Actual Project Cost'), null);
+  const row = field('Contracted Amount').parentElement.parentElement.parentElement;
+  assert.match(row.className, /md:grid-cols-2/); assert.equal(row.children.length, 2);
+  assert.equal(row, field('Approved Budget for the Contract (ABC)').parentElement.parentElement.parentElement);
+  await submit();
+  assert.ok(saved); assert.equal(saved.roadNetworkId, ''); assert.equal(saved.contactInformation, '');
+  assert.equal(saved.actualCompletionDate, '2027-04-05'); assert.equal(saved.completionDate, '2027-04-05');
+});
+
+test('editing shows and saves completion date from actual date even when old dates differ', async () => {
+  let saved;
+  const item = { id: 'p1', name: 'Road', type: 'National Road', location: 'Mabini', dateBuilt: '2026-01-01', condition: 'Good',
+    actualCompletionDate: '2026-03-01', completionDate: '2025-01-01',
+    attachments: [{ name: 'old.pdf', type: 'application/pdf', category: 'Turnover Certificate', dataUrl: 'signed', storagePath: 'old/path' }] };
+  await reset(); await render(value => { saved = value; }, { item, editId: 'p1' });
+  assert.equal(field('Completion Date').value, '2026-03-01');
+  await fill(); await change('Actual Completion Date', '2028-06-07');
+  assert.equal(field('Completion Date').value, '2028-06-07');
+  await submit(); assert.equal(saved.completionDate, '2028-06-07');
+});
+
+// @mine — role-specific details and head engineer print keep unrelated roles unchanged.
+test('head engineer print and validator details hide requested fields and align remaining amounts', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  let sections;
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui,
+    './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good',
+    actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Pending', remarks: '', dueDate: '2000-12-02' }], pcadLicenseNo: 'LIC', adjustProjectCost: '987.50', completionPercentage: '75', appropriation: '1000', contractedAmount: '900' };
+  for (const [role, validationMode] of [['Head Engineer', false], ['Staff - Validator', true]]) {
+    await reset(); sections = undefined;
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], userRole: role, validationMode, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} })));
+    await act(async () => container.querySelector(validationMode ? '[aria-label="Open validation form for Road"]' : '[aria-label="View details for Road"]').click());
+    const detail = container.querySelector('.project-details-dialog');
+    assert.ok(detail);
+    assert.doesNotMatch(detail.textContent, /PCAD License No\.|Actual Project Cost|Completion Percentage/);
+    const labels = [...detail.querySelectorAll('p')].filter(el => el.className.includes('font-medium'));
+    assert.ok(labels.length); assert.ok(labels.every(el => !el.textContent.trim().endsWith('*')));
+    const abc = labels.find(el => el.textContent === 'Approved Budget for the Contract (ABC)');
+    const contracted = labels.find(el => el.textContent === 'Contracted Amount');
+    const row = abc.parentElement.parentElement;
+    assert.equal(row, contracted.parentElement.parentElement); assert.match(row.className, /md:grid-cols-2/); assert.equal(row.children.length, 2);
+    if (!validationMode) {
+      await act(async () => [...detail.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
+      const fields = sections.flatMap(section => section.fields);
+      for (const name of ['PCAD License No.', 'Actual Project Cost', 'Completion Percentage']) assert.equal(fields.some(field => field.label === name), false);
+      assert.equal(fields.find(field => field.label === 'Contracted Amount').width, 'half');
+      assert.equal(fields.find(field => field.label === 'Approved Budget for the Contract (ABC)').width, 'half');
+    }
+  }
+});
+
+test('maintenance detail labels have no required markers', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { MaintenanceModule } = loadTs('src/app/components/MaintenanceModule.tsx', {
+    './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+  });
+  const road = { id: 'p', name: 'Road', projectName: 'Road', location: 'Town' };
+  const maintenance = { id: 'm', localRoadId: 'p', localRoadName: 'Road', type: 'Routine', scheduledDate: '2026-01-01', status: 'Scheduled', cost: 0, description: 'Repair' };
+  await reset();
+  await act(async () => root.render(React.createElement(MaintenanceModule, { maintenanceRecords: [maintenance], localRoadList: [road], inspections: [], userRole: 'Head Engineer', currentUser: 'User', onAddMaintenance() {}, onEditMaintenance() {}, onDeleteMaintenance() {}, onUpdateStatus() {} })));
+  await act(async () => container.querySelector('[aria-label="View maintenance details for Road"]').click());
+  const labels = [...container.querySelectorAll('.maintenance-detail-dialog p')].filter(el => el.className.includes('font-medium'));
+  assert.ok(labels.length); assert.ok(labels.every(el => !el.textContent.trim().endsWith('*')));
+});
+
+test('all printing roles omit legacy fields and leave empty project fields blank', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  let sections;
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui,
+    './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'), '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good', noOfExtensions: '0', pcadLicenseNo: 'LIC', adjustProjectCost: '900', completionPercentage: '75' };
+  for (const role of ['Admin', 'Head Engineer', 'Staff - Encoder']) {
+    await reset(); sections = undefined;
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], userRole: role, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} })));
+    await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
+    const detail = container.querySelector('.project-details-dialog');
+    for (const label of ['Road Network ID No.', 'Contact Information', 'No. of Extensions']) {
+      const p = [...detail.querySelectorAll('p')].find(el => el.textContent === label);
+      assert.equal(p.nextElementSibling.textContent, '', `${role}: ${label}`);
+    }
+    await act(async () => [...detail.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
+    const fields = sections.flatMap(section => section.fields);
+    for (const label of ['PCAD License No.', 'Actual Project Cost', 'Completion Percentage']) assert.equal(fields.some(field => field.label === label), false);
+    for (const label of ['Road Network ID No.', 'Contact Information', 'No. of Extensions']) assert.ok(!fields.find(field => field.label === label).value);
+  }
+});
+
+test('validator reopens an updated returned project with an empty remarks input', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': { AutoGrowTextarea: props => React.createElement('textarea', props) },
+    './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'), '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good', actualCompletionDate: '2000-01-01', annualValidationEntries: [{ year: 2001, result: 'Pending', remarks: 'Previous revision remarks', dueDate: '2000-12-02' }] };
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], userRole: 'Staff - Validator', validationMode: true, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} })));
+  await act(async () => container.querySelector('[aria-label="Open validation form for Road"]').click());
+  assert.equal(container.querySelector('#validation-remarks').value, '');
+  const detail = container.querySelector('.project-details-dialog');
+  const label = [...detail.querySelectorAll('p')].find(el => el.textContent === 'Validation Result');
+  assert.equal(label.nextElementSibling.textContent, 'Pending Validation');
+  assert.match(detail.textContent, /Previous revision remarks/); // History remains visible separately.
 });

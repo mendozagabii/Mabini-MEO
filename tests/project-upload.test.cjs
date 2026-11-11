@@ -113,3 +113,33 @@ test('record refresh rejects failed or malformed module responses instead of cle
   await assert.rejects(loadRecords('/api/inspections', async () => ({ ok: false, status: 500 })), /500/);
   await assert.rejects(loadRecords('/api/local-road', async () => ({ ok: true, json: async () => ({ message: 'error' }) })), /Invalid record response/);
 });
+
+// @mine — hidden fields are omitted on writes, preserving values on shared contractors and projects.
+test('project saves do not overwrite hidden legacy fields', async () => {
+  for (const edit of [false, true]) {
+    const db = mockDb({ edit });
+    await dataModule.saveRoad(db, { ...payload, id: edit ? 'project-1' : '', contractorName: 'Company', pcadLicenseNo: '', completionPercentage: '' }, USER);
+    for (const [table, field] of [['contractors', 'pcab_license_no'], ['projects', 'completion_percentage']]) {
+      const write = db.writes.find(w => w.table === table);
+      assert.ok(write, table);
+      assert.equal(Object.hasOwn(write.value, field), false, `${table}.${field}`);
+    }
+  }
+});
+
+// @mine — optional inputs do not clear existing data and hidden costs remain untouched.
+test('optional blanks and hidden costs are omitted while supplied optional values are saved', async () => {
+  for (const edit of [false, true]) {
+    for (const supplied of [false, true]) {
+      const db = mockDb({ edit });
+      await dataModule.saveRoad(db, { ...payload, id: edit ? 'project-1' : '', contractorName: 'Company',
+        roadNetworkId: supplied ? 'ID-7' : '', contactInformation: supplied ? '555' : '', adjustProjectCost: '' }, USER);
+      const road = db.writes.find(w => w.table === 'roads').value;
+      const contractor = db.writes.find(w => w.table === 'contractors').value;
+      const project = db.writes.find(w => w.table === 'projects').value;
+      assert.equal(road.road_network_id, supplied ? 'ID-7' : undefined);
+      assert.equal(contractor.contact_information, supplied ? '555' : undefined);
+      assert.equal(Object.hasOwn(project, 'adjusted_project_cost'), false);
+    }
+  }
+});

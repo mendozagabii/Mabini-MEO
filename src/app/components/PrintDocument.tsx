@@ -84,7 +84,7 @@ export function PrintDocument({ title, referenceId, sections, attachment, onComp
               <div key={field.label} className={`print-field print-field-${field.width || 'full'}`}>
                 <div className="print-field-label">{field.label}</div>
                 <div className="print-field-value">
-                  {field.value === undefined || field.value === null || field.value === '' ? 'N/A' : field.value}
+                  {field.value ?? ''}
                 </div>
               </div>
             ))}

@@ -75,6 +75,7 @@ function mapProject(p: Joined): StoredRecord {
     projectStatus: p.status ?? 'planned',
     ...(validation ? { validationResult: validation } : {}),
     validationRemarks: p.validation_remarks ?? '',
+    validationValidatedAt: p.validated_at ?? undefined,
     archivedAt: p.archived_at ?? undefined,
     // @mine — filled in by attachRoadExtras() in the list functions below.
     attachments: [] as StoredRecord[],
@@ -278,7 +279,8 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     .select('id, actual_completion_date, completion_date')
     .is('archived_at', null)
     .not('actual_completion_date', 'is', null);
-  if (error || !projects?.length) return;
+  if (error) throw error;
+  if (!projects?.length) return;
 
   for (const project of projects as Joined[]) {
     const completed = str(project.actual_completion_date || project.completion_date);
@@ -292,18 +294,19 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     }
     if (!dueYears.length) continue;
 
-    const [{ data: entries }, { data: followUps }] = await Promise.all([
+    const [{ data: entries, error: entriesError }, { data: followUps }] = await Promise.all([
       db.from('annual_validation_entries').select('year').eq('project_id', project.id),
       db.from('inspections').select('annual_follow_up_year').eq('project_id', project.id).eq('inspection_type', 'follow_up').not('annual_follow_up_year', 'is', null),
     ]);
+    if (entriesError) throw entriesError;
     const haveEntries = new Set((entries ?? []).map((e: Joined) => e.year));
     const haveFollowUps = new Set((followUps ?? []).map((e: Joined) => e.annual_follow_up_year));
 
     for (const { year, dueDate } of dueYears) {
       if (!haveEntries.has(year)) {
-        await writer.from('annual_validation_entries')
-          .insert({ project_id: project.id, year, due_date: dueDate, result: 'pending' })
-          .then(undefined, () => undefined);
+        const { error: insertError } = await writer.from('annual_validation_entries')
+          .upsert({ project_id: project.id, year, due_date: dueDate, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
+        if (insertError) throw insertError;
       }
       if (!haveFollowUps.has(year)) {
         await writer.from('inspections')
@@ -325,11 +328,12 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
 async function attachRoadExtras(db: SupabaseClient, records: StoredRecord[]): Promise<StoredRecord[]> {
   if (!records.length) return records;
   const ids = records.map((r) => r.id);
-  const [{ data: entryRows }, { data: followRows }, { data: attachRows }] = await Promise.all([
+  const [{ data: entryRows, error: entriesError }, { data: followRows }, { data: attachRows }] = await Promise.all([
     db.from('annual_validation_entries').select('*').in('project_id', ids).order('year'),
     db.from('inspections').select('project_id, annual_follow_up_year').in('project_id', ids).eq('inspection_type', 'follow_up').not('annual_follow_up_year', 'is', null),
     db.from('attachments').select('*').in('project_id', ids).order('created_at'),
   ]);
+  if (entriesError) throw entriesError;
   const signedByProject = new Map<string, StoredRecord[]>();
   for (const row of (attachRows ?? []) as Joined[]) {
     const mapped = await mapAttachmentRow(db, row);
@@ -355,7 +359,7 @@ async function attachRoadExtras(db: SupabaseClient, records: StoredRecord[]): Pr
 }
 
 export async function listRoads(db: SupabaseClient, admin?: SupabaseClient): Promise<StoredRecord[]> {
-  await ensureAnnualFollowUps(db, admin).catch(() => undefined);
+  await ensureAnnualFollowUps(db, admin);
   const { data, error } = await db.from('projects').select(PROJECT_SELECT).is('archived_at', null).order('created_at', { ascending: false });
   if (error) throw error;
   return attachRoadExtras(db, (data ?? []).map(mapProject));
@@ -376,18 +380,21 @@ export async function saveAnnualValidation(
   remarks: string,
   userId: string,
 ): Promise<void> {
-  const { error } = await db.from('annual_validation_entries').upsert(
-    {
-      project_id: projectId,
-      year,
-      result: VALIDATION_TO_DB[result] ?? 'pending',
-      remarks: remarks || null,
-      validated_by: userId,
-      validated_at: new Date().toISOString(),
-    },
-    { onConflict: 'project_id,year' },
-  );
+  const { data, error } = await db.from('annual_validation_entries').update({
+    result: VALIDATION_TO_DB[result], remarks: remarks.trim(),
+    validated_by: userId, validated_at: new Date().toISOString(),
+  }).eq('project_id', projectId).eq('year', year).select('id').maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Could not update this annual validation.');
+}
+
+/** @mine — requeue the same returned annual decision, retaining its remarks. */
+export async function requeueReturnedValidation(admin: SupabaseClient, projectId: string, year: number, validatedAt: string | undefined, remarks: string): Promise<boolean> {
+  let query = admin.from('annual_validation_entries').update({ result: 'pending' }).eq('project_id', projectId).eq('year', year).eq('result', 'rejected').eq('remarks', remarks);
+  query = validatedAt ? query.eq('validated_at', validatedAt) : query.is('validated_at', null);
+  const { data, error } = await query.select('id').maybeSingle();
+  if (error) throw error;
+  return !!data;
 }
 
 async function resolveBarangayId(db: SupabaseClient, name: string): Promise<number | null> {
@@ -421,8 +428,9 @@ async function resolveContractorId(db: SupabaseClient, rec: StoredRecord): Promi
   const payload = {
     name,
     address: str(rec.contractorAddress) || null,
-    contact_information: str(rec.contactInformation) || null,
-    pcab_license_no: str(rec.pcadLicenseNo) || null,
+    // @mine — blank optional contact information does not erase a shared contractor's value.
+    ...(str(rec.contactInformation).trim() ? { contact_information: str(rec.contactInformation).trim() } : {}),
+    // @mine — never overwrite the hidden license on an existing shared contractor.
   };
   const { data } = await db.from('contractors').select('id').ilike('name', name).maybeSingle();
   if (data) {
@@ -471,7 +479,8 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
   }
   const roadPayload = {
     road_name: str(rec.roadName || rec.name) || 'Unnamed Road',
-    road_network_id: str(rec.roadNetworkId) || null,
+    // @mine — omit blank optional IDs, preserving an existing road's value.
+    ...(str(rec.roadNetworkId).trim() ? { road_network_id: str(rec.roadNetworkId).trim() } : {}),
     barangay_id: barangayId,
     components: str(rec.components) || null,
     description: str(rec.description || rec.projectDescription) || null,
@@ -506,16 +515,11 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     source_of_funds: str(rec.sourceOfFunds) || null,
     appropriation: rec.appropriation === '' || rec.appropriation == null ? null : Number(rec.appropriation),
     contracted_amount: rec.contractedAmount === '' || rec.contractedAmount == null ? null : Number(rec.contractedAmount),
-    adjusted_project_cost: rec.adjustProjectCost === '' || rec.adjustProjectCost == null ? null : Number(rec.adjustProjectCost),
+    // @mine — preserve the hidden actual project cost when saving.
     completion_date: str(rec.completionDate) || null,
-    completion_percentage: Number(rec.completionPercentage ?? 0) || 0,
+    // @mine — preserve existing completion percentage; new rows use the database default.
     turnover_date: str(rec.turnoverDate) || null,
-    ...(rec.validationResult
-      ? {
-          validation_status: VALIDATION_TO_DB[str(rec.validationResult)] ?? 'pending',
-          validation_remarks: str(rec.validationRemarks) || null,
-        }
-      : {}),
+
   };
 
   let projectId = existing?.id as string | undefined;
