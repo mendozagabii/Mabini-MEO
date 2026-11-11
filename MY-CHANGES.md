@@ -78,6 +78,12 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-10 — [mine] Clean up view labels and head engineer print
+
+- Remove PCAD license number, actual project cost and completion percentage from Head Engineer project print; arrange remaining financial and completion dates in two columns. Hide actual cost and completion percentage in Head Engineer details and hide actual cost in Validator details, with the two financial fields evenly arranged.
+- Remove required-field asterisks from read-only Project, Inspection and Maintenance detail labels for all roles; keep markers on editable forms and validation inputs. Other roles' printed data is unchanged.
+- Local UI tests exercise Head Engineer print, Validator layout and all three detail dialogs. No database changes.
+
 ### 2026-11-10 — [mine] Simplify encoder financial and completion fields
 
 - Hide Completion Percentage and Actual Project Cost in encoder details, and hide Actual Project Cost in add/edit; align the remaining two financial inputs. Rename Appropriation to Approved Budget for the Contract (ABC).

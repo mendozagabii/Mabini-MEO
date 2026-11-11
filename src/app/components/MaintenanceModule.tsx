@@ -621,15 +621,15 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                   <h3 className="mb-4 text-lg font-semibold text-gray-900">Maintenance Activity Information</h3>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div>
-                      <p className="mb-2 text-sm font-medium text-gray-700">Date Started *</p>
+                      <p className="mb-2 text-sm font-medium text-gray-700">Date Started</p>
                       <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.dateBuilt || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="mb-2 text-sm font-medium text-gray-700">Completion Date *</p>
+                      <p className="mb-2 text-sm font-medium text-gray-700">Completion Date</p>
                       <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.completedDate || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="mb-2 text-sm font-medium text-gray-700">Type of Maintenance *</p>
+                      <p className="mb-2 text-sm font-medium text-gray-700">Type of Maintenance</p>
                       <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.type || 'N/A'}</p>
                     </div>
                     <div>
@@ -645,7 +645,7 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                       <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {Number(record.cost || 0).toLocaleString()}</p>
                     </div>
                     <div className="md:col-span-3">
-                      <p className="mb-2 text-sm font-medium text-gray-700">Maintenance Activities *</p>
+                      <p className="mb-2 text-sm font-medium text-gray-700">Maintenance Activities</p>
                       <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
                         {record.description || 'N/A'}
                       </p>

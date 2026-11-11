@@ -90,6 +90,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const [selectedValidationYear, setSelectedValidationYear] = useState<number | null>(null);
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
   const canPrint = ['Admin', 'Head Engineer', 'Staff - Encoder'].includes(userRole);
+  // @mine — only non-encoder, non-validator, non-head-engineer views retain the legacy fields.
+  const showLegacyCost = !validationMode && !['Staff - Encoder', 'Head Engineer'].includes(userRole);
 
   const printSelectedProject = (item: LocalRoad) => {
     void recordClientActivity(
@@ -127,24 +129,24 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Contractor Name', value: item.contractorName, width: 'full' },
           { label: 'Contractor Address', value: item.contractorAddress, width: 'full' },
           { label: 'Contact Information', value: item.contactInformation, width: 'full' },
-          { label: 'PCAD License No.', value: item.pcadLicenseNo, width: 'full' },
+          ...(userRole === 'Head Engineer' ? [] : [{ label: 'PCAD License No.', value: item.pcadLicenseNo, width: 'full' as const }]),
         ],
       },
       {
         title: 'Financial Information',
         fields: [
           { label: 'Source of Funds', value: item.sourceOfFunds, width: 'full' },
-          { label: 'Approved Budget for the Contract (ABC)', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: 'third' },
-          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: 'third' },
-          { label: 'Actual Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' },
+          { label: 'Approved Budget for the Contract (ABC)', value: item.appropriation ? `Php ${formatSavedProjectCurrency(item.appropriation)}` : undefined, width: userRole === 'Head Engineer' ? 'half' : 'third' },
+          { label: 'Contracted Amount', value: item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : undefined, width: userRole === 'Head Engineer' ? 'half' : 'third' },
+          ...(userRole === 'Head Engineer' ? [] : [{ label: 'Actual Project Cost', value: item.adjustProjectCost ? `Php ${formatSavedProjectCurrency(item.adjustProjectCost)}` : undefined, width: 'third' as const }]),
         ],
       },
       {
         title: 'Completion and Turnover Information',
         fields: [
-          { label: 'Completion Date', value: item.completionDate, width: 'third' },
-          { label: 'Completion Percentage', value: item.completionPercentage, width: 'third' },
-          { label: 'Turnover and Acceptance Date', value: item.turnoverDate, width: 'third' },
+          { label: 'Completion Date', value: item.completionDate, width: userRole === 'Head Engineer' ? 'half' : 'third' },
+          ...(userRole === 'Head Engineer' ? [] : [{ label: 'Completion Percentage', value: item.completionPercentage, width: 'third' as const }]),
+          { label: 'Turnover and Acceptance Date', value: item.turnoverDate, width: userRole === 'Head Engineer' ? 'half' : 'third' },
           { label: 'Condition', value: item.condition },
           { label: 'Last Inspection', value: item.lastInspection },
           { label: 'Validation Result', value: latestValidation(item).result || 'Pending validation' },
@@ -226,30 +228,30 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <h3 className="mb-4 text-lg font-semibold text-gray-900">Project Information</h3>
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Project / Program / Activity Name *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Project / Program / Activity Name</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.projectName || selectedItem.name || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Project Category *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Project Category</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.projectCategory || selectedItem.type || 'N/A'}</p>
             </div>
             </div>
             <div className="md:col-span-2">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Project Description *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Project Description</p>
               <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
                 {selectedItem.projectDescription || selectedItem.description || 'N/A'}
               </p>
             </div>
             <div className="mb-4 mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Location *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Location</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.location || 'N/A'}</p>
             </div>
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
               {[
-                ['Date Started *', selectedItem.dateBuilt],
-                ['Target Completion Date *', selectedItem.targetCompletionDate],
+                ['Date Started', selectedItem.dateBuilt],
+                ['Target Completion Date', selectedItem.targetCompletionDate],
                 ['No. of Extensions', selectedItem.noOfExtensions],
-                ['Actual Completion Date *', selectedItem.actualCompletionDate],
+                ['Actual Completion Date', selectedItem.actualCompletionDate],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="mb-2 block text-sm font-medium text-gray-700">{label}</p>
@@ -266,20 +268,20 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadNetworkId || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Road Name</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadName || selectedItem.location || 'N/A'}</p>
             </div>
               </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Barangay *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Barangay</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.barangay || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Components *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Components</p>
               <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.components || 'N/A'}</p>
             </div>
             <div className="mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Description *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Description</p>
               <p className="min-h-[5rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.description || 'N/A'}</p>
             </div>
             </section>
@@ -287,11 +289,11 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Contractor Information</h3>
               <div className="grid grid-cols-1 gap-4">
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Name *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Name</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractorName || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Address *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contractor Address</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractorAddress || 'N/A'}</p>
             </div>
             <div>
@@ -303,21 +305,21 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <section className="border-b pb-6 pt-5">
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Financial Information</h3>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Source of Funds *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Source of Funds</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.sourceOfFunds || 'N/A'}</p>
             </div>
-            <div className={`mt-4 grid grid-cols-1 gap-4 ${userRole === 'Staff - Encoder' ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+            <div className={`mt-4 grid grid-cols-1 gap-4 ${showLegacyCost ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Approved Budget for the Contract (ABC) *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Approved Budget for the Contract (ABC)</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.appropriation) || 'N/A'}</p>
             </div>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.contractedAmount) || 'N/A'}</p>
             </div>
-            {userRole !== 'Staff - Encoder' && (
+            {showLegacyCost && (
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Actual Project Cost *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Actual Project Cost</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {formatSavedProjectCurrency(selectedItem.adjustProjectCost) || 'N/A'}</p>
             </div>
             )}
@@ -326,17 +328,17 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <section className="border-b pb-6 pt-5">
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Completion and Turnover Information</h3>
             <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Date *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Date</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionDate || 'N/A'}</p>
             </div>
-            {!validationMode && userRole !== 'Staff - Encoder' && (
+            {showLegacyCost && (
             <div className="mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Percentage *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Percentage</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionPercentage || 'N/A'}</p>
             </div>
             )}
             <div className="mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date *</p>
+              <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.turnoverDate || 'N/A'}</p>
             </div>
             <div className="project-attachments-section mt-5 border-t border-slate-200 pb-5 pt-5">

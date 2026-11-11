@@ -455,3 +455,56 @@ test('editing shows and saves completion date from actual date even when old dat
   assert.equal(field('Completion Date').value, '2028-06-07');
   await submit(); assert.equal(saved.completionDate, '2028-06-07');
 });
+
+// @mine — role-specific details and head engineer print keep unrelated roles unchanged.
+test('head engineer print and validator details hide requested fields and align remaining amounts', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  let sections;
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui,
+    './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good',
+    actualCompletionDate: '2000-01-01', pcadLicenseNo: 'LIC', adjustProjectCost: '987.50', completionPercentage: '75', appropriation: '1000', contractedAmount: '900' };
+  for (const [role, validationMode] of [['Head Engineer', false], ['Staff - Validator', true]]) {
+    await reset(); sections = undefined;
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], userRole: role, validationMode, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} })));
+    await act(async () => container.querySelector(validationMode ? '[aria-label="Open validation form for Road"]' : '[aria-label="View details for Road"]').click());
+    const detail = container.querySelector('.project-details-dialog');
+    assert.ok(detail);
+    assert.doesNotMatch(detail.textContent, /PCAD License No\.|Actual Project Cost|Completion Percentage/);
+    const labels = [...detail.querySelectorAll('p')].filter(el => el.className.includes('font-medium'));
+    assert.ok(labels.length); assert.ok(labels.every(el => !el.textContent.trim().endsWith('*')));
+    const abc = labels.find(el => el.textContent === 'Approved Budget for the Contract (ABC)');
+    const contracted = labels.find(el => el.textContent === 'Contracted Amount');
+    const row = abc.parentElement.parentElement;
+    assert.equal(row, contracted.parentElement.parentElement); assert.match(row.className, /md:grid-cols-2/); assert.equal(row.children.length, 2);
+    if (!validationMode) {
+      await act(async () => [...detail.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
+      const fields = sections.flatMap(section => section.fields);
+      for (const name of ['PCAD License No.', 'Actual Project Cost', 'Completion Percentage']) assert.equal(fields.some(field => field.label === name), false);
+      assert.equal(fields.find(field => field.label === 'Contracted Amount').width, 'half');
+      assert.equal(fields.find(field => field.label === 'Approved Budget for the Contract (ABC)').width, 'half');
+    }
+  }
+});
+
+test('maintenance detail labels have no required markers', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { MaintenanceModule } = loadTs('src/app/components/MaintenanceModule.tsx', {
+    './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+  });
+  const road = { id: 'p', name: 'Road', projectName: 'Road', location: 'Town' };
+  const maintenance = { id: 'm', localRoadId: 'p', localRoadName: 'Road', type: 'Routine', scheduledDate: '2026-01-01', status: 'Scheduled', cost: 0, description: 'Repair' };
+  await reset();
+  await act(async () => root.render(React.createElement(MaintenanceModule, { maintenanceRecords: [maintenance], localRoadList: [road], inspections: [], userRole: 'Head Engineer', currentUser: 'User', onAddMaintenance() {}, onEditMaintenance() {}, onDeleteMaintenance() {}, onUpdateStatus() {} })));
+  await act(async () => container.querySelector('[aria-label="View maintenance details for Road"]').click());
+  const labels = [...container.querySelectorAll('.maintenance-detail-dialog p')].filter(el => el.className.includes('font-medium'));
+  assert.ok(labels.length); assert.ok(labels.every(el => !el.textContent.trim().endsWith('*')));
+});
