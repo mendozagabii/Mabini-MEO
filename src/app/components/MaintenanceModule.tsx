@@ -595,24 +595,24 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Project / Program / Activity Name</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.projectName || road?.name || record.localRoadName || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.projectName || road?.name || record.localRoadName || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Project Category</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.projectCategory || road?.type || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.projectCategory || road?.type || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Location</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.location || road?.barangay || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.location || road?.barangay || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Contractor</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.contractorName || record.localRoadName || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.contractorName || record.localRoadName || ''}</p>
                     </div>
                     <div className="sm:col-span-2">
                       <p className="mb-2 text-sm font-medium text-gray-700">Project Description</p>
                       <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
-                        {road?.projectDescription || road?.description || 'N/A'}
+                        {road?.projectDescription || road?.description || ''}
                       </p>
                     </div>
                   </div>
@@ -622,15 +622,15 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Date Started</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.dateBuilt || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.dateBuilt || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Completion Date</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.completedDate || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.completedDate || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Type of Maintenance</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.type || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.type || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Status</p>
@@ -638,7 +638,7 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Scheduled Date</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.scheduledDate || 'N/A'}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.scheduledDate || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Budget</p>
@@ -647,7 +647,7 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                     <div className="md:col-span-3">
                       <p className="mb-2 text-sm font-medium text-gray-700">Maintenance Activities</p>
                       <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
-                        {record.description || 'N/A'}
+                        {record.description || ''}
                       </p>
                     </div>
                   </div>

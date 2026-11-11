@@ -288,7 +288,7 @@ test('project details and printed financial information group saved values', asy
   const fields = sections.flatMap(section => section.fields);
   assert.equal(fields.find(field => field.label === 'Approved Budget for the Contract (ABC)').value, 'Php 1,234,567.89');
   assert.equal(fields.find(field => field.label === 'Contracted Amount').value, 'Php 1,000.25');
-  assert.equal(fields.find(field => field.label === 'Actual Project Cost').value, 'Php 0.50');
+  assert.equal(fields.some(field => field.label === 'Actual Project Cost'), false);
 });
 
 test('whole peso values retain .00 in editing, saving, viewing and printing', async () => {
@@ -317,7 +317,7 @@ test('whole peso values retain .00 in editing, saving, viewing and printing', as
   assert.equal((container.textContent.match(/Php 10,000\.00/g) || []).length, 2);
   await act(async () => [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
   const fields = sections.flatMap(section => section.fields);
-  for (const label of ['Approved Budget for the Contract (ABC)', 'Contracted Amount', 'Actual Project Cost']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
+  for (const label of ['Approved Budget for the Contract (ABC)', 'Contracted Amount']) assert.equal(fields.find(field => field.label === label).value, 'Php 10,000.00');
 });
 
 for (const editing of [false, true]) {
@@ -507,4 +507,31 @@ test('maintenance detail labels have no required markers', async () => {
   await act(async () => container.querySelector('[aria-label="View maintenance details for Road"]').click());
   const labels = [...container.querySelectorAll('.maintenance-detail-dialog p')].filter(el => el.className.includes('font-medium'));
   assert.ok(labels.length); assert.ok(labels.every(el => !el.textContent.trim().endsWith('*')));
+});
+
+test('all printing roles omit legacy fields and leave empty project fields blank', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  let sections;
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui,
+    './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'), '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', type: 'Road', location: 'Town', dateBuilt: '2000-01-01', condition: 'Good', noOfExtensions: '0', pcadLicenseNo: 'LIC', adjustProjectCost: '900', completionPercentage: '75' };
+  for (const role of ['Admin', 'Head Engineer', 'Staff - Encoder']) {
+    await reset(); sections = undefined;
+    await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], userRole: role, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} })));
+    await act(async () => container.querySelector('[aria-label="View details for Road"]').click());
+    const detail = container.querySelector('.project-details-dialog');
+    for (const label of ['Road Network ID No.', 'Contact Information', 'No. of Extensions']) {
+      const p = [...detail.querySelectorAll('p')].find(el => el.textContent === label);
+      assert.equal(p.nextElementSibling.textContent, '', `${role}: ${label}`);
+    }
+    await act(async () => [...detail.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
+    const fields = sections.flatMap(section => section.fields);
+    for (const label of ['PCAD License No.', 'Actual Project Cost', 'Completion Percentage']) assert.equal(fields.some(field => field.label === label), false);
+    for (const label of ['Road Network ID No.', 'Contact Information', 'No. of Extensions']) assert.ok(!fields.find(field => field.label === label).value);
+  }
 });
