@@ -754,7 +754,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                   </span>
                 </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
+                <div className="mt-3 flex -translate-y-1 items-center justify-between gap-2 border-t border-slate-200 pt-3">
                   <span className="flex items-center gap-1.5 text-sm text-slate-500">
                     {(record.status === 'Completed' ? record.completedDate : inspectionDate) && <><Calendar className="h-4 w-4 text-slate-400" />
                     {record.status === 'Completed' ? `Completed: ${record.completedDate}` : `Inspection: ${inspectionDate}`}</>}
