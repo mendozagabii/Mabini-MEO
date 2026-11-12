@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Record the B1-B7 answers and the planned execution order
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** Owner answered the seven follow-up questions. Updated docs/WORKFLOW-DECISIONS.md to revision 2: Q6 is recorded as reversed by B1 (maintenance cannot exist without an inspection, which is what the code already does, so no work); one inspector per project; the validation lock releases when the next yearly validation opens; the Findings column shows what the inspection actually recorded rather than invented text; option (a) accepted for the print-versus-purge conflict, so the 30-day deletion stands and printing only covers surviving records; Q27 clarified as coverage of the project (up to 5 barangays, one inspection per project). Added the single item still open: what B6 actually names — PCAB belongs to the contractor record and was not mentioned, Completion Percentage exists both on the project and on each progress entry, and Actual Project Cost is adjusted_project_cost while Amount contracted must stay. Added the planned ten-step execution order with the database change and blocker for each, and noted that the unapplied staff-archive migration and the storage files must be handled before the purge job. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Record the workflow review decisions and the seven open questions
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-REVIEW.md` (modified), `docs/WORKFLOW-DECISIONS.md` (new)
