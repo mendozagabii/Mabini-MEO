@@ -16,7 +16,7 @@ const COMPARED_DETAIL_FIELDS = [
   'projectName', 'roadName', 'roadNetworkId', 'location', 'barangay', 'projectCategory', 'contractor',
   'contractAmount', 'projectDescription', 'components', 'description', 'dateStarted', 'dateBuilt',
   'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate', 'noOfExtensions',
-  'sourceOfFunds', 'appropriation', 'adjustProjectCost', 'completionPercentage',
+  'sourceOfFunds', 'appropriation',
 ];
 
 /**

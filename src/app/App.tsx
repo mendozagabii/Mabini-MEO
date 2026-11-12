@@ -51,13 +51,10 @@ interface LocalRoad {
   contractorName?: string;
   contractorAddress?: string;
   contactInformation?: string;
-  pcadLicenseNo?: string;
   sourceOfFunds?: string;
   appropriation?: string;
   contractedAmount?: string;
-  adjustProjectCost?: string;
   completionDate?: string;
-  completionPercentage?: string;
   turnoverDate?: string;
   attachments?: ProjectAttachment[];
   validationResult?: 'Validated' | 'Return for Revision';

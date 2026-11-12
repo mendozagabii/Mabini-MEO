@@ -1,7 +1,7 @@
 # WBLRMS — Decisions from the workflow review
 
 **Date:** 2026-11-12 (rev. 2) · **Branch:** `arena/0da75355-mabini-meo` · **Source:** answers to `docs/WORKFLOW-REVIEW.md` §10, then to follow-up questions B1–B7
-**Status:** 27 of 27 items decided · **steps 1–8 built, plus tasks 11–16** · step 6 sends nothing until the office sets the mailbox, and step 8 deletes nothing until `RETENTION_LIVE=1` · next: step 9 (field removal)
+**Status:** 27 of 27 items decided · **steps 1–8 built and step 9 built except the column drop**, plus tasks 11–16 · step 6 sends nothing until the mailbox is set, step 8 deletes nothing until `RETENTION_LIVE=1`, step 9's drop waits for the office's approval after the CSV export · next: nothing left on the plan
 
 ---
 
@@ -108,7 +108,7 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 | **6** ✅ | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | built (`942e3eb`); **sends only once the mailbox is set** — `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` in the hosting environment |
 | **7** ✅ | **Print both views** (Q24): whole overview, and one year | none | done |
 | **8** ✅ | **30-day purge** (Q26): daily scheduled job, **report-only until `RETENTION_LIVE=1`**, deletes stored files before rows | none (deletes data, not schema) | built (`1babedd`); **the live run still needs the explicit go-ahead** — set `RETENTION_LIVE=1` (and `CRON_SECRET`) only when the office says so |
-| **9** | **Field removal** (Q25) | hide first, drop later | §3 |
+| **9** ◑ | **Field removal** (Q25): PCAB License No., Completion Percentage and Actual Project Cost are gone from every screen and print, and the Head Engineer can download them as CSV | export (built), hide (built), drop (written in `20261116_drop_retired_project_fields.sql`, **not applied**) | `export → hide → drop`; the drop needs the office's go-ahead after the CSV is kept |
 | **10** ✅ | **Five locations** (Q27): free-text coverage lines, max 5, one line per location in the view and the print | `project_locations` table + backfill (migration applied) | done (`3ec5890`) |
 
 Steps 1–3 need no database change and no further answer, so they can start as soon as the plan is approved. Step 10 is last because it touches the project form, the project list and the filter at once.

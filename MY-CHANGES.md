@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Retired fields exported, hidden everywhere, drop written but not applied (step 9)
+- **Type:** Modified
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/App.tsx` (modified), `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/supabase-data.ts` (modified), `src/app/api/local-road/retired-fields-export/` (new), `src/lib/retired-fields.ts` (new), `supabase/migrations/20261116_drop_retired_project_fields.sql` (new), `tests/retired-fields.test.cjs` (new)
+- **What & why:** The office asked to remove PCAB License No., Completion Percentage (both places) and Actual Project Cost, keeping Amount Contracted, with the order export then hide then drop. The Head Engineer now downloads those values as CSV from the project screen (all 17 projects, archived ones included, straight from the database), the last two boxes are gone from the project detail for every role, and the app no longer reads or compares the columns. The drop is written in its own migration and deliberately not applied, because it cannot be undone.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Record the step 8 commit in the plan
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)

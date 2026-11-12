@@ -43,13 +43,13 @@ interface LocalRoad {
   contractorName?: string;
   contractorAddress?: string;
   contactInformation?: string;
-  pcadLicenseNo?: string;
+
   sourceOfFunds?: string;
   appropriation?: string;
   contractedAmount?: string;
-  adjustProjectCost?: string;
+
   completionDate?: string;
-  completionPercentage?: string;
+
   turnoverDate?: string;
   attachments?: ProjectAttachment[];
   validationResult?: 'Validated' | 'Return for Revision';
@@ -102,8 +102,27 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const [selectedValidationYear, setSelectedValidationYear] = useState<number | null>(null);
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
   const canPrint = ['Admin', 'Head Engineer', 'Staff - Encoder'].includes(userRole);
-  // @mine — only non-encoder, non-validator, non-head-engineer views retain the legacy fields.
-  const showLegacyCost = !validationMode && !['Staff - Encoder', 'Head Engineer'].includes(userRole);
+  // @mine — step 9: PCAB License No., Completion Percentage and Actual Project Cost are
+  // gone from every screen and print; the office keeps them in the CSV export below.
+  const canExportRetiredFields = userRole === 'Head Engineer' && !validationMode;
+  const exportRetiredFields = async () => {
+    try {
+      const response = await fetch('/api/local-road/retired-fields-export');
+      if (!response.ok) throw new Error('The export could not be prepared.');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'retired-project-fields.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('The retired fields export failed.', error);
+      window.alert('The export could not be downloaded. Please try again.');
+    }
+  };
 
   // @mine — task 12: the coverage lines read as one box with one line per location,
   // falling back to a legacy single value when a record predates the coverage table.
@@ -329,7 +348,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Source of Funds</p>
               <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.sourceOfFunds || ''}</p>
             </div>
-            <div className={`mt-4 grid grid-cols-1 gap-4 ${showLegacyCost ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Approved Budget for the Contract (ABC)</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.appropriation ? `Php ${formatSavedProjectCurrency(selectedItem.appropriation)}` : ''}</p>
@@ -338,12 +357,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Contracted Amount</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.contractedAmount ? `Php ${formatSavedProjectCurrency(selectedItem.contractedAmount)}` : ''}</p>
             </div>
-            {showLegacyCost && (
-            <div>
-              <p className="mb-2 block text-sm font-medium text-gray-700">Actual Project Cost</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.adjustProjectCost ? `Php ${formatSavedProjectCurrency(selectedItem.adjustProjectCost)}` : ''}</p>
-            </div>
-            )}
             </div>
             </section>
             <section className="border-b pb-6 pt-5">
@@ -352,12 +365,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <p className="mb-2 block text-sm font-medium text-gray-700">Completion Date</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionDate || ''}</p>
             </div>
-            {showLegacyCost && (
-            <div className="mt-4">
-              <p className="mb-2 block text-sm font-medium text-gray-700">Completion Percentage</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.completionPercentage || ''}</p>
-            </div>
-            )}
             <div className="mt-4">
               <p className="mb-2 block text-sm font-medium text-gray-700">Turnover and Acceptance Date</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.turnoverDate || ''}</p>
@@ -536,13 +543,27 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                 : 'Road project information, implementation details, and completion records.'}
             </p>
         </div>
-        {!validationMode && !isAdminReadDeleteOnly && <button
-          onClick={onAdd}
-          className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 font-semibold text-white shadow-md transition hover:brightness-105"
-        >
-          <Plus className="w-5 h-5" />
-          Add Local Road
-        </button>}
+        <div className="flex items-center gap-3">
+          {canExportRetiredFields && (
+            <button
+              type="button"
+              onClick={exportRetiredFields}
+              data-field="Retired Fields Export"
+              aria-label="Download the retired project fields as CSV"
+              className="flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
+            >
+              <Download className="w-4 h-4" />
+              Retired fields (CSV)
+            </button>
+          )}
+          {!validationMode && !isAdminReadDeleteOnly && <button
+            onClick={onAdd}
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 font-semibold text-white shadow-md transition hover:brightness-105"
+          >
+            <Plus className="w-5 h-5" />
+            Add Local Road
+          </button>}
+        </div>
       </div>
 
       <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">

@@ -77,13 +77,10 @@ function mapProject(p: Joined): StoredRecord {
     contractorName: contractor.name ?? '',
     contractorAddress: contractor.address ?? '',
     contactInformation: contractor.contact_information ?? '',
-    pcadLicenseNo: contractor.pcab_license_no ?? '',
     sourceOfFunds: p.source_of_funds ?? '',
     appropriation: numStr(p.appropriation),
     contractedAmount: numStr(p.contracted_amount),
-    adjustProjectCost: numStr(p.adjusted_project_cost),
     completionDate: str(p.completion_date),
-    completionPercentage: numStr(p.completion_percentage ?? 0),
     turnoverDate: str(p.turnover_date),
     projectStatus: p.status ?? 'planned',
     ...(validation ? { validationResult: validation } : {}),
@@ -459,9 +456,6 @@ function deriveProjectStatus(rec: StoredRecord): string {
   if (['planned', 'on_track', 'delayed', 'completed', 'turned_over'].includes(explicit)) return explicit;
   if (str(rec.turnoverDate)) return 'turned_over';
   if (str(rec.actualCompletionDate)) return 'completed';
-  const pct = Number(rec.completionPercentage ?? 0);
-  if (pct >= 100) return 'completed';
-  if (pct > 0) return 'on_track';
   return 'planned';
 }
 
