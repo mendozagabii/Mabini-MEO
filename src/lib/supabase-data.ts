@@ -642,7 +642,7 @@ function mapInspection(i: Joined): StoredRecord {
     remarks: i.remarks ?? '',
     inspector: i.profiles?.full_name ?? i.profiles?.name ?? '',
     inspectorId: i.inspector_id ?? undefined,
-    inspectionType: INSPECTION_TYPE_FROM_DB[i.inspection_type] ?? 'Routine',
+    inspectionType: i.inspection_purpose || INSPECTION_TYPE_FROM_DB[i.inspection_type] || 'Routine',
     // @mine — annual follow-up markers (scheduled rows have no score yet).
     ...(i.annual_follow_up_year
       ? {
@@ -704,19 +704,25 @@ export const listInspections = (db: SupabaseClient, admin?: SupabaseClient) => l
 export const listArchivedInspections = (db: SupabaseClient) => listInspectionsWhere(db, true);
 
 export async function saveInspection(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
+  const idValue = str(rec.id);
+  const lookup = idValue ? await db.from('inspections').select('id, inspection_type').eq('id', idValue).maybeSingle() : null;
+  if (lookup?.error) throw lookup.error;
+  const existing = lookup?.data ?? null;
+  // The original enum continues to identify annual follow-ups. The user-facing
+  // type is stored separately so recording an annual inspection cannot generate duplicates.
+  const newPurpose = str(rec.inspectionType) === 'Monitoring and Maintenance Inspection' ? str(rec.inspectionType) : undefined;
   const payload = {
     project_id: projectId,
     inspection_date: str(rec.date) || new Date().toISOString().slice(0, 10),
-    inspection_type: INSPECTION_TYPE_TO_DB[str(rec.inspectionType)] ?? 'routine',
+    inspection_type: existing?.inspection_type ?? INSPECTION_TYPE_TO_DB[str(rec.inspectionType)] ?? 'routine',
+    ...(newPurpose ? { inspection_purpose: newPurpose } : {}),
     inspector_id: userId,
     overall_score: rec.conditionRating == null || rec.conditionRating === '' ? null : Number(rec.conditionRating),
     remarks: str(rec.remarks) || null,
     validation_status: VALIDATION_TO_DB[str(rec.validationStatus)] ?? 'pending',
-    // @mine — annual follow-up year (null for ordinary inspections).
     annual_follow_up_year: rec.annualFollowUpYear ? Number(rec.annualFollowUpYear) : null,
   };
-  let id = str(rec.id);
-  const existing = id ? (await db.from('inspections').select('id').eq('id', id).maybeSingle()).data : null;
+  let id = idValue;
   if (existing) {
     const { error } = await db.from('inspections').update(payload).eq('id', id);
     if (error) throw error;

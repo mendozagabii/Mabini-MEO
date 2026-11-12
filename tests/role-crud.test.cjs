@@ -129,7 +129,7 @@ for (const [name, props, staff, addPattern, editPattern, deletePattern] of cases
     const Component = loadTs(`src/app/components/${name}.tsx`, componentMocks)[name];
     const render = (userRole) => renderToStaticMarkup(React.createElement(Component, { ...props, userRole, currentUser: 'User' }));
     const staffHtml = render(staff), headHtml = render('Head Engineer');
-    assert.match(staffHtml, addPattern); assert.match(staffHtml, editPattern); assert.match(staffHtml, deletePattern);
+    if (name === 'InspectionModule') assert.doesNotMatch(staffHtml, addPattern); else assert.match(staffHtml, addPattern); assert.match(staffHtml, editPattern); assert.match(staffHtml, deletePattern);
     assert.doesNotMatch(headHtml, addPattern); assert.doesNotMatch(headHtml, editPattern); assert.match(headHtml, deletePattern);
     // Buttons stay accessible while their visible content is only an icon.
     for (const html of [staffHtml, headHtml]) {

@@ -123,11 +123,16 @@ test('every category keeps the five condition ratings with a written field condi
   assert.match(drainage.details.Bad, /roadway itself serves as the drain/i);
 });
 
-test('the add-inspection form shows a remark box and an attach control under each category', () => {
-  const { container, root } = renderModule();
-  const addButton = [...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Add Inspection');
-  assert.ok(addButton, 'Add Inspection button should exist');
-  click(addButton);
+const pendingInspection = { id: 'pending', localRoadId: 'road-1', localRoadName: 'Poblacion Road', date: '2026-11-11', conditionRating: 0, remarks: '', inspector: '', conditionRatings: {}, isScheduledAnnualFollowUp: true };
+function openPendingForm(container) { click(container.querySelector('[aria-label^="Record inspection"]')); }
+
+test('the inspection form shows a remark box and an attach control under each category', () => {
+  const { container, root } = renderModule([pendingInspection]);
+  assert.equal([...container.querySelectorAll('button')].some(button => button.textContent.trim() === 'Add Inspection'), false);
+  openPendingForm(container);
+  assert.equal(container.querySelector('[aria-label="Required inspection attachment"]'), null);
+  assert.match(container.textContent, /Monitoring and Maintenance Inspection/);
+  assert.doesNotMatch(container.textContent, /Acceptance Inspection/);
 
   const remarkBoxes = [...container.querySelectorAll('[data-category-remark]')];
   assert.equal(remarkBoxes.length, 11);
@@ -145,8 +150,8 @@ test('the add-inspection form shows a remark box and an attach control under eac
 });
 
 test('remarks stay editable while a category is rated N/A', () => {
-  const { container, root } = renderModule();
-  click([...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Add Inspection'));
+  const { container, root } = renderModule([pendingInspection]);
+  openPendingForm(container);
   const naRadio = container.querySelector('input[name="condition-Drainage"][value="N/A"]');
   assert.ok(naRadio, 'Drainage should offer the N/A rating');
   act(() => {
@@ -160,8 +165,8 @@ test('remarks stay editable while a category is rated N/A', () => {
 });
 
 test('submitting without ratings asks for a rating on every category', () => {
-  const { container, root } = renderModule();
-  click([...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Add Inspection'));
+  const { container, root } = renderModule([pendingInspection]);
+  openPendingForm(container);
   const form = container.querySelector('form');
   act(() => {
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
@@ -212,4 +217,29 @@ test('inspection details show stored remarks, attachments and "Not assessed" for
   assert.equal((container.textContent.match(/Not assessed/g) || []).length, 4);
   act(() => root.unmount());
   container.remove();
+});
+
+
+test('Inspector can filter inspection records by a valid date and clear it', () => {
+  const records = [
+    { ...pendingInspection, id: 'one', localRoadName: 'Poblacion Road', date: '2026-11-11' },
+    { ...pendingInspection, id: 'two', localRoadName: 'Poblacion Road', date: '2026-11-12' },
+  ];
+  const { container, root } = renderModule(records);
+  const date = container.querySelector('[aria-label="Filter by inspection date"]');
+  assert.equal(date.type, 'date');
+  assert.equal(container.querySelector('[aria-label="Filter inspections by status"]'), null);
+  const setDate = value => act(() => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(date, value);
+    date.dispatchEvent(new window.Event('input', { bubbles: true }));
+    date.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  setDate('2026-11-11');
+  assert.match(container.textContent, /1 record listed/);
+  setDate('2026-02-30');
+  assert.equal(date.value, '');
+  assert.match(container.textContent, /2 records listed/);
+  setDate('');
+  assert.match(container.textContent, /2 records listed/);
+  act(() => root.unmount()); container.remove();
 });

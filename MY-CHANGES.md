@@ -425,3 +425,6 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 - Project printouts omit PCAD License No., Actual Project Cost, and Completion Percentage for every printing role. Empty project details and print fields are blank; zero extensions are displayed blank because the existing database saves omitted extension counts as zero. No stored data is removed.
 - Requeued validation forms start with an empty remarks input while retaining previous remarks as history; pending validation is capitalized consistently in project details and printouts.
 - Added irreversible-delete confirmation dialogs for archived projects, inspections and maintenance, including failure feedback. Existing active-record and user confirmations remain in place.
+
+- Inspector inspection management uses a date filter instead of status tabs and no longer offers Add Inspection. The editable form offers the single Monitoring and Maintenance Inspection type and removes the final general attachment field while keeping per-category and previously saved attachments.
+- Added nullable `inspections.inspection_purpose` to store the selected type independently of the annual follow-up enum. The additive migration was applied to shared Supabase with explicit owner approval; no existing records were removed or modified.
