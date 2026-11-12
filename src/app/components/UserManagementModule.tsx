@@ -1238,11 +1238,11 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.createdDate}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <div className="flex items-center gap-2">
-                              <button onClick={() => handleRestoreUser(user.id)} className="text-green-500 hover:text-green-700 px-3 py-1 rounded hover:bg-green-50 transition-colors">
+                              <button onClick={() => handleRestoreUser(user.id)} type="button" className="inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
                                 Restore
                               </button>
-                              <button onClick={() => handleDeleteArchivedUser(user.id)} className="text-red-500 hover:text-red-700 p-1" aria-label={`Delete ${user.name}`}>
-                                <Trash2 className="w-4 h-4" />
+                              <button onClick={() => handleDeleteArchivedUser(user.id)} type="button" className="inline-flex items-center gap-2 rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600" aria-label={`Delete ${user.name}`}>
+                                <Trash2 className="w-4 h-4" /> Delete permanently
                               </button>
                             </div>
                           </td>
@@ -1277,8 +1277,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                         <td className="px-6 py-4 text-sm text-gray-600">{record.projectCategory || '—'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{record.location || '—'}</td>
                         <td className="px-6 py-4 text-sm">
-                          <button onClick={() => handleRestoreRecord(record.id)} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                          <button onClick={() => confirmDeleteArchivedRecord('project', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                          <button onClick={() => handleRestoreRecord(record.id)} type="button" className="mr-2 inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">Restore</button>
+                          <button onClick={() => confirmDeleteArchivedRecord('project', record)} type="button" className="inline-flex items-center rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Delete permanently</button>
                         </td>
                       </tr>
                     ))}
@@ -1307,8 +1307,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm font-medium text-slate-700">{record.projectName || record.localRoadName || record.roadName || record.name || 'Unnamed project'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.date || '—'}</td>
                           <td className="px-6 py-4 text-sm">
-                            <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                            <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                            <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" className="mr-2 inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">Restore</button>
+                            <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} type="button" className="inline-flex items-center rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Delete permanently</button>
                           </td>
                         </tr>
                       ))}
@@ -1341,8 +1341,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm text-gray-600">{record.completedDate || '—'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.status || '—'}</td>
                           <td className="px-6 py-4 text-sm">
-                            <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                            <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                            <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" className="mr-2 inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">Restore</button>
+                            <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} type="button" className="inline-flex items-center rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Delete permanently</button>
                           </td>
                         </tr>
                       ))}

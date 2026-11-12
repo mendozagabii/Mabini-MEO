@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Wrench, Calendar, Search, MapPin, Pencil, Trash2, X, Printer, ClipboardCheck, Play } from 'lucide-react';
+import { Plus, Wrench, Calendar, Search, MapPin, Pencil, Trash2, X, Printer, ClipboardCheck, Play, Table2 } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
-import { latestByProject, maintenanceEligible, isPendingInspection } from '@/lib/inspection-selection';
+import { eligibleMaintenanceInspections } from '@/lib/inspection-selection';
 import { recordClientActivity } from '@/lib/activity-log-client';
 
 interface Maintenance {
@@ -28,6 +28,7 @@ interface MaintenanceModuleProps {
   localRoadList: any[];
   scheduledInspectionIds?: string[];
   inspections: any[];
+  scheduledArchivedInspections?: any[];
   onAddMaintenance: (maintenance: Omit<Maintenance, 'id'>) => Promise<boolean> | void;
   onEditMaintenance: (maintenance: Maintenance) => Promise<boolean> | void;
   onDeleteMaintenance: (id: string) => void;
@@ -41,7 +42,7 @@ const maintenanceFormTabs = [
   { id: 'activity', label: 'Maintenance Info' },
 ] as const;
 
-export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds = [], localRoadList, inspections, onAddMaintenance, onEditMaintenance, onDeleteMaintenance, onUpdateStatus, currentUser, userRole = '' }: MaintenanceModuleProps) {
+export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds = [], scheduledArchivedInspections = [], localRoadList, inspections, onAddMaintenance, onEditMaintenance, onDeleteMaintenance, onUpdateStatus, currentUser, userRole = '' }: MaintenanceModuleProps) {
   // @mine — Admin accounts are displayed as Head Engineer.
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
   const [showForm, setShowForm] = useState(false);
@@ -50,6 +51,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [maintenanceView, setMaintenanceView] = useState<'history' | 'overview'>('history');
   const [selectedMaintenance, setSelectedMaintenance] = useState<{ record: Maintenance; referenceId: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Maintenance | null>(null);
   const [projectError, setProjectError] = useState('');
@@ -68,10 +70,8 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
     Completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     Deferred: 'border-slate-200 bg-slate-100 text-slate-600',
   };
-  // Only the latest completed assessment determines current eligibility; a pending
-  // annual follow-up does not erase the most recent recorded results.
-  const completedInspections = inspections.filter((inspection) => !isPendingInspection(inspection));
-  const eligibleInspections = latestByProject(completedInspections).filter(inspection => maintenanceEligible(inspection) && !scheduledInspectionIds.includes(inspection.id) && !maintenanceRecords.some(record => record.inspectionId === inspection.id));
+  const allScheduledIds = [...scheduledInspectionIds, ...maintenanceRecords.map(record => record.inspectionId).filter((id): id is string => !!id)];
+  const eligibleInspections = eligibleMaintenanceInspections(inspections, allScheduledIds, scheduledArchivedInspections);
   const eligibleRoadIds = new Set(eligibleInspections.map(inspection => inspection.localRoadId));
   const eligibleProjects = localRoadList.filter((item) =>
     eligibleRoadIds.has(item.id) ||
@@ -273,12 +273,13 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       returnToSection(projectSectionRef, 'project', '[aria-label="Select project"]');
       return;
     }
-    if (!formData.dateStarted || !formData.completionDate || !formData.maintenanceType || !formData.maintenanceActivities.trim()) {
+    if (!formData.dateStarted || !formData.completionDate || !formData.maintenanceType || !formData.maintenanceActivities.trim() || !formData.remarks.trim()) {
       setActivityError([
         !formData.dateStarted ? 'Date started is required.' : '',
         !formData.completionDate ? 'Completion date is required.' : '',
         !formData.maintenanceType ? 'Select a maintenance type.' : '',
         !formData.maintenanceActivities.trim() ? 'Enter the maintenance activities.' : '',
+        !formData.remarks.trim() ? 'Enter remarks.' : '',
       ].filter(Boolean).join(' '));
       returnToSection(activitySectionRef, 'activity', !formData.completionDate ? 'input[type="date"]:not([readonly])' : 'textarea');
       return;
@@ -541,10 +542,13 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Remarks</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Remarks *</label>
                   <AutoGrowTextarea
                     value={formData.remarks}
                     onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    onInvalid={(e) => e.currentTarget.setCustomValidity('Please fill out this field.')}
+                    onInput={(e) => e.currentTarget.setCustomValidity('')}
+                    required
                     rows={3}
                     className="w-full resize-y px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
                   />
@@ -671,14 +675,42 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
         })()}
       </Dialog>
 
-      <div className="flex items-center justify-between gap-4 py-1">
-        <h2 className="flex items-center gap-3 text-2xl font-bold text-blue-700">
-          <ClipboardCheck className="h-6 w-6 text-blue-600" />
-          Maintenance History
-        </h2>
+      <div className="flex flex-wrap items-center justify-between gap-4 py-1">
+        <div role="tablist" aria-label="Maintenance views" className="flex flex-wrap gap-2">
+          <button type="button" role="tab" aria-selected={maintenanceView === 'history'} onClick={() => setMaintenanceView('history')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${maintenanceView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
+            <ClipboardCheck className="h-5 w-5" aria-hidden="true" /> Maintenance History
+          </button>
+          <button type="button" role="tab" aria-selected={maintenanceView === 'overview'} onClick={() => setMaintenanceView('overview')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${maintenanceView === 'overview' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
+            <Table2 className="h-5 w-5" aria-hidden="true" /> Overview
+          </button>
+        </div>
         <span className="text-sm text-slate-500">{visibleRecords.length} records listed</span>
       </div>
-
+      {maintenanceView === 'overview' ? (
+        <div role="tabpanel" aria-label="Maintenance Overview" className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left">
+            <thead className="border-b border-gray-200 bg-gray-50"><tr>
+              <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Project Name</th>
+              <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+              <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Remarks</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {visibleRecords.map(({record, referenceId}) => {
+                const road = localRoadList.find(item => item.id === record.localRoadId);
+                const name = road?.projectName || road?.name || record.localRoadName;
+                return <tr key={record.id} tabIndex={0} aria-label={`View maintenance details for ${name}`} onClick={() => openMaintenanceDetails(record, referenceId)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openMaintenanceDetails(record, referenceId); } }} className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50">
+                  <td className="px-6 py-4 font-medium text-blue-600">{name}</td>
+                  <td className="px-6 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[record.status]}`}>{record.status}</span></td>
+                  <td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{record.remarks || ''}</td>
+                </tr>;
+              })}
+              {visibleRecords.length === 0 && <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-500">No maintenance records match your search or filters.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {visibleRecords.map(({ record, referenceId }) => {
             const road = localRoadList.find((item) => item.id === record.localRoadId);
@@ -760,6 +792,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
             </div>
           )}
           </div>
+      )}
       <div className="mb-10 mt-auto flex flex-col gap-2 border-t border-slate-200 px-1 pt-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
         <span>Showing {visibleRecords.length} of {maintenanceRecords.length} total maintenance records</span>
         <span className="font-medium text-blue-700">Municipality of Mabini, Batangas</span>

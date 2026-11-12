@@ -40,6 +40,22 @@ export function maintenanceEligible(inspection: InspectionSummary): boolean {
   return score > 0 && score < 8;
 }
 
+/** An inspection can only be scheduled once; subsequent schedules require a newer annual follow-up. */
+export function eligibleMaintenanceInspections<T extends InspectionSummary>(inspections: T[], scheduledIds: string[], archivedInspections: InspectionSummary[] = []): T[] {
+  const scheduled = new Set(scheduledIds);
+  const previousByRoad = new Map<string, number>();
+  for (const inspection of [...inspections, ...archivedInspections]) {
+    if (!scheduled.has(inspection.id)) continue;
+    const year = inspection.annualFollowUpYear || Number(inspection.date?.slice(0, 4)) || 0;
+    previousByRoad.set(inspection.localRoadId, Math.max(previousByRoad.get(inspection.localRoadId) || 0, year));
+  }
+  return latestByProject(inspections.filter(inspection => !isPendingInspection(inspection))).filter(inspection => {
+    if (!maintenanceEligible(inspection) || scheduled.has(inspection.id)) return false;
+    const previousYear = previousByRoad.get(inspection.localRoadId);
+    return previousYear === undefined || (!!inspection.annualFollowUpYear && inspection.annualFollowUpYear > previousYear);
+  });
+}
+
 export const assessmentComponents = ['Concrete', 'Asphalt', 'Gravel', 'Earth', 'Shoulder', 'Side Drain', 'Sidewalk', 'Drainage', 'Solar Lights', 'Slope Protection', 'Retaining Wall'];
 export function findingsSummary(ratings: Record<string, string>, remarks: Record<string, string>): string {
   // Combine the inspector's observations without inventing details or exposing

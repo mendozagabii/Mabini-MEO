@@ -52,3 +52,19 @@ test('findings combine component remarks into one concise summary without catego
   const {findingsSummary} = load('src/lib/inspection-selection.ts');
   assert.equal(findingsSummary({Concrete:'Good', Drainage:'Fair', Asphalt:'Poor'}, {Concrete:'No cracks.', Drainage:'Water collects at the outlet.', Asphalt:'No cracks.'}), 'No cracks; Water collects at the outlet.');
 });
+
+test('a project returns to scheduling only for a newer completed eligible annual follow-up, even after skipped years', () => {
+  const {eligibleMaintenanceInspections} = load('src/lib/inspection-selection.ts');
+  const first = {id:'first',localRoadId:'p',date:'2027-12-01',annualFollowUpYear:2027,conditionRatings:{A:'Fair'}};
+  const pending = {id:'next',localRoadId:'p',date:'2030-01-01',annualFollowUpYear:2030,isScheduledAnnualFollowUp:true};
+  assert.deepEqual(eligibleMaintenanceInspections([first],[]).map(x=>x.id), ['first']);
+  assert.deepEqual(eligibleMaintenanceInspections([first,pending],['first']), []);
+  const sameYear = {...first, id:'duplicate',date:'2027-12-02'};
+  assert.deepEqual(eligibleMaintenanceInspections([first,sameYear],['first']), []);
+  const later = {...first,id:'later',annualFollowUpYear:2030,date:'2030-01-01'};
+  assert.deepEqual(eligibleMaintenanceInspections([first,later],['first']).map(x=>x.id), ['later']);
+  assert.deepEqual(eligibleMaintenanceInspections([sameYear],['first'],[first]), []);
+  assert.deepEqual(eligibleMaintenanceInspections([later],['first'],[first]).map(x=>x.id), ['later']);
+  assert.deepEqual(eligibleMaintenanceInspections([first,later],['first','later']), []);
+  assert.deepEqual(eligibleMaintenanceInspections([first,{...later,conditionRatings:{A:'Good'}}],['first']), []);
+});

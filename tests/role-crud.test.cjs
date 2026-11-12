@@ -32,7 +32,7 @@ const api = {
 };
 let calls = [];
 const data = {
-  listRoads: async () => [], listInspections: async () => [{ id: 'x', localRoadId: 'road' }],
+  listRoads: async () => [], listArchivedInspections: async () => [], listInspections: async () => [{ id: 'x', localRoadId: 'road' }],
   archiveRoad: async () => (calls.push('project'), true),
   archiveInspection: async () => (calls.push('inspection'), true),
   archiveMaintenance: async () => (calls.push('maintenance'), true),
@@ -183,7 +183,7 @@ test('maintenance scheduling checks newest completed inspection and rejects alre
     data.listMaintenance = async () => [];
     data.listArchivedMaintenance = async () => [];
     data.saveMaintenance = async (_db, payload) => ({...payload, id:'m'});
-    const body = {localRoadId:'p', inspectionId:'i', type:'Corrective Type', scheduledDate:'2026-01-01', cost:0, description:'Repair'};
+    const body = {localRoadId:'p', inspectionId:'i', type:'Corrective Type', scheduledDate:'2026-01-01', cost:0, description:'Repair', remarks:'Needs repair'};
     assert.equal((await routes.maintenance.POST(request(body))).status, 200);
     data.listArchivedMaintenance = async () => [{id:'m', inspectionId:'i'}];
     assert.equal((await routes.maintenance.POST(request(body))).status, 409);
@@ -228,4 +228,14 @@ test('maintenance editing keeps remarks separate from activities', async () => {
     const result = await routes.maintenance.PATCH(request({id:'m',localRoadId:'p', type:'Corrective Type', scheduledDate:'2026-02-01', cost:0, description:'Repair', remarks:'Needs traffic signs'}));
     assert.equal(result.status, 200); assert.equal(saved.description, 'Repair'); assert.equal(saved.remarks, 'Needs traffic signs'); assert.equal(saved.inspectionId,'i');
   } finally { Object.assign(data, old); }
+});
+
+test('maintenance remarks are required for creation and full edits, but not status-only updates', async () => {
+  role = 'encoder';
+  assert.equal((await routes.maintenance.POST(request({localRoadId:'p',inspectionId:'i',remarks:'  '}))).status, 400);
+  const old = data.listMaintenance;
+  try {
+    data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'Scheduled'}];
+    assert.equal((await routes.maintenance.PATCH(request({id:'m',localRoadId:'p',type:'Corrective Type',scheduledDate:'2026-01-01',description:'Repair',cost:0,remarks:''}))).status, 400);
+  } finally { data.listMaintenance = old; }
 });

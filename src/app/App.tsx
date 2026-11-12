@@ -156,6 +156,7 @@ export default function App() {
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<Maintenance[]>([]);
   const [scheduledInspectionIds, setScheduledInspectionIds] = useState<string[]>([]);
+  const [scheduledArchivedInspections, setScheduledArchivedInspections] = useState<any[]>([]);
   const [aiRecommendations, setAiRecommendations] = useState<PredictionResult[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -240,7 +241,7 @@ export default function App() {
             if (!response.ok) throw new Error(`Request failed (${response.status}).`);
             const payload = await response.json();
             if (!Array.isArray(payload.data) || !Array.isArray(payload.scheduledInspectionIds)) throw new Error('Invalid maintenance response.');
-            if (active && current === generation) { setMaintenanceRecords(payload.data); setScheduledInspectionIds(payload.scheduledInspectionIds); }
+            if (active && current === generation) { setMaintenanceRecords(payload.data); setScheduledInspectionIds(payload.scheduledInspectionIds); setScheduledArchivedInspections(payload.scheduledArchivedInspections || []); }
           } catch (error) { console.error('Failed to load maintenance records.', error); }
         })(),
       ]);
@@ -706,6 +707,7 @@ export default function App() {
                 <MaintenanceModule
                   maintenanceRecords={maintenanceRecords}
                   scheduledInspectionIds={scheduledInspectionIds}
+                  scheduledArchivedInspections={scheduledArchivedInspections}
                   localRoadList={localRoadData}
                   inspections={inspections}
                   onAddMaintenance={handleAddMaintenance}

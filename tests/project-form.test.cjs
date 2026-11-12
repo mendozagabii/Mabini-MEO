@@ -556,3 +556,29 @@ test('validator reopens an updated returned project with an empty remarks input'
   assert.equal(label.nextElementSibling.textContent, 'Pending Validation');
   assert.match(detail.textContent, /Previous revision remarks/); // History remains visible separately.
 });
+
+test('maintenance overview and history use the same live records for encoder and head engineer', async () => {
+  const Dummy = ({children}) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, {get: () => Dummy});
+  const {MaintenanceModule} = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),
+    './ui/textarea': {AutoGrowTextarea: props => React.createElement('textarea', props)}, './ui/dialog':ui, './ui/select':ui,
+    './ConfirmActionDialog':ui, './PrintDocument':ui, '@/lib/activity-log-client':{recordClientActivity:async()=>{}},
+  });
+  const road = {id:'p',name:'Road',projectName:'Road'};
+  const record = {id:'m',localRoadId:'p',localRoadName:'Road',type:'Corrective Type',scheduledDate:'2026-01-01',status:'Scheduled',cost:0,description:'Repair',remarks:'Initial remark'};
+  for (const role of ['Head Engineer','Staff - Encoder']) {
+    await reset();
+    const props = {localRoadList:[road],inspections:[],userRole:role,currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}};
+    await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[record]})));
+    assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
+    await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
+    const table = container.querySelector('table');
+    assert.match(table.textContent,/Project Name/); assert.match(table.textContent,/Status/); assert.match(table.textContent,/Remarks/);
+    assert.match(table.textContent,/Road/); assert.match(table.textContent,/Scheduled/); assert.match(table.textContent,/Initial remark/);
+    await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{...record,status:'Completed',remarks:'Updated remark'}]})));
+    assert.match(container.querySelector('table').textContent,/Completed/); assert.match(container.querySelector('table').textContent,/Updated remark/);
+    await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Maintenance History')).click());
+    assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
+  }
+});
