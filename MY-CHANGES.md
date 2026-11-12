@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] A validated project is locked, a returned project must change, and the lists show project name and barangay
+- **Type:** Feature
+- **Files:** `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/project-validation-workflow.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified)
+- **What & why:** Bulk delivery of steps 2 and 3 plus tasks 15 and 16 of the agreed plan. Step 3 (WORKFLOW-DECISIONS Q4/B3): added isValidationLocked() to src/lib/project-validation-workflow.ts, which reports the validated year while it is the newest annual decision; the encoder's project PATCH in src/app/api/local-road/route.ts now refuses with 409 and an explanation when the project is locked, and the lock lifts the moment a newer annual entry exists, which is exactly when the next yearly validation opens. Step 2 (Q5): a project sent back for revision could be re-submitted untouched; the same route now compares the fields the encoder actually submitted against the stored project plus the attachment set by identity, and refuses with 400 when nothing changed, ignoring whitespace and number formatting. In LocalRoadList.tsx the encoder's edit control is replaced by a Validated badge with a tooltip for locked projects, so the interface explains the rule before the server has to. Task 15: the project list, the validation table and the maintenance list now read the barangay from road information (barangay first, free-text location only as a fallback), so the planned split of Location into five free-text lines will not change what those lists show. Task 16: the validation table column is headed Project Name and shows projectName instead of the road name. Tests: two route tests (locked project rejected with the year, unlocked by a newer entry; unchanged and cosmetically changed re-submissions rejected, a real change accepted) and two component tests (project name and barangay in both lists with the free-text location never shown, Validated badge replacing the edit control). tsc clean, 106/106 tests pass, next build succeeds.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Correct the task range in the new-requirements section
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)

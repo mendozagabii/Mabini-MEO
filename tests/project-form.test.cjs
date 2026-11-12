@@ -654,3 +654,60 @@ test('maintenance edit uses linked inspection date as the minimum for both field
   fields[1].value='2026-01-01'; await act(async()=>fields[1].checkValidity());
   assert.equal(fields[1].validationMessage,'Please fill out valid date.');
 });
+
+test('the validation table names the project and lists show the barangay', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road A', projectName: 'Poblacion Road Project', roadName: 'Poblacion Road',
+    location: 'Typewritten location', barangay: 'Anilao East', dateBuilt: '2020-01-01', condition: 'Good',
+    lastInspection: '', actualCompletionDate: '2025-03-31', validationResult: 'Validated',
+    annualValidationEntries: [{ year: 2026, dueDate: '2026-03-01', result: 'Pending', remarks: '' }] };
+  const props = { data: [item], currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} };
+
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { ...props, validationMode: true, userRole: 'Staff - Validator' })));
+  assert.match(container.textContent, /Project Name/);       // task 16 — column header
+  assert.match(container.textContent, /Poblacion Road Project/); // task 16 — the project name
+  assert.match(container.textContent, /Anilao East/);        // task 15 — the barangay
+  assert.doesNotMatch(container.textContent, /Typewritten location/); // never the free-text location
+
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Staff - Encoder' })));
+  assert.match(container.textContent, /Anilao East/);        // task 15 — the project list too
+  assert.doesNotMatch(container.textContent, /Typewritten location/);
+  await reset();
+});
+
+test('a validated project replaces the encoder edit control with a Validated badge', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  const base = { id: 'p', name: 'Road', projectName: 'Poblacion Road', location: 'Town', barangay: 'Town',
+    dateBuilt: '2020-01-01', condition: 'Good', actualCompletionDate: '2025-03-31' };
+  const show = async annualValidationEntries => {
+    await reset();
+    await act(async () => root.render(React.createElement(LocalRoadList, {
+      data: [{ ...base, annualValidationEntries }], currentUser: 'User', userRole: 'Staff - Encoder',
+      onAdd() {}, onEdit() {}, onDelete() {},
+    })));
+  };
+
+  await show([{ year: 2026, dueDate: '2026-03-01', result: 'Validated', remarks: 'OK' }]);
+  assert.match(container.textContent, /Validated/);
+  assert.equal(container.querySelector('[aria-label="Edit Poblacion Road"]'), null);
+
+  await show([{ year: 2026, dueDate: '2026-03-01', result: 'Return for Revision', remarks: 'Fix' }]);
+  assert.ok(container.querySelector('[aria-label="Edit Poblacion Road"]'));
+  await reset();
+});

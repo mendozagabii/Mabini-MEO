@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
-import { latestValidation, validationTask } from '@/lib/project-validation-workflow';
+import { isValidationLocked, latestValidation, validationTask } from '@/lib/project-validation-workflow';
 import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
@@ -568,7 +568,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <table className="w-full">
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Project Name</th>
                   <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Validation Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Location</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Date Built</th>
@@ -603,8 +603,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400"
                   >
                     <td className="whitespace-nowrap px-6 py-4">
+                      {/* @mine — task 16: the validation table names the project, not the road. */}
                       <span className="font-medium text-[#0ea5e9]">
-                        {item.name}
+                        {item.projectName || item.name || item.roadName || 'N/A'}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-center">
@@ -619,7 +620,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <MapPin className="h-4 w-4" />
-                        {item.location}
+                        {/* @mine — task 15: lists show the barangay under road information. */}
+                        {item.barangay || item.location || 'N/A'}
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{item.dateBuilt}</td>
@@ -655,7 +657,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                       <div>
                         <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-600">
                           <MapPin className="h-4 w-4 shrink-0" />
-                          {item.location || 'Location not set'}
+                          {/* @mine — task 15: the list shows the barangay. */}
+                          {item.barangay || item.location || 'Location not set'}
                         </p>
                       </div>
                     </div>
@@ -668,17 +671,28 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         {userRole === 'Staff - Encoder' && latestValidation(item).result === 'Return for Revision' && (
                           <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">For Revision</span>
                         )}
-                        {!isAdminReadDeleteOnly && (
-                          <button
-                            type="button"
-                            onClick={() => onEdit(item)}
-                            aria-label={`Edit ${item.projectName || item.name}`}
-                            title="Edit"
-                            className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                          >
-                            <Edit className="h-4 w-4" aria-hidden="true" />
-                          </button>
-                        )}
+                        {!isAdminReadDeleteOnly && (() => {
+                          // @mine — task 3: a validated project is locked until the next cycle opens.
+                          const locked = userRole === 'Staff - Encoder' ? isValidationLocked(item) : null;
+                          return locked ? (
+                            <span
+                              className="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800"
+                              title={`Validated for ${locked.year}. It can be edited again when the next annual validation opens.`}
+                            >
+                              Validated
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onEdit(item)}
+                              aria-label={`Edit ${item.projectName || item.name}`}
+                              title="Edit"
+                              className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            >
+                              <Edit className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          );
+                        })()}
                         {['Admin', 'Head Engineer'].includes(userRole) && <button
                           type="button"
                           onClick={() => setPendingDelete(item)}

@@ -2,12 +2,37 @@
 // projects joined to roads; see src/lib/supabase-data.ts for the mapping.
 import { NextResponse } from 'next/server';
 import { hasFourDigitYear } from '@/lib/project-form-validation';
-import { validationTask, type ValidationProject } from '@/lib/project-validation-workflow';
+import { isValidationLocked, validationTask, type ValidationProject } from '@/lib/project-validation-workflow';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveRoad, listArchivedRoads, listRoads,
   permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, requeueReturnedValidation, saveRoad, type StoredRecord,
 } from '@/lib/supabase-data';
+
+/** @mine — the project details compared when an encoder returns a revision (WORKFLOW-DECISIONS Q5). */
+const COMPARED_DETAIL_FIELDS = [
+  'projectName', 'roadName', 'roadNetworkId', 'location', 'barangay', 'projectCategory', 'contractor',
+  'contractAmount', 'projectDescription', 'components', 'description', 'dateStarted', 'dateBuilt',
+  'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate', 'noOfExtensions',
+  'sourceOfFunds', 'appropriation', 'adjustProjectCost', 'completionPercentage',
+];
+
+/**
+ * @mine — a returned project only goes back to the validator when something changed
+ * (WORKFLOW-DECISIONS Q5). Compares the fields the encoder actually submitted, so a
+ * partial payload is judged on what it carries, plus the attachment set by identity.
+ */
+function projectDetailsChanged(payload: StoredRecord, current: StoredRecord): boolean {
+  const text = (value: unknown) => String(value ?? '').trim();
+  for (const key of COMPARED_DETAIL_FIELDS) {
+    if (!(key in payload)) continue;
+    if (text(payload[key]) !== text(current[key])) return true;
+  }
+  const attachmentKey = (value: unknown) => (Array.isArray(value) ? value : [])
+    .map((item) => text((item as StoredRecord)?.id || (item as StoredRecord)?.name || (item as StoredRecord)?.fileName))
+    .filter(Boolean).sort().join('|');
+  return Array.isArray(payload.attachments) && attachmentKey(payload.attachments) !== attachmentKey(current.attachments);
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -79,6 +104,27 @@ export async function PATCH(request: Request) {
     const current = roads.find((road) => road.id === payload.id);
     if (!current) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
 
+    const project = current as unknown as ValidationProject;
+    // @mine — multiple outstanding returned annual decisions may exist; requeue each one
+    // that was visible before the edit, without overwriting newer validator work.
+    const returned = (project.annualValidationEntries ?? [])
+      .filter(entry => entry.result === 'Return for Revision')
+      .map(entry => ({ year: entry.year, validatedAt: entry.validatedAt, remarks: entry.remarks }));
+
+    if (auth.profile.roleDb === 'encoder') {
+      const locked = isValidationLocked(project);
+      if (locked) {
+        return NextResponse.json({
+          message: `This project is validated for ${locked.year}. It can be edited again when the next annual validation opens.`,
+        }, { status: 409 });
+      }
+      if (returned.length && !projectDetailsChanged(payload, current)) {
+        return NextResponse.json({
+          message: 'Change at least one project detail before returning this project to the validator.',
+        }, { status: 400 });
+      }
+    }
+
     // Validation submissions (annual and non-annual) keep the original gate: remarks required.
     if (payload.validationResult !== undefined) {
       if (
@@ -108,12 +154,6 @@ export async function PATCH(request: Request) {
       return withRefresh(NextResponse.json({ success: true, data: updated }), auth);
     }
 
-    const project = current as unknown as ValidationProject;
-    // A project may have multiple outstanding returned annual decisions. Requeue each
-    // one that was visible before the edit, without overwriting newer validator work.
-    const returned = (project.annualValidationEntries ?? [])
-      .filter(entry => entry.result === 'Return for Revision')
-      .map(entry => ({ year: entry.year, validatedAt: entry.validatedAt, remarks: entry.remarks }));
     const saved = await saveRoad(auth.db, { ...current, ...payload, id: current.id }, auth.userId);
     if (returned.length && !saved.attachmentWarning) {
       let requeueFailed = false;

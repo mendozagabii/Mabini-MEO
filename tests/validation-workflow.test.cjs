@@ -216,3 +216,49 @@ test('the annual entry opens 30 days before the anniversary and its inspection 2
     }
   }
 });
+
+// @mine — the encoder-side gates decided in WORKFLOW-DECISIONS Q4/B3 and Q5.
+function loadProjectRoute(projectRef) {
+  const res = (status, body = {}) => ({ status, body });
+  const auth = { profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' };
+  return load('src/app/api/local-road/route.ts', {
+    'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
+    '@/lib/project-validation-workflow': workflow,
+    '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
+    '@/lib/api': { requireAuth: async () => auth, requireRole: async () => ({ auth }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
+    '@/lib/supabase-data': {
+      listRoads: async () => [projectRef()], addActivityLog: async () => {},
+      saveRoad: async (_db, rec) => ({ ...rec }), requeueReturnedValidation: async () => true,
+    },
+  });
+}
+
+test('a validated project is locked to the encoder until the next annual validation opens', async () => {
+  let project = { id: 'p', name: 'Road', projectName: 'Road', actualCompletionDate: '2000-01-01',
+    annualValidationEntries: [entry(2026, 'Validated', 'OK')] };
+  const route = loadProjectRoute(() => project);
+  const locked = await route.PATCH({ json: async () => ({ id: 'p', projectName: 'Road renamed' }) });
+  assert.equal(locked.status, 409);
+  assert.match(locked.body.message, /validated for 2026/i);
+  assert.match(locked.body.message, /next annual validation/i);
+
+  // The next cycle opens with a newer entry, whichever its result, and the lock lifts.
+  project = { ...project, annualValidationEntries: [entry(2026, 'Validated', 'OK'), entry(2027)] };
+  assert.equal((await route.PATCH({ json: async () => ({ id: 'p', projectName: 'Road renamed' }) })).status, 200);
+});
+
+test('a returned project cannot go back to the validator unchanged', async () => {
+  const project = { id: 'p', name: 'Road', projectName: 'Poblacion Road', contractAmount: '1000',
+    actualCompletionDate: '2000-01-01', annualValidationEntries: [entry(2026, 'Return for Revision', 'Fix drainage')] };
+  const route = loadProjectRoute(() => project);
+
+  const unchanged = await route.PATCH({ json: async () => ({ id: 'p', projectName: 'Poblacion Road', contractAmount: '1000' }) });
+  assert.equal(unchanged.status, 400);
+  assert.match(unchanged.body.message, /change at least one project detail/i);
+
+  // Spacing and number formatting are not real changes.
+  const cosmetic = await route.PATCH({ json: async () => ({ id: 'p', projectName: '  Poblacion Road ', contractAmount: 1000 }) });
+  assert.equal(cosmetic.status, 400);
+
+  assert.equal((await route.PATCH({ json: async () => ({ id: 'p', projectName: 'Poblacion Road Extension' }) })).status, 200);
+});
