@@ -1,4 +1,5 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
+import { hasFourDigitYear } from '@/lib/project-form-validation';
 import { NextResponse } from 'next/server';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
   }
+  if (typeof payload.date !== 'string' || !hasFourDigitYear(payload.date)) {
+    return NextResponse.json({ message: 'Inspection date must be a valid date from 2000 onward with a four-digit year.' }, { status: 400 });
+  }
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
   try {
@@ -70,6 +74,9 @@ export async function PUT(request: Request) {
   const payload = (await request.json().catch(() => null)) as StoredRecord | null;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.id !== 'string' || !payload.id || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid inspection and road ID are required.' }, { status: 400 });
+  }
+  if (typeof payload.date !== 'string' || !hasFourDigitYear(payload.date)) {
+    return NextResponse.json({ message: 'Inspection date must be a valid date from 2000 onward with a four-digit year.' }, { status: 400 });
   }
   const existing = (await listInspections(auth.db)).find((item) => item.id === payload.id);
   if (!existing) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dial
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
+import { latestByProject, maintenanceEligible, isPendingInspection } from '@/lib/inspection-selection';
 import { recordClientActivity } from '@/lib/activity-log-client';
 
 interface Maintenance {
@@ -62,28 +63,10 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
     Completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     Deferred: 'border-slate-200 bg-slate-100 text-slate-600',
   };
-  const completedInspections = inspections.filter((inspection) =>
-    inspection.isScheduledAnnualFollowUp !== true &&
-    inspection.isPendingValidationInspection !== true &&
-    !(inspection.isValidationInspection === true && inspection.isPendingValidationInspection !== false)
-  );
-  const latestInspectionByRoadId = new Map<string, any>();
-  for (const inspection of completedInspections) {
-    const current = latestInspectionByRoadId.get(inspection.localRoadId);
-    if (!current || String(inspection.date || '').localeCompare(String(current.date || '')) > 0) {
-      latestInspectionByRoadId.set(inspection.localRoadId, inspection);
-    }
-  }
-  const eligibleRoadIds = new Set(
-    Array.from(latestInspectionByRoadId.entries())
-      .filter(([, inspection]) => {
-        const ratings = Object.values(inspection.conditionRatings || {});
-        return ratings.length > 0
-          ? ratings.some((rating) => rating === 'Fair' || rating === 'Poor' || rating === 'Bad')
-          : Number(inspection.conditionRating) > 0 && Number(inspection.conditionRating) < 8;
-      })
-      .map(([roadId]) => roadId)
-  );
+  // Only the latest completed assessment determines current eligibility; a pending
+  // annual follow-up does not erase the most recent recorded results.
+  const completedInspections = inspections.filter((inspection) => !isPendingInspection(inspection));
+  const eligibleRoadIds = new Set(latestByProject(completedInspections).filter(maintenanceEligible).map(inspection => inspection.localRoadId));
   const eligibleProjects = localRoadList.filter((item) =>
     eligibleRoadIds.has(item.id) ||
     (editingRecordId !== null && maintenanceRecords.some((record) =>

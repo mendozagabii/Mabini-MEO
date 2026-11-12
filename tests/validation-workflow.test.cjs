@@ -61,6 +61,7 @@ test('validator can only update a currently due annual task, never an initial de
   const route = load('src/app/api/local-road/route.ts', {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
     '@/lib/project-validation-workflow': workflow,
+    '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
     '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: role, username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
     '@/lib/supabase-data': {
       listRoads: async () => [project], addActivityLog: async () => {},
@@ -130,7 +131,8 @@ test('successful encoder edits requeue only returned decisions; partial edits an
     const route = load('src/app/api/local-road/route.ts', {
       'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
       '@/lib/project-validation-workflow': workflow,
-      '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
+      '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
+    '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
       '@/lib/supabase-data': {
         listRoads: async () => [project], addActivityLog: async () => {},
         saveRoad: async (_db, rec) => ({ ...rec, ...(partial ? { attachmentWarning: 'Attachment failed' } : {}) }),
@@ -159,6 +161,7 @@ test('an encoder edit requeues every outstanding returned decision', async () =>
   const route = load('src/app/api/local-road/route.ts', {
     'next/server': { NextResponse: { json: (body, init) => ({ status: init?.status || 200, body }) } },
     '@/lib/project-validation-workflow': workflow,
+    '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
     '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => ({ status: 403 }), unauthorized: () => ({ status: 401 }), withRefresh: r => r },
     '@/lib/supabase-data': {
       listRoads: async () => [project], addActivityLog: async () => {}, saveRoad: async (_db, rec) => rec,

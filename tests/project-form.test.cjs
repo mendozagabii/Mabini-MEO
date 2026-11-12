@@ -117,7 +117,7 @@ test('form has only a turnover attachment and bounds all date inputs', async () 
   assert.equal(form.querySelectorAll('input[type=file]:not([class=hidden])').length, 1);
   const inputs = [...form.querySelectorAll('input[type=date]')];
   assert.equal(inputs.length, 5);
-  for (const input of inputs) { assert.equal(input.min, '1000-01-01'); assert.equal(input.max, '9999-12-31'); }
+  for (const input of inputs) { assert.equal(input.min, '2000-01-01'); assert.equal(input.max, '9999-12-31'); }
   assert.doesNotMatch(container.textContent, /No\. of Extensions \*/);
   for (const name of ['PCAD License No.', 'Completion Percentage']) assert.equal(field(name), null);
   assert.ok(field('Road Network ID No.'));
@@ -497,6 +497,7 @@ test('maintenance detail labels have no required markers', async () => {
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
   const ui = new Proxy({}, { get: () => Dummy });
   const { MaintenanceModule } = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts'),
     './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
     '@/lib/activity-log-client': { recordClientActivity: async () => {} },
   });

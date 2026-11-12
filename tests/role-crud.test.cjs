@@ -38,7 +38,7 @@ const data = {
   archiveMaintenance: async () => (calls.push('maintenance'), true),
   addActivityLog: async () => {},
 };
-const mocks = { '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts', {}), '@/lib/api': api, '@/lib/supabase-data': data, 'next/server': { NextResponse: { json: (body, init) => response(init?.status ?? 200, body) } } };
+const mocks = { '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}), '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts', {}), '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts', {}), '@/lib/api': api, '@/lib/supabase-data': data, 'next/server': { NextResponse: { json: (body, init) => response(init?.status ?? 200, body) } } };
 const routes = Object.fromEntries(['local-road', 'maintenance', 'inspections'].map((name) => [name, loadTs(`src/app/api/${name}/route.ts`, mocks)]));
 function request(body = {}, query = '') { return { url: `https://example.test/api?${query}`, json: async () => body }; }
 
@@ -114,6 +114,8 @@ const componentMocks = {
   '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
   '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}),
   '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts', {}),
+  '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}),
+  '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts', {}),
 };
 const noop = () => {};
 const project = { id: 'p', name: 'Road', projectName: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good' };
@@ -159,4 +161,15 @@ test('inspection cards retain details access without a separate Details button',
   const html = renderToStaticMarkup(React.createElement(Component, props));
   assert.match(html, /title="Click to view full inspection details"/);
   assert.doesNotMatch(html, />Details\s*<\/button>/);
+});
+
+test('project and inspection APIs reject dates before 2000, invalid dates, and five-digit years', async () => {
+  for (const date of ['1999-12-31', '2026-02-30', '10000-01-01']) {
+    role = 'encoder';
+    assert.equal((await routes['local-road'].POST(request({ dateStarted: date }))).status, 400);
+    assert.equal((await routes['local-road'].PATCH(request({ id: 'p', actualCompletionDate: date }))).status, 400);
+    role = 'inspector';
+    assert.equal((await routes.inspections.POST(request({ localRoadId: 'p', date }))).status, 400);
+    assert.equal((await routes.inspections.PUT(request({ id: 'i', localRoadId: 'p', date }))).status, 400);
+  }
 });

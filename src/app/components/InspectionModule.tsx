@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
+import { latestByProject, isPendingInspection } from '@/lib/inspection-selection';
+import { hasFourDigitYear } from '@/lib/project-form-validation';
 import { attachmentError } from '@/lib/attachment-validation';
 
 interface Inspection {
@@ -323,17 +325,20 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     return 'Pending Validation';
   };
 
-  const isPendingInspectionRecord = (inspection: Inspection) =>
-    inspection.isScheduledAnnualFollowUp === true ||
-    inspection.isPendingValidationInspection === true ||
-    (inspection.isValidationInspection === true && inspection.isPendingValidationInspection !== false);
+  const isPendingInspectionRecord = isPendingInspection;
 
-  const filteredInspections = inspections
+  // A date search can find a historical follow-up, but never shows more than
+  // one card for the same project. No stored inspections are removed.
+  const datedInspections = isInspector && filterDate
+    ? inspections.filter(inspection => inspection.date === filterDate)
+    : inspections;
+  const originalOrder = new Map(inspections.slice().reverse().map((inspection, index) => [inspection.id, index]));
+  const filteredInspections = latestByProject(datedInspections)
     .slice()
     .reverse()
-    .map((inspection, index) => ({
+    .map((inspection) => ({
       inspection,
-      referenceId: `INSP-${inspection.date?.slice(0, 4) || new Date().getFullYear()}-${String(index + 1).padStart(3, '0')}`,
+      referenceId: `INSP-${inspection.date?.slice(0, 4) || new Date().getFullYear()}-${String((originalOrder.get(inspection.id) ?? 0) + 1).padStart(3, '0')}`,
     }))
     .filter(({ inspection, referenceId }) => {
       const matchesFilter = isInspector ? (!filterDate || inspection.date === filterDate) : activeFilter === 'All' ||
@@ -462,7 +467,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     const missingConditionRatings = conditionAssessmentLabels.filter((label) => !conditionRatings[label]);
     const validationMessages = [];
     if (!localRoad) validationMessages.push('Select a Project / Program / Activity Name.');
-    if (!formData.date) validationMessages.push('Enter the inspection date.');
+    if (!hasFourDigitYear(formData.date)) validationMessages.push('Enter a valid inspection date from 2000 onward with a four-digit year.');
     if (!formData.inspectionType) validationMessages.push('Select an inspection type.');
     if (missingConditionRatings.length > 0) {
       validationMessages.push('Select a condition rating for every category. Choose N/A when it does not apply.');
@@ -811,6 +816,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         <div className="p-3 bg-[#f3f4f6]">
                           <input
                             type="date"
+                            min="2000-01-01"
+                            max="9999-12-31"
                             value={formData.date}
                             onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-base"
@@ -1280,12 +1287,16 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             />
           </label>
           {isInspector ? (
-            <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-              Filter by inspection date (mm/dd/yyyy)
-              <input type="date" aria-label="Filter by inspection date" min="1000-01-01" max="9999-12-31" value={filterDate}
-                onChange={event => setFilterDate(event.target.validity.valid ? event.target.value : '')}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700" />
-            </label>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2">
+                <Calendar aria-hidden="true" className="h-4 w-4 text-blue-600" />
+                <span className="sr-only">Filter inspections by date</span>
+                <input type="date" aria-label="Filter by inspection date" min="1000-01-01" max="9999-12-31" value={filterDate}
+                  onChange={event => setFilterDate(event.target.validity.valid ? event.target.value : '')}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
+              </label>
+              {filterDate && <button type="button" onClick={() => setFilterDate('')} className="text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
+            </div>
           ) : (
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="group" aria-label="Filter inspections by status">
             {inspectionFilters.map((filter) => (
@@ -1408,14 +1419,14 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             {filteredInspections.length === 0 && (
               <div className="col-span-full rounded-[22px] border border-slate-200 bg-white px-6 py-14 text-center text-slate-500">
                 {inspections.length === 0
-                  ? 'No inspections recorded yet. Add your first inspection above.'
+                  ? 'No inspections recorded yet.'
                   : 'No inspections match your search or selected filter.'}
               </div>
             )}
           </div>
         </section>
         <div className="mb-10 mt-auto flex flex-col gap-2 border-t border-slate-200 px-1 pt-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>Showing {filteredInspections.length} of {inspections.length} total inspection records</span>
+          <span>Showing {filteredInspections.length} of {new Set(inspections.map(inspection => inspection.localRoadId)).size} projects</span>
           <span className="font-medium text-blue-700">Municipality of Mabini, Batangas</span>
         </div>
       </div>

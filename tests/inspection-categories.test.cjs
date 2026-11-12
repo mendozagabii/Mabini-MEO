@@ -61,6 +61,8 @@ const mocks = {
   './PrintDocument': { PrintDocument: () => null },
   '@/lib/activity-log-client': { recordClientActivity: async () => {} },
   '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts'),
+  '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts'),
+  '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts'),
 };
 
 const { inspectionCategories, InspectionModule } = loadTs('src/app/components/InspectionModule.tsx', mocks);
@@ -238,8 +240,8 @@ test('Inspector can filter inspection records by a valid date and clear it', () 
   assert.match(container.textContent, /1 record listed/);
   setDate('2026-02-30');
   assert.equal(date.value, '');
-  assert.match(container.textContent, /2 records listed/);
+  assert.match(container.textContent, /1 record listed/);
   setDate('');
-  assert.match(container.textContent, /2 records listed/);
+  assert.match(container.textContent, /1 record listed/);
   act(() => root.unmount()); container.remove();
 });
