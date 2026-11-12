@@ -114,3 +114,39 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 Steps 1–3 need no database change and no further answer, so they can start as soon as the plan is approved. Step 10 is last because it touches the project form, the project list and the filter at once.
 
 **Known prerequisite for step 8:** the migration `20261110_staff_archive_permissions.sql` is still unapplied (the staff-level archive policies are missing), and the purge job must also remove attachment **files** from storage, not only their rows.
+
+---
+
+## 7. New UI requirements received 2026-11-12
+
+Recorded as tasks 11–18 so they do not renumber the ten-step plan above.
+
+| # | Requirement (as stated) | Screens touched | Depends on |
+|---|---|---|---|
+| **11** | Head Engineer's Project Management: replace the cards with a **table like Validation Management**. Columns: **Project Name · Location (the barangay under road information) · Contract Amount · Completion Date · Inspector** (a dropdown of registered inspectors in every row — this *is* the assignment action). Rows are clickable and open the project details. | Head Engineer project list | **Step 4** (assignment) — the dropdown and the assignment are the same feature |
+| **12** | Project form **Location**: the encoder may enter **up to 5 locations**, with an **Add** button, and each accepts a long string (e.g. *"Sitio Dao, Anilao East, Mabini, Batangas"*). Viewing and printing show **one box with one line per location**; the **road name shows the same lines in one box**; **road network ID and road name each get their own row** in add, view, edit and print. | Project form, project view, project print | none |
+| **13** | Project Management (Head Engineer **and** Encoder): replace the **location filter** with a **date filter**, the same one used in Maintenance Management. | Head Engineer + Encoder project lists | none |
+| **14** | Maintenance **overview table interface** made to match the Inspection overview. In both overviews put a **print button in the header, on the right** — Inspection beside *Findings*, Maintenance beside *Remarks*. **Printing is Head Engineer only.** | Inspection overview, Maintenance overview | Step 7 (print both views) |
+| **15** | The **Location shown in lists is the Barangay** under road information: project list, maintenance list, and the validation table. | those three lists | none |
+| **16** | Validation Management: the **name in the table must be the Project Name** (not the road or location name). | Validation table | none |
+
+### Design note — Location and Barangay are currently the same value
+
+Today `location` and `barangay` are both read from the single `barangays.name` link (`projects.barangay_id`). Requirement 12 (five free-text coverage lines) and requirement 15 (lists show the barangay) only both work if the two are **split**:
+
+- **Location** = a list of up to 5 free-text lines, stored in a new `project_locations` table (project, position, label).
+- **Barangay** = the existing single link, kept as-is, and used by the lists and the filters.
+
+That is the reading implemented unless the office says otherwise. Two details to confirm when task 12 starts:
+
+1. Are the five lines **free text only**, with no barangay dropdown behind them? (Today the form asks for a barangay as well.)
+2. Does the **Barangay field stay required**, so every project still has one for the lists and the totals?
+
+### Where these fit in the plan
+
+1. Steps 1–3 as listed in §6. **Step 1 is done** (commit `3c31d07`).
+2. **Task 11** ships together with step 4 — the Inspector dropdown in the table is the assignment UI, so building them apart would mean writing the same screen twice.
+3. **Tasks 15 and 16** are small and independent; they can go with any of the next commits.
+4. **Task 13** (date filter) goes with task 11, since the project list is being reworked anyway.
+5. **Task 12** (five locations) is the largest of the group and needs its migration; it follows step 4–5.
+6. **Task 14** goes with step 7, where printing is built.

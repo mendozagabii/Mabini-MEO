@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Record the new UI requirements as tasks 11-18
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** Owner sent six further UI requirements with the instruction to implement them. Added section 7 to docs/WORKFLOW-DECISIONS.md: the Head Engineer project table with the per-row inspector dropdown (the dropdown is the assignment UI, so it ships with step 4), the five free-text project locations with the one-box display and the road network ID / road name on separate rows, the location filter becoming a date filter in both project lists, the maintenance overview matching the inspection overview with header print buttons restricted to the Head Engineer, lists showing the barangay, and the validation table showing the project name. Recorded the design note that location and barangay are the same value today and must be split for these to work, with the two details to confirm when that task starts, and mapped each requirement onto the existing ten-step plan. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Validation opens 30 days and inspection 29 days before the anniversary, every year
 - **Type:** Fix
 - **Files:** `src/app/api/inspections/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/lib/local-database.ts` (modified), `src/lib/project-form-validation.ts` (modified), `src/lib/project-validation-workflow.ts` (modified), `src/lib/supabase-data.ts` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-purpose.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/project-upload.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified)
