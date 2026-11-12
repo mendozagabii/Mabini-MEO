@@ -278,9 +278,9 @@ test('inspection overview follows history changes and pending annual cards keep 
     assert.match(container.textContent,/Pending/);
     const tabs=()=>[...container.querySelectorAll('[role=tab]')];
     await act(async()=>tabs().find(el=>el.textContent.includes('Overview')).click());
-    let table=container.querySelector('table'); assert.match(table.textContent,/Project Name/); assert.match(table.textContent,/Status/); assert.match(table.textContent,/Inspection Findings/); assert.match(table.textContent,/Pending/);
-    await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[{...pending,isScheduledAnnualFollowUp:false,conditionRating:6,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracks'}}],localRoadList:[{id:'road-1',name:'Poblacion Road'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:role})));
-    table=container.querySelector('table'); assert.match(table.textContent,/Completed/); assert.match(table.textContent,/Cracks/);
+    let table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent),['Project Name','Inspection Date','Contracted Amount','Findings']); assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','','','']);
+    await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[{...pending,isScheduledAnnualFollowUp:false,conditionRating:6,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracks'}}],localRoadList:[{id:'road-1',name:'Poblacion Road',contractedAmount:'1234567.5'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:role})));
+    table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','2027-01-01','Php 1,234,567.50','Cracks.']);
     await act(async()=>tabs().find(el=>el.textContent.includes('Inspection History')).click()); assert.match(container.textContent,/Cracks/);
     act(()=>root.unmount()); container.remove();
   }

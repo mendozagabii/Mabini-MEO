@@ -7,7 +7,7 @@ import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
 import { latestByProject, isPendingInspection, findingsSummary } from '@/lib/inspection-selection';
-import { hasFourDigitYear, addCalendarMonths } from '@/lib/project-form-validation';
+import { hasFourDigitYear, addCalendarMonths, formatSavedProjectCurrency } from '@/lib/project-form-validation';
 import { attachmentError } from '@/lib/attachment-validation';
 
 interface Inspection {
@@ -1322,13 +1322,13 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             <span className="text-sm text-slate-500">{filteredInspections.length} {filteredInspections.length === 1 ? 'record' : 'records'} listed</span>
           </div>
           {inspectionView === 'overview' ? <div role="tabpanel" aria-label="Inspection Overview" className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-left"><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Status</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Findings</th></tr></thead>
+            <table className="w-full text-left"><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Date</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Contracted Amount</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Findings</th></tr></thead>
               <tbody className="divide-y divide-gray-200">{filteredInspections.map(({inspection, referenceId}) => {
                 const road = localRoadList.find(item => item.id === inspection.localRoadId);
                 const name = road?.projectName || road?.name || inspection.projectName || inspection.localRoadName;
                 const pending = isPendingInspectionRecord(inspection);
-                return <tr key={inspection.id} tabIndex={0} aria-label={`View inspection details for ${name}`} onClick={() => setSelectedInspection({inspection, referenceId})} onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setSelectedInspection({inspection, referenceId});}}} className="cursor-pointer hover:bg-blue-50 focus-visible:bg-blue-50"><td className="px-6 py-4 font-medium text-blue-700">{name}</td><td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${pending ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{pending ? 'Pending' : 'Completed'}</span></td><td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{pending ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}</td></tr>;
-              })}{filteredInspections.length === 0 && <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-500">No inspections match your search or filters.</td></tr>}</tbody>
+                return <tr key={inspection.id} tabIndex={0} aria-label={`View inspection details for ${name}`} onClick={() => setSelectedInspection({inspection, referenceId})} onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setSelectedInspection({inspection, referenceId});}}} className="cursor-pointer hover:bg-blue-50 focus-visible:bg-blue-50"><td className="px-6 py-4 font-medium text-blue-700">{name}</td><td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{pending ? '' : inspection.date || ''}</td><td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{road?.contractedAmount != null && road.contractedAmount !== '' ? `Php ${formatSavedProjectCurrency(String(road.contractedAmount))}` : ''}</td><td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{pending ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}</td></tr>;
+              })}{filteredInspections.length === 0 && <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-500">No inspections match your search or filters.</td></tr>}</tbody>
             </table></div> : (
           <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredInspections.map(({ inspection, referenceId }) => {
