@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Point step 6 at the shipped commit
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The step table cited a placeholder for step 6; it now names the commit that carries the six emails.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] The six workflow emails (step 6), sent only once the mailbox exists
 - **Type:** Added
 - **Files:** `.env.example` (modified), `docs/EMAIL-TEMPLATES.md` (modified), `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/api/local-road/inspector-assignment/route.ts` (modified), `src/app/api/local-road/route.ts` (modified), `tests/inspector-assignment.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified), `src/lib/notifications.ts` (new), `tests/notifications.test.cjs` (new), `tests/workflow-emails.test.cjs` (new)

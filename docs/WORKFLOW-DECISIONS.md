@@ -105,7 +105,7 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 | **3** ✅ | **Validation lock** (Q4): locked after validation, released when the next yearly validation is created | none | done (`c7fb4ee`) |
 | **4** ✅ | **Assign inspector** (Q2, Q3, Q7): one inspector per project, Head Engineer only, activity log entry, dropdown in the Head Engineer table | `projects.inspector_id` (migration applied) | done |
 | **5** ✅ | **Inspector scope** (Q8, Q9): listing filtered to the assigned project, recording refused for any other | none | done |
-| **6** ✅ | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | built (`COMMIT`); **sends only once the mailbox is set** — `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` in the hosting environment |
+| **6** ✅ | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | built (`942e3eb`); **sends only once the mailbox is set** — `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` in the hosting environment |
 | **7** ✅ | **Print both views** (Q24): whole overview, and one year | none | done |
 | **8** | **30-day purge** (Q26): scheduled job, report-only mode first, then live | none (deletes data, not schema) | explicit go-ahead before the live run |
 | **9** | **Field removal** (Q25) | hide first, drop later | §3 |
