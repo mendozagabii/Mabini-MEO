@@ -192,3 +192,40 @@ test('maintenance scheduling checks newest completed inspection and rejects alre
     assert.equal((await routes.maintenance.POST(request(body))).status, 409);
   } finally { Object.assign(data, old); }
 });
+
+test('completed maintenance cannot be deferred via API', async () => {
+  const old = data.listMaintenance;
+  try {
+    role = 'encoder'; data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'Completed'}];
+    assert.equal((await routes.maintenance.PATCH(request({id:'m', status:'Deferred'}))).status, 409);
+  } finally { data.listMaintenance = old; }
+});
+
+test('inspector can record a pending follow-up through the role-checked server client', async () => {
+  const old = { listRoads:data.listRoads, listInspections:data.listInspections, saveInspection:data.saveInspection, saveRoad:data.saveRoad };
+  try {
+    role = 'inspector';
+    data.listRoads = async () => [{id:'p'}];
+    data.listInspections = async () => [{id:'i', localRoadId:'p', annualFollowUpYear:2027}];
+    let usedDb, sent;
+    data.saveInspection = async (db, payload) => {usedDb=db; sent=payload; return {...payload};};
+    data.saveRoad = async (_db, road) => road;
+    const labels = loadTs('src/lib/inspection-selection.ts', {}).assessmentComponents;
+    const conditionRatings = Object.fromEntries(labels.map(label => [label, label === 'Concrete' ? 'Fair' : 'N/A']));
+    const response = await routes.inspections.PUT(request({id:'i',localRoadId:'p', date:'2026-12-15', annualFollowUpYear:9999, inspectionType:'Monitoring and Maintenance Inspection', conditionRatings, conditionRemarks:{Concrete:'Cracks'}, conditionAttachments:{Concrete:[{stored:true}]}}));
+    assert.equal(response.status, 200); assert.deepEqual(usedDb, auth().admin); assert.equal(sent.annualFollowUpYear, 2027); assert.equal(sent.remarks, 'Concrete: Cracks');
+  } finally { Object.assign(data, old); }
+});
+
+test('maintenance editing keeps remarks separate from activities', async () => {
+  const old = { listMaintenance:data.listMaintenance, listRoads:data.listRoads, saveMaintenance:data.saveMaintenance };
+  try {
+    role = 'encoder';
+    data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'Scheduled', inspectionId:'i', remarks:'Old'}];
+    data.listRoads = async () => [{id:'p'}];
+    let saved;
+    data.saveMaintenance = async (_db, payload) => (saved=payload);
+    const result = await routes.maintenance.PATCH(request({id:'m',localRoadId:'p', type:'Corrective Type', scheduledDate:'2026-02-01', cost:0, description:'Repair', remarks:'Needs traffic signs'}));
+    assert.equal(result.status, 200); assert.equal(saved.description, 'Repair'); assert.equal(saved.remarks, 'Needs traffic signs'); assert.equal(saved.inspectionId,'i');
+  } finally { Object.assign(data, old); }
+});

@@ -188,6 +188,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   // @mine — null = unknown; false = no master code yet (first-run setup allowed).
   const [masterCodeConfigured, setMasterCodeConfigured] = useState<boolean | null>(null);
@@ -419,6 +421,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   });
 
   const handleAddUser = () => {
+    if (savingUser) return;
     const username = formData.username || formData.email.split('@')[0] || generatedEmployeeId.toLowerCase();
     if (!formData.name || !formData.email || !formData.password) {
       setDialog({
@@ -430,6 +433,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       return;
     }
 
+    setSavingUser(true);
     fetch('/api/auth/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -452,7 +456,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       handleClose();
     }).catch(error => {
       setDialog({ isOpen: true, type: 'error', title: 'Create Account Failed', message: error instanceof Error ? error.message : 'Unable to create the user account.' });
-    });
+    }).finally(() => setSavingUser(false));
   };
 
   const handleEditUser = (user: UserData) => {
@@ -470,7 +474,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   };
 
   const handleSaveEdit = async () => {
-    if (!editingUser) return;
+    if (!editingUser || savingUser) return;
+    setSavingUser(true);
 
     try {
       const response = await fetch('/api/auth/status', {
@@ -501,7 +506,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
         message: error instanceof Error ? error.message : 'Unable to update the user account.',
       });
       return;
-    }
+    } finally { setSavingUser(false); }
 
     setEditingUser(null);
     setFormData({ name: '', email: '', username: '', password: '', role: 'Staff - Encoder', status: 'Active' });
@@ -783,6 +788,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       return;
     }
 
+    if (savingPassword) return;
+    setSavingPassword(true);
     try {
       const response = await fetch('/api/auth/unlock', {
         method: 'PATCH',
@@ -820,7 +827,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
         title: 'Update Failed',
         message: 'Failed to update master password. Please try again.',
       });
-    }
+    } finally { setSavingPassword(false); }
   };
 
   const handleClose = () => {
@@ -1478,9 +1485,10 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               </button>
               <button
                 onClick={editingUser ? handleSaveEdit : handleAddUser}
+                disabled={savingUser}
                 className="h-10 flex-1 rounded-2xl bg-blue-600 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
               >
-                {editingUser ? 'Save Changes' : 'Create Account'}
+                {savingUser ? (editingUser ? 'Updating...' : 'Saving...') : (editingUser ? 'Save Changes' : 'Create Account')}
               </button>
             </div>
           </div>
@@ -1565,9 +1573,10 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               <button
                   type="button"
                   onClick={handlePasswordUpdate}
+                  disabled={savingPassword}
                   className="flex h-10 flex-1 items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
               >
-                  Update Master Password
+                  {savingPassword ? 'Updating...' : 'Update Master Password'}
               </button>
               </div>
             </div>

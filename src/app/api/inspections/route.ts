@@ -98,7 +98,11 @@ export async function PUT(request: Request) {
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
   try {
-    const inspection = await saveInspection(auth.db, { ...existing, ...payload, id: existing.id }, road.id, auth.userId);
+    // Scheduled follow-ups have no inspector yet, and older results may belong
+    // to another inspector. The role and record were checked above; use the
+    // server client so the inspector can record/update these permitted entries.
+    if (existing.localRoadId !== road.id) return NextResponse.json({ message: 'The project of an inspection cannot be changed.' }, { status: 400 });
+    const inspection = await saveInspection(auth.admin, { ...existing, ...payload, id: existing.id, annualFollowUpYear: existing.annualFollowUpYear, validationStatus: existing.validationStatus }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Updated', details: `Updated inspection ${inspection.id}` });
     const roadUpdate = await refreshRoadCondition(auth, road.id);
     return withRefresh(NextResponse.json({ success: true, data: inspection, roadUpdates: roadUpdate ? [roadUpdate] : [] }), auth);

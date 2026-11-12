@@ -20,6 +20,7 @@ interface Maintenance {
   cost: number;
   status: 'Scheduled' | 'In Progress' | 'Completed' | 'Deferred';
   description: string;
+  remarks?: string;
 }
 
 interface MaintenanceModuleProps {
@@ -28,7 +29,7 @@ interface MaintenanceModuleProps {
   scheduledInspectionIds?: string[];
   inspections: any[];
   onAddMaintenance: (maintenance: Omit<Maintenance, 'id'>) => Promise<boolean> | void;
-  onEditMaintenance: (maintenance: Maintenance) => void;
+  onEditMaintenance: (maintenance: Maintenance) => Promise<boolean> | void;
   onDeleteMaintenance: (id: string) => void;
   onUpdateStatus: (id: string, status: Maintenance['status'], completedDate?: string) => void;
   currentUser: string;
@@ -45,6 +46,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
   const [showForm, setShowForm] = useState(false);
   const submittingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -154,8 +156,9 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
           { label: 'Type of Maintenance', value: record.type, width: 'third' },
           { label: 'Status', value: record.status, width: 'third' },
           { label: 'Scheduled Date', value: record.scheduledDate, width: 'third' },
-          { label: 'Budget', value: `Php ${Number(record.cost || 0).toLocaleString()}`, width: 'third' },
+          { label: 'Budget', value: record.cost ? `Php ${Number(record.cost).toLocaleString()}` : '', width: 'third' },
           { label: 'Maintenance Activities', value: record.description, width: 'full' },
+          { label: 'Remarks', value: record.remarks, width: 'full' },
         ],
       },
     ]);
@@ -254,7 +257,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       completionDate: record.scheduledDate,
       maintenanceType: record.type,
       maintenanceActivities: record.description,
-      remarks: record.description,
+      remarks: record.remarks || '',
       type: record.type,
       scheduledDate: record.scheduledDate,
       cost: record.cost,
@@ -292,20 +295,23 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
         type: formData.maintenanceType || formData.type,
         scheduledDate: formData.completionDate || formData.scheduledDate || formData.dateStarted,
         cost: Number(formData.cost) || 0,
-        description: formData.maintenanceActivities || formData.remarks || formData.description,
+        description: formData.maintenanceActivities || formData.description,
+        remarks: formData.remarks,
       };
-      if (editingRecordId) {
-        const existingRecord = maintenanceRecords.find((record) => record.id === editingRecordId);
-        if (!existingRecord) return;
-        onEditMaintenance({ ...existingRecord, ...recordDetails });
-      } else {
-        if (submittingRef.current) return;
-        submittingRef.current = true;
-        try {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
+      setIsSaving(true);
+      try {
+        if (editingRecordId) {
+          const existingRecord = maintenanceRecords.find(record => record.id === editingRecordId);
+          if (!existingRecord) return;
+          const saved = await onEditMaintenance({ ...existingRecord, ...recordDetails });
+          if (saved === false) return;
+        } else {
           const saved = await onAddMaintenance({ ...recordDetails, status: 'Scheduled' });
           if (saved === false) return;
-        } finally { submittingRef.current = false; }
-      }
+        }
+      } finally { submittingRef.current = false; setIsSaving(false); }
       resetForm();
       setShowForm(false);
     }
@@ -558,9 +564,10 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="px-4 py-2 bg-blue-600 text-white rounded-sm hover:bg-blue-700 transition-colors text-sm"
                 >
-                  {editingRecordId ? 'Save Changes' : 'Submit'}
+                  {isSaving ? (editingRecordId ? 'Updating...' : 'Saving...') : (editingRecordId ? 'Save Changes' : 'Submit')}
                 </button>
               </div>
             </form>
@@ -602,7 +609,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Contractor</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.contractorName || record.localRoadName || ''}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.contractorName || ''}</p>
                     </div>
                     <div className="sm:col-span-2">
                       <p className="mb-2 text-sm font-medium text-gray-700">Project Description</p>
@@ -637,13 +644,17 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Budget</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">Php {Number(record.cost || 0).toLocaleString()}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.cost ? `Php ${Number(record.cost).toLocaleString()}` : ''}</p>
                     </div>
                     <div className="md:col-span-3">
                       <p className="mb-2 text-sm font-medium text-gray-700">Maintenance Activities</p>
                       <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">
                         {record.description || ''}
                       </p>
+                    </div>
+                    <div className="md:col-span-3">
+                      <p className="mb-2 text-sm font-medium text-gray-700">Remarks</p>
+                      <p className="min-h-[3rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.remarks || ''}</p>
                     </div>
                   </div>
                 </section>

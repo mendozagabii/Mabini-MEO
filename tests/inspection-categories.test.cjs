@@ -73,7 +73,7 @@ const LEGACY_RATINGS = {
   Shoulder: 'Good', 'Side Drain': 'Poor', Sidewalk: 'N/A',
 };
 
-function renderModule(inspections = []) {
+function renderModule(inspections = [], role = 'Staff - Inspector') {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -84,7 +84,7 @@ function renderModule(inspections = []) {
     onEditInspection: async () => true,
     onDeleteInspection: async () => true,
     currentUser: 'gabriel mendoza',
-    userRole: 'Staff - Inspector',
+    userRole: role,
   };
   act(() => root.render(React.createElement(InspectionModule, props)));
   return { container, root };
@@ -224,8 +224,8 @@ test('inspection details show stored remarks, attachments and "Not assessed" for
 
 test('Inspector can filter inspection records by a valid date and clear it', () => {
   const records = [
-    { ...pendingInspection, id: 'one', localRoadName: 'Poblacion Road', date: '2026-11-11' },
-    { ...pendingInspection, id: 'two', localRoadName: 'Poblacion Road', date: '2026-11-12' },
+    { ...pendingInspection, isScheduledAnnualFollowUp: false, id: 'one', localRoadName: 'Poblacion Road', date: '2026-11-11' },
+    { ...pendingInspection, isScheduledAnnualFollowUp: false, id: 'two', localRoadName: 'Poblacion Road', date: '2026-11-12' },
   ];
   const { container, root } = renderModule(records);
   const date = container.querySelector('[aria-label="Filter by inspection date"]');
@@ -256,5 +256,16 @@ test('pending inspection starts with an empty date and generates findings instea
   assert.ok(container.querySelector('[aria-label="Inspection findings summary"]'));
   assert.equal(container.querySelector('textarea[placeholder="Enter inspection findings..."]'), null);
   assert.doesNotMatch(container.textContent, /Remarks and attachments under each category are optional/);
+  act(() => root.unmount()); container.remove();
+});
+
+test('inspection cards use one-line truncation, hide trigger dates and offer the head engineer a date filter', () => {
+  const { container, root } = renderModule([{...pendingInspection, date:'2026-11-11', annualFollowUpYear:2027}], 'Head Engineer');
+  assert.ok(container.querySelector('[aria-label="Filter by inspection date"]'));
+  assert.equal(container.querySelector('[aria-label="Filter inspections by status"]'), null);
+  const card = container.querySelector('article');
+  assert.ok(card.querySelector('.inspection-road-name').classList.contains('truncate'));
+  assert.ok(card.querySelector('.inspection-remarks').classList.contains('truncate'));
+  assert.doesNotMatch(card.textContent, /2026-11-11|Inspection due by|Edit this entry/);
   act(() => root.unmount()); container.remove();
 });

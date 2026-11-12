@@ -69,6 +69,7 @@ export async function PATCH(request: Request) {
       if (!['Scheduled', 'In Progress', 'Completed', 'Deferred'].includes(String(payload.status))) {
         return NextResponse.json({ message: 'A valid maintenance status is required.' }, { status: 400 });
       }
+      if (record.status === 'Completed' && payload.status === 'Deferred') return NextResponse.json({ message: 'Completed maintenance cannot be deferred.' }, { status: 409 });
       const updated = await saveMaintenance(auth.db, {
         ...record, status: payload.status,
         ...(payload.completedDate !== undefined ? { completedDate: payload.completedDate } : {}),
@@ -91,6 +92,7 @@ export async function PATCH(request: Request) {
       status: record.status === 'Deferred' && payload.scheduledDate !== record.scheduledDate ? 'Scheduled' : record.status,
       cost: Number(payload.cost),
       description: payload.description,
+      ...(payload.remarks !== undefined ? { remarks: payload.remarks } : {}),
     }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Maintenance Updated', details: `Updated maintenance record ${updated.id}` });
     return withRefresh(NextResponse.json({ success: true, data: updated }), auth);

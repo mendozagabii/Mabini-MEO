@@ -51,7 +51,7 @@ interface Inspection {
 interface InspectionModuleProps {
   inspections: Inspection[];
   localRoadList: any[];
-  onAddInspection: (inspection: Omit<Inspection, 'id'>) => void;
+  onAddInspection: (inspection: Omit<Inspection, 'id'>) => Promise<boolean> | void;
   onEditInspection: (inspection: Inspection) => Promise<boolean>;
   onDeleteInspection: (id: string) => Promise<boolean>;
   currentUser: string;
@@ -219,12 +219,12 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   // @mine — Admin accounts are displayed as Head Engineer.
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
   const [showForm, setShowForm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
   const [editingInspection, setEditingInspection] = useState<Inspection | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
   const [filterDate, setFilterDate] = useState('');
   const filterDateRef = useRef<HTMLInputElement>(null);
-  const isInspector = userRole === 'Staff - Inspector';
   const [selectedInspection, setSelectedInspection] = useState<{ inspection: Inspection; referenceId: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Inspection | null>(null);
   const [activeFormTab, setActiveFormTab] = useState<(typeof inspectionFormTabs)[number]['id']>('project');
@@ -305,7 +305,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
   const selectedProject = localRoadList.find(item => item.id === formData.localRoadId);
   const conditionRatingOptions = ['Good', 'Fair', 'Poor', 'Bad', 'N/A'];
-  const inspectionFilters = ['All', 'For inspection', 'Inspected'];
 
   const getRatingScore = (rating: number | string) => {
     const numericRating = Number(rating);
@@ -330,8 +329,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
   // A date search can find a historical follow-up, but never shows more than
   // one card for the same project. No stored inspections are removed.
-  const datedInspections = isInspector && filterDate
-    ? inspections.filter(inspection => inspection.date === filterDate)
+  const datedInspections = filterDate
+    ? inspections.filter(inspection => !isPendingInspectionRecord(inspection) && inspection.date === filterDate)
     : inspections;
   const originalOrder = new Map(inspections.slice().reverse().map((inspection, index) => [inspection.id, index]));
   const filteredInspections = latestByProject(datedInspections)
@@ -339,13 +338,10 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     .reverse()
     .map((inspection) => ({
       inspection,
-      referenceId: `INSP-${inspection.date?.slice(0, 4) || new Date().getFullYear()}-${String((originalOrder.get(inspection.id) ?? 0) + 1).padStart(3, '0')}`,
+      referenceId: `INSP-${(isPendingInspectionRecord(inspection) ? inspection.annualFollowUpYear : inspection.date?.slice(0, 4)) || new Date().getFullYear()}-${String((originalOrder.get(inspection.id) ?? 0) + 1).padStart(3, '0')}`,
     }))
     .filter(({ inspection, referenceId }) => {
-      const matchesFilter = isInspector ? (!filterDate || inspection.date === filterDate) : activeFilter === 'All' ||
-        (activeFilter === 'For inspection'
-        ? isPendingInspectionRecord(inspection)
-        : !isPendingInspectionRecord(inspection));
+      const matchesFilter = !filterDate || (!isPendingInspectionRecord(inspection) && inspection.date === filterDate);
       const road = localRoadList.find((item) => item.id === inspection.localRoadId);
       const searchableText = [
         inspection.localRoadName,
@@ -509,12 +505,15 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
         localRoadName: localRoad.name,
         inspector: editingInspection?.inspector || currentUser,
       };
-      if (editingInspection) {
-        const saved = await onEditInspection({ ...editingInspection, ...inspectionData });
-        if (!saved) return;
-      } else {
-        onAddInspection(inspectionData);
-      }
+      if (savingRef.current) return;
+      savingRef.current = true;
+      setIsSaving(true);
+      try {
+        const saved = editingInspection
+          ? await onEditInspection({ ...editingInspection, ...inspectionData })
+          : await onAddInspection(inspectionData);
+        if (saved === false) return;
+      } finally { savingRef.current = false; setIsSaving(false); }
       setEditingInspection(null);
       setConditionRatings({});
       setConditionRemarks({});
@@ -572,7 +571,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
           { label: 'Location', value: road?.location || inspection.location, width: 'half' },
           { label: 'Date Started', value: road?.dateBuilt || inspection.dateStarted, width: 'half' },
           { label: 'Target Completion Date', value: road?.targetCompletionDate || inspection.targetCompletionDate, width: 'half' },
-          { label: 'No. of Extensions', value: road?.noOfExtensions || inspection.noOfExtensions, width: 'half' },
+          { label: 'No. of Extensions', value: Number(road?.noOfExtensions || inspection.noOfExtensions) ? road?.noOfExtensions || inspection.noOfExtensions : '', width: 'half' },
           { label: 'Actual Completion Date', value: road?.actualCompletionDate || inspection.actualCompletionDate, width: 'half' },
         ],
       },
@@ -588,7 +587,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       {
         title: 'Inspector Information',
         fields: [
-          { label: 'Inspection Date', value: inspection.date, width: 'half' },
+          { label: 'Inspection Date', value: isPendingInspectionRecord(inspection) ? '' : inspection.date, width: 'half' },
           { label: 'Inspection Type', value: inspection.inspectionType, width: 'half' },
         ],
       },
@@ -832,8 +831,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             type="date"
                             min="2000-01-01"
                             max="9999-12-31"
-                            value={formData.date}
-                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                            defaultValue={formData.date}
+                            onChange={(e) => { if (e.target.value) setFormData(prev => ({ ...prev, date: e.target.value })); }}
+                            onBlur={(e) => { if (!e.target.value) setFormData(prev => ({ ...prev, date: '' })); }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-base"
                             required
                           />
@@ -1039,9 +1039,10 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                   </button>
                   <button
                     type="submit"
+                    disabled={isSaving}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    {editingInspection ? 'Save Changes' : 'Submit Inspection'}
+                    {isSaving ? (editingInspection ? 'Updating...' : 'Submitting...') : (editingInspection ? 'Save Changes' : 'Submit Inspection')}
                   </button>
                   </div>
                 </div>
@@ -1079,8 +1080,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     {[
                       { label: 'Project / Program / Activity Name', value: projectName },
                       { label: 'Project Category', value: road?.projectCategory || road?.type || inspection.projectCategory || 'Local Road' },
-                      { label: 'Location', value: road?.location || inspection.location || 'Not specified' },
-                      { label: 'Inspection Date', value: inspection.date || 'Not specified' },
+                      { label: 'Location', value: road?.location || inspection.location || '' },
+                      { label: 'Inspection Date', value: isPendingInspectionRecord(inspection) ? '' : inspection.date || '' },
                     ].map(({ label, value }) => (
                       <div key={label}>
                         <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
@@ -1094,7 +1095,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     <h3 className="mb-4 text-lg font-semibold text-gray-900">Road Information</h3>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       {[
-                        ['Road Network ID No.', road?.roadNetworkId || inspection.roadNetworkId || 'Not specified'],
+                        ['Road Network ID No.', road?.roadNetworkId || inspection.roadNetworkId || ''],
                         ['Road Name', road?.roadName || road?.name || inspection.roadName || 'Not specified'],
                       ].map(([label, value]) => (
                         <div key={label}><span className="mb-2 block text-sm font-medium text-gray-700">{label}</span><span className="block min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm text-gray-700">{value}</span></div>
@@ -1106,8 +1107,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     <h3 className="mb-4 text-lg font-semibold text-gray-900">Inspection Details</h3>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       {[
-                        ['Inspector', inspection.inspector || 'Not specified'],
-                        ['Inspection Type', inspection.inspectionType || 'Not specified'],
+                        ['Inspector', inspection.inspector || ''],
+                        ['Inspection Type', isPendingInspectionRecord(inspection) ? '' : inspection.inspectionType || ''],
                         ['Integrity', `${score}%`],
                         ['Condition', condition],
                         [inspection.isAnnualFollowUp ? 'Follow-up Status' : 'Validation Status', inspection.validationStatus || 'Pending Validation'],
@@ -1117,7 +1118,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     </div>
                     <p className="mb-2 mt-4 block text-sm font-medium text-gray-700">Observation Notes</p>
                     <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700">
-                      {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No inspection notes provided.'}
+                      {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}
                     </p>
                   </section>
                   {(road?.projectDescription || road?.description || inspection.projectDescription || inspection.roadNetworkId || road?.roadNetworkId) && (
@@ -1281,7 +1282,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
         </Dialog>
 
         <div className="mb-8 flex flex-col items-stretch justify-between gap-4 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
-          <label className="relative block w-full sm:max-w-[620px]">
+          <label className="relative block w-full min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
@@ -1292,7 +1293,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          {isInspector ? (
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2">
                 <Calendar aria-hidden="true" className="h-4 w-4 text-blue-600" />
@@ -1304,24 +1304,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
               </label>
               {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
             </div>
-          ) : (
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="group" aria-label="Filter inspections by status">
-            {inspectionFilters.map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setActiveFilter(filter)}
-                aria-pressed={activeFilter === filter}
-                className={`shrink-0 rounded-xl px-4 py-2.5 font-medium transition ${
-                  activeFilter === filter
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-white/70'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>          )}
+
         </div>
 
         <section aria-labelledby="inspection-history-title">
@@ -1354,9 +1337,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                 >
                     <div className="flex items-center justify-between gap-3 text-sm leading-5 text-slate-700">
                       <span className="truncate">{referenceId}</span>
-                      <span className="shrink-0 text-right">{inspection.date || 'Date not specified'}</span>
+                      <span className="shrink-0 text-right">{isPendingInspection ? '' : inspection.date || ''}</span>
                     </div>
-                    <h3 className="inspection-road-name mt-3 line-clamp-2 text-base font-bold text-slate-900 transition-colors group-hover:text-blue-700" title={projectName}>
+                    <h3 className="inspection-road-name mt-3 min-w-0 truncate text-base font-bold text-slate-900 transition-colors group-hover:text-blue-700" title={projectName}>
                       {projectName}
                     </h3>
                     <p className="inspection-road-category mt-1 text-sm text-slate-500">
@@ -1370,11 +1353,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             ? 'Validation Inspection'
                             : 'Inspection Findings'}
                       </span>
-                      <p className="inspection-remarks mt-1 line-clamp-5 text-sm leading-6 text-slate-700">
-                        {inspection.isScheduledAnnualFollowUp
-                          ? `Inspection due by ${inspection.date}. Edit this entry to record the annual inspection.`
-                          : isPendingInspection
-                          ? 'The project was validated. Edit this entry to record inspection findings.'
+                      <p className="inspection-remarks mt-1 truncate text-sm leading-6 text-slate-700">
+                        {isPendingInspection
+                          ? ''
                           : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No observation notes recorded.'}
                       </p>
                     </div>
@@ -1387,10 +1368,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                       {isPendingInspection ? 'Pending' : 'Completed'}
                     </span>
                     <div className="flex shrink-0 items-center gap-3">
-                      <span className="flex shrink-0 items-center gap-1.5 text-sm text-slate-500">
-                        <Calendar className="h-4 w-4" />
-                        {inspection.date || 'Date not specified'}
-                      </span>
+                      {!isPendingInspection && inspection.date && <span className="flex shrink-0 items-center gap-1.5 text-sm text-slate-500">
+                        <Calendar className="h-4 w-4" />{inspection.date}
+                      </span>}
                       {!isAdminReadDeleteOnly && <button
                         type="button"
                         onClick={(event) => {

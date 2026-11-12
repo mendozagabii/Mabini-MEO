@@ -711,6 +711,9 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
   // The original enum continues to identify annual follow-ups. The user-facing
   // type is stored separately so recording an annual inspection cannot generate duplicates.
   const newPurpose = str(rec.inspectionType) === 'Monitoring and Maintenance Inspection' ? str(rec.inspectionType) : undefined;
+  // Validate staged files before modifying the inspection or its items.
+  const itemAttachments = (rec.conditionAttachments ?? {}) as Record<string, AttachmentInput[]>;
+  const preparedItemFiles = await prepareInspectionItemAttachments(db, itemAttachments, userId);
   const payload = {
     project_id: projectId,
     inspection_date: str(rec.date) || new Date().toISOString().slice(0, 10),
@@ -743,7 +746,6 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
       .select('id, component').eq('inspection_id', id);
     const idByComponent = new Map<string, string>();
     for (const item of (existingItems ?? []) as Joined[]) idByComponent.set(str(item.component), str(item.id));
-    const kept = new Set<string>();
     for (const [component, rating] of entries) {
       const componentDb = COMPONENT_TO_DB[component];
       const row = {
@@ -754,22 +756,14 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
       if (existingId) {
         const { error } = await db.from('inspection_items').update(row).eq('id', existingId);
         if (error) throw error;
-        kept.add(existingId);
       } else {
         const { data: inserted, error } = await db.from('inspection_items')
           .insert({ inspection_id: id, component: componentDb, ...row }).select('id').single();
         if (error) throw error;
-        kept.add(str(inserted?.id));
       }
     }
-    // Only a category the inspector genuinely removed disappears (with its files).
-    for (const [componentDb, itemId] of idByComponent) {
-      if (!kept.has(itemId)) {
-        console.warn(`Removing inspection item ${componentDb} that is no longer part of the assessment.`);
-        const { error } = await db.from('inspection_items').delete().eq('id', itemId);
-        if (error) throw error;
-      }
-    }
+    // Keep older or unrecognized component rows and their attachments intact.
+
   }
   // @mine — persist the inspection's file attachment to Storage (best-effort).
   const attachment = rec.attachment as AttachmentInput | undefined;
@@ -783,8 +777,6 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
   }
   // @mine 2026-11-11 — per-category attachments. Staged uploads are verified against
   // Storage before any row is written; already-stored files are left untouched.
-  const itemAttachments = (rec.conditionAttachments ?? {}) as Record<string, AttachmentInput[]>;
-  const preparedItemFiles = await prepareInspectionItemAttachments(db, itemAttachments, userId);
   if (preparedItemFiles.length) {
     const { data: currentItems } = await db.from('inspection_items').select('id, component').eq('inspection_id', id);
     const itemIdByComponent = new Map<string, string>();
@@ -853,7 +845,8 @@ function mapMaintenance(m: Joined): StoredRecord {
     completedDate: str(m.completed_date) || undefined,
     cost: m.cost == null ? 0 : Number(m.cost),
     status: MAINT_STATUS_FROM_DB[m.status] ?? 'Scheduled',
-    description: m.activities ?? m.remarks ?? '',
+    description: m.activities ?? '',
+    remarks: m.remarks ?? '',
     archivedAt: m.archived_at ?? undefined,
   };
 }
@@ -875,6 +868,7 @@ export async function saveMaintenance(db: SupabaseClient, rec: StoredRecord, pro
     ...(rec.inspectionId !== undefined ? { inspection_id: str(rec.inspectionId) || null } : {}),
     maintenance_type: MAINT_TYPE_TO_DB[str(rec.type)] ?? 'routine',
     activities: str(rec.description) || null,
+    ...(rec.remarks !== undefined ? { remarks: str(rec.remarks) || null } : {}),
     scheduled_date: str(rec.scheduledDate) || new Date().toISOString().slice(0, 10),
     completed_date: str(rec.completedDate) || null,
     cost: Number(rec.cost ?? 0) || 0,

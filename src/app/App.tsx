@@ -120,6 +120,7 @@ interface Maintenance {
   cost: number;
   status: 'Scheduled' | 'In Progress' | 'Completed' | 'Deferred';
   description: string;
+  remarks?: string;
 }
 
 const AI_RECOMMENDATIONS_STORAGE_KEY = 'local-road-ai-recommendations';
@@ -513,9 +514,11 @@ export default function App() {
             : item
         )
       );
+      return true;
     } catch (error) {
       console.error('Failed to save local road inspection.', error);
       window.alert(error instanceof Error ? error.message : 'Unable to save inspection.');
+      return false;
     }
   };
 
@@ -590,9 +593,11 @@ export default function App() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || 'Unable to update maintenance record.');
       setMaintenanceRecords((prev) => prev.map((item) => item.id === maintenance.id ? payload.data : item));
+      return true;
     } catch (error) {
       console.error('Failed to edit local road maintenance.', error);
       window.alert(error instanceof Error ? error.message : 'Unable to update maintenance record.');
+      return false;
     }
   };
 
