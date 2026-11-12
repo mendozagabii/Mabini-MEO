@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Plus, Edit, Trash2, Shield, X, Save, Users, Activity, Archive, Search, Lock, Unlock, CheckCircle2, Award, UserX, ChevronDown, KeyRound, Eye, EyeOff, CalendarDays, Check, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+// @mine — step 8: the 30-day archive retention, shown per archived record.
+import { purgeScheduleLabel } from '@/lib/retention';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +45,8 @@ interface ActivityLog {
 
 interface ArchivedRecord {
   id: string;
+  // @mine — step 8: when the record was archived, so the row can show its deletion date.
+  archivedAt?: string;
   projectName?: string;
   name?: string;
   roadName?: string;
@@ -1204,7 +1208,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
             </div>
           </div>
           <p className="mb-5 text-center text-sm text-gray-500">
-            Recently deleted records will be kept here for 30 days , after which they will be automatically and permanently deleted.
+            Archived records are kept for 30 days and then deleted automatically, with their files. Restore one before its deletion date to keep it.
           </p>
           {archiveFilter === 'users' && (
             <section>
@@ -1271,6 +1275,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Project</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Location</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Deletes</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
                   </thead>
@@ -1280,6 +1285,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                         <td className="px-6 py-4 text-sm font-medium text-slate-700">{record.projectName || record.roadName || record.name || 'Unnamed project'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{record.projectCategory || '—'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{record.location || '—'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{purgeScheduleLabel(record.archivedAt) || '—'}</td>
                         <td className="px-6 py-4 text-sm">
                           <button onClick={() => handleRestoreRecord(record.id)} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
                           <button onClick={() => confirmDeleteArchivedRecord('project', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
@@ -1302,6 +1308,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Project</th>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Inspection Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Deletes</th>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
                       </tr>
                     </thead>
@@ -1310,6 +1317,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                         <tr key={record.id}>
                           <td className="px-6 py-4 text-sm font-medium text-slate-700">{record.projectName || record.localRoadName || record.roadName || record.name || 'Unnamed project'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.date || '—'}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{purgeScheduleLabel(record.archivedAt) || '—'}</td>
                           <td className="px-6 py-4 text-sm">
                             <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
                             <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
@@ -1334,6 +1342,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Scheduled Date</th>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Completed Date</th>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Deletes</th>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
                       </tr>
                     </thead>
@@ -1344,6 +1353,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm text-gray-600">{record.scheduledDate || '—'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.completedDate || '—'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.status || '—'}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{purgeScheduleLabel(record.archivedAt) || '—'}</td>
                           <td className="px-6 py-4 text-sm">
                             <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
                             <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>

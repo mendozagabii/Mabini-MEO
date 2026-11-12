@@ -22,7 +22,7 @@ const select = {
 const filename = path.resolve(__dirname, '../src/app/components/UserManagementModule.tsx');
 const mod = new Module(filename, module); mod.filename = filename; mod.paths = Module._nodeModulePaths(path.dirname(filename));
 const orig = mod.require.bind(mod);
-mod.require = name => name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: () => Dummy}) : orig(name);
+mod.require = name => name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: () => Dummy}) : name === '@/lib/retention' ? { purgeScheduleLabel: () => 'Deletes on 2026-12-01 (20 days left)' } : orig(name);
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true} }).outputText, filename);
 const calls = [];
 global.fetch = async (url, options = {}) => {
@@ -68,4 +68,18 @@ test('account role and status filters work together and activity dates use four-
   await change(selectRole,'All Roles'); assert.match(document.body.textContent,/Bob Inspector/); assert.doesNotMatch(document.body.textContent,/Alice Encoder/);
   await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Activity Logs')).click());
   const date=document.querySelector('[aria-label="Filter activity logs by date"]'); assert.equal(date.min,'1000-01-01'); assert.equal(date.max,'9999-12-31');
+});
+
+test('step 8: the archive screen says when each record is deleted automatically', async () => {
+  await act(async () => root.render(null));
+  await act(async () => root.render(React.createElement(mod.exports.UserManagementModule, { currentUserEmail: 'test@example.com' })));
+  await act(async () => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Archived (')).click());
+  assert.match(document.body.textContent, /kept for 30 days and then deleted automatically/i);
+
+  for (const filter of ['Project (1)', 'Inspections (1)', 'Maintenance (1)']) {
+    await act(async () => button(filter).click());
+    assert.match(document.body.textContent, /Deletes/);
+    assert.match(document.body.textContent, /Deletes on 2026-12-01 \(20 days left\)/);
+  }
+  await act(async () => root.render(null));
 });

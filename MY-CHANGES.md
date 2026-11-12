@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Automatic 30-day deletion of archived records (step 8)
+- **Type:** Added
+- **Files:** `.env.example` (modified), `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `src/app/api/retention/` (new), `src/lib/retention.ts` (new), `tests/retention.test.cjs` (new), `vercel.json` (new)
+- **What & why:** The Archive screen has always promised that archived records are kept 30 days and then deleted, but nothing performed it. A daily job now exists: it works out what is past its 30 days, removes the stored files first and then the records (a due project takes its inspections and maintenance with it), and shows each archived row its exact deletion date. It deletes nothing until RETENTION_LIVE=1 is set in the hosting environment, so today's behaviour is unchanged and the live run waits for the office's go-ahead.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Point step 6 at the shipped commit
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)

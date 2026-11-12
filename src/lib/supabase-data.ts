@@ -1002,6 +1002,179 @@ export async function listArchivedUsers(admin: SupabaseClient): Promise<AppUser[
   return (data ?? []).map(mapProfile);
 }
 
+/* @mine — step 8: the 30-day archive retention (WORKFLOW-REVIEW Q26 / B5a). */
+
+export type RetentionRecord = { id: string; label: string; archivedAt: string };
+
+export type RetentionReport = {
+  /** Anything archived at or before this moment is due. */
+  cutoff: string;
+  projects: RetentionRecord[];
+  inspections: RetentionRecord[];
+  maintenance: RetentionRecord[];
+  /** Archived staff accounts — reported for visibility, never deleted by the purge. */
+  accounts: RetentionRecord[];
+  /** Every stored file that goes with the records above. */
+  files: string[];
+};
+
+export type RetentionRun = {
+  report: RetentionReport;
+  deleted: { projects: number; inspections: number; maintenance: number; files: number };
+  errors: string[];
+};
+
+/**
+ * @mine — what the 30-day rule would delete right now. Read-only: this is the
+ * report-only mode the plan asks for, and the same list the live run then uses.
+ */
+export async function collectRetentionReport(admin: SupabaseClient, cutoff: string = new Date().toISOString()): Promise<RetentionReport> {
+  const dueRows = async (table: string, columns: string): Promise<Joined[]> => {
+    const { data, error } = await admin.from(table).select(columns).not('archived_at', 'is', null).lte('archived_at', cutoff);
+    if (error) throw error;
+    return (data ?? []) as Joined[];
+  };
+
+  const [projectRows, inspectionRows, maintenanceRows, accountRows] = await Promise.all([
+    dueRows('projects', 'id, project_name, archived_at'),
+    dueRows('inspections', 'id, inspection_date, project_id, archived_at'),
+    dueRows('maintenance_records', 'id, scheduled_date, maintenance_type, project_id, archived_at'),
+    dueRows('profiles', 'id, full_name, name, archived_at'),
+  ]);
+
+  const projects = projectRows.map((row) => ({
+    id: String(row.id), label: str(row.project_name) || 'Unnamed project', archivedAt: str(row.archived_at),
+  }));
+  const projectIds = projects.map((row) => row.id);
+
+  // A due project takes its inspections and maintenance with it, so their files go too.
+  const childRows = async (table: string, columns: string): Promise<Joined[]> => {
+    if (!projectIds.length) return [];
+    const { data, error } = await admin.from(table).select(columns).in('project_id', projectIds);
+    if (error) throw error;
+    return (data ?? []) as Joined[];
+  };
+  const [projectInspections, projectMaintenance] = await Promise.all([
+    childRows('inspections', 'id'),
+    childRows('maintenance_records', 'id'),
+  ]);
+
+  const inspections = mergeRetentionRecords(
+    inspectionRows.map((row) => ({
+      id: String(row.id),
+      label: `Inspection ${str(row.inspection_date) || '(no date)'}`,
+      archivedAt: str(row.archived_at),
+    })),
+  );
+  const maintenance = mergeRetentionRecords(
+    maintenanceRows.map((row) => ({
+      id: String(row.id),
+      label: `${cap(str(row.maintenance_type)) || 'Maintenance'} ${str(row.scheduled_date) || ''}`.trim(),
+      archivedAt: str(row.archived_at),
+    })),
+  );
+
+  const inspectionIds = mergeIds(inspections, projectInspections.map((row) => str(row.id)));
+  const maintenanceIds = mergeIds(maintenance, projectMaintenance.map((row) => str(row.id)));
+
+  const filesFor = async (column: string, ids: string[]): Promise<string[]> => {
+    if (!ids.length) return [];
+    const { data, error } = await admin.from('attachments').select('storage_path').in(column, ids);
+    if (error) throw error;
+    return (data ?? []).map((row: Joined) => str(row.storage_path)).filter(Boolean);
+  };
+  const fileLists = await Promise.all([
+    filesFor('project_id', projectIds),
+    filesFor('inspection_id', inspectionIds),
+    filesFor('maintenance_id', maintenanceIds),
+  ]);
+
+  return {
+    cutoff,
+    projects,
+    inspections,
+    maintenance,
+    accounts: accountRows.map((row) => ({
+      id: String(row.id), label: str(row.full_name) || str(row.name) || 'Unnamed account', archivedAt: str(row.archived_at),
+    })),
+    files: uniqueStrings(fileLists.reduce<string[]>((all, list) => all.concat(list), [])),
+  };
+}
+
+/** @mine — de-duplicated list without spreading a Set (which the test harness down-levels). */
+function uniqueStrings(values: string[]): string[] {
+  const result: string[] = [];
+  for (const value of values) if (value && result.indexOf(value) === -1) result.push(value);
+  return result;
+}
+
+/** @mine — one entry per id, keeping the first. */
+function mergeRetentionRecords(records: RetentionRecord[]): RetentionRecord[] {
+  const seen: string[] = [];
+  const result: RetentionRecord[] = [];
+  for (const record of records) {
+    if (!record.id || seen.indexOf(record.id) !== -1) continue;
+    seen.push(record.id);
+    result.push(record);
+  }
+  return result;
+}
+
+/** @mine — ids from the due rows plus the children of due projects, without repeats. */
+function mergeIds(records: RetentionRecord[], extra: string[]): string[] {
+  const ids = records.map((record) => record.id);
+  for (const id of extra) if (id && ids.indexOf(id) === -1) ids.push(id);
+  return ids;
+}
+
+/**
+ * @mine — delete what the report lists: the stored files first (a deleted row would
+ * leave a file nobody can find), then the rows, children before their project.
+ * Only rows that are still archived and still past the cutoff are touched, so a
+ * record restored in between survives.
+ */
+export async function purgeExpiredRecords(admin: SupabaseClient, cutoff: string = new Date().toISOString()): Promise<RetentionRun> {
+  const report = await collectRetentionReport(admin, cutoff);
+  const deleted = { projects: 0, inspections: 0, maintenance: 0, files: 0 };
+  const errors: string[] = [];
+
+  for (let index = 0; index < report.files.length; index += 100) {
+    const batch = report.files.slice(index, index + 100);
+    try {
+      const { error } = await admin.storage.from(ATTACHMENT_BUCKET).remove(batch);
+      if (error) throw error;
+      deleted.files += batch.length;
+    } catch (error) {
+      errors.push(`Could not remove ${batch.length} stored file(s).`);
+      console.error('Archive purge could not remove stored files.', error);
+    }
+  }
+
+  const targets: Array<[string, string[], keyof typeof deleted]> = [
+    ['maintenance_records', report.maintenance.map((row) => row.id), 'maintenance'],
+    ['inspections', report.inspections.map((row) => row.id), 'inspections'],
+    ['projects', report.projects.map((row) => row.id), 'projects'],
+  ];
+  for (const [table, ids, key] of targets) {
+    if (!ids.length) continue;
+    try {
+      const { error, count } = await admin
+        .from(table)
+        .delete({ count: 'exact' })
+        .in('id', ids)
+        .not('archived_at', 'is', null)
+        .lte('archived_at', report.cutoff);
+      if (error) throw error;
+      deleted[key] += count ?? 0;
+    } catch (error) {
+      errors.push(`Could not delete ${ids.length} archived ${table} record(s).`);
+      console.error(`Archive purge could not delete ${table}.`, error);
+    }
+  }
+
+  return { report, deleted, errors };
+}
+
 export async function addActivityLog(
   admin: SupabaseClient,
   input: { userId?: string; user: string; action: string; details: string },

@@ -1,0 +1,6 @@
+{
+  "//": "@mine — step 8: the archive purge runs once a day. It only reports unless RETENTION_LIVE=1 is set in the project's environment variables.",
+  "crons": [
+    { "path": "/api/retention", "schedule": "0 2 * * *" }
+  ]
+}
