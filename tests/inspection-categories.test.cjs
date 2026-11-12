@@ -269,3 +269,19 @@ test('inspection cards use one-line truncation, hide trigger dates and offer the
   assert.doesNotMatch(card.textContent, /2026-11-11|Inspection due by|Edit this entry/);
   act(() => root.unmount()); container.remove();
 });
+
+test('inspection overview follows history changes and pending annual cards keep their prompt', async () => {
+  const pending={id:'i',localRoadId:'road-1',localRoadName:'Poblacion Road',date:'2027-01-01',annualFollowUpYear:2027,isScheduledAnnualFollowUp:true,conditionRating:0,remarks:'',inspector:''};
+  for (const role of ['Head Engineer','Staff - Inspector']) {
+    const {container,root}=renderModule([pending],role);
+    assert.match(container.textContent,/Provide the necessary inspection details\./);
+    assert.match(container.textContent,/Pending/);
+    const tabs=()=>[...container.querySelectorAll('[role=tab]')];
+    await act(async()=>tabs().find(el=>el.textContent.includes('Overview')).click());
+    let table=container.querySelector('table'); assert.match(table.textContent,/Project Name/); assert.match(table.textContent,/Status/); assert.match(table.textContent,/Inspection Findings/); assert.match(table.textContent,/Pending/);
+    await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[{...pending,isScheduledAnnualFollowUp:false,conditionRating:6,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracks'}}],localRoadList:[{id:'road-1',name:'Poblacion Road'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:role})));
+    table=container.querySelector('table'); assert.match(table.textContent,/Completed/); assert.match(table.textContent,/Cracks/);
+    await act(async()=>tabs().find(el=>el.textContent.includes('Inspection History')).click()); assert.match(container.textContent,/Cracks/);
+    act(()=>root.unmount()); container.remove();
+  }
+});

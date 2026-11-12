@@ -103,6 +103,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   const [activeTab, setActiveTab] = useState<'accounts' | 'activity' | 'archived'>('accounts');
   const [archiveFilter, setArchiveFilter] = useState<'users' | 'projects' | 'inspections' | 'maintenance'>('users');
   const [activityDateFilter, setActivityDateFilter] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('All Roles');
+  const [userStatusFilter, setUserStatusFilter] = useState('All Status');
   const [activityUserFilter, setActivityUserFilter] = useState('All Users');
   const [activeUserFormTab, setActiveUserFormTab] = useState<'account' | 'access'>('account');
   const userFormScrollRef = useRef<HTMLDivElement>(null);
@@ -841,6 +843,9 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
   const filteredUsers = users.filter((user) => {
     const term = search.trim().toLowerCase();
+    const normalizedRole = user.role === 'Admin' ? 'Head Engineer' : user.role.startsWith('Staff - ') ? user.role : `Staff - ${user.role}`;
+    if (userRoleFilter !== 'All Roles' && normalizedRole !== userRoleFilter) return false;
+    if (userStatusFilter !== 'All Status' && user.status !== userStatusFilter) return false;
     if (!term) return true;
 
     const searchable = [
@@ -982,8 +987,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   className="h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
-              <button type="button" className="flex items-center justify-between gap-8 rounded-2xl border border-slate-200 px-5 py-3 text-left font-medium text-slate-700">All Roles <ChevronDown className="h-4 w-4 text-slate-400" /></button>
-              <button type="button" className="flex items-center justify-between gap-8 rounded-2xl border border-slate-200 px-5 py-3 text-left font-medium text-slate-700">All Status <ChevronDown className="h-4 w-4 text-slate-400" /></button>
+              <select aria-label="Filter users by role" value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{['All Roles', 'Head Engineer', 'Staff - Encoder', 'Staff - Inspector', 'Staff - Validator'].map(role => <option key={role}>{role}</option>)}</select>
+              <select aria-label="Filter users by status" value={userStatusFilter} onChange={e => setUserStatusFilter(e.target.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{['All Status', 'Active', 'Inactive'].map(status => <option key={status}>{status}</option>)}</select>
             </div>
             </div>
           </div>
@@ -1122,7 +1127,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                 <input
                   type="date"
                   value={activityDateFilter}
-                  onChange={(event) => setActivityDateFilter(event.target.value)}
+                  min="1000-01-01" max="9999-12-31"
+                  onChange={(event) => { if (!event.target.value || event.target.validity.valid) setActivityDateFilter(event.target.value); }}
                   aria-label="Filter activity logs by date"
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 />
@@ -1197,8 +1203,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               </Select>
             </div>
           </div>
-          <p className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            Archived users, projects, inspections, and maintenance records are automatically permanently deleted 30 days after archiving. Restore anything you want to keep before then.
+          <p className="mb-5 text-center text-sm text-gray-500">
+            Recently deleted records will be kept here for 30 days , after which they will be automatically and permanently deleted.
           </p>
           {archiveFilter === 'users' && (
             <section>
@@ -1238,8 +1244,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.createdDate}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <div className="flex items-center gap-2">
-                              <button onClick={() => handleRestoreUser(user.id)} type="button" aria-label={`Restore ${user.name}`} title="Restore" className="inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
-                              <button onClick={() => handleDeleteArchivedUser(user.id)} type="button" className="inline-flex items-center rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600" aria-label={`Delete permanently ${user.name}`} title="Delete permanently">
+                              <button onClick={() => handleRestoreUser(user.id)} type="button" aria-label={`Restore ${user.name}`} title="Restore" className="inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                              <button onClick={() => handleDeleteArchivedUser(user.id)} type="button" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600" aria-label={`Delete permanently ${user.name}`} title="Delete permanently">
                                 <Trash2 className="w-4 h-4" aria-hidden="true" />
                               </button>
                             </div>
@@ -1275,8 +1281,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                         <td className="px-6 py-4 text-sm text-gray-600">{record.projectCategory || '—'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{record.location || '—'}</td>
                         <td className="px-6 py-4 text-sm">
-                          <button onClick={() => handleRestoreRecord(record.id)} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
-                          <button onClick={() => confirmDeleteArchivedRecord('project', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                          <button onClick={() => handleRestoreRecord(record.id)} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                          <button onClick={() => confirmDeleteArchivedRecord('project', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                         </td>
                       </tr>
                     ))}
@@ -1305,8 +1311,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm font-medium text-slate-700">{record.projectName || record.localRoadName || record.roadName || record.name || 'Unnamed project'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.date || '—'}</td>
                           <td className="px-6 py-4 text-sm">
-                            <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
-                            <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                            <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                            <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                           </td>
                         </tr>
                       ))}
@@ -1339,8 +1345,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm text-gray-600">{record.completedDate || '—'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.status || '—'}</td>
                           <td className="px-6 py-4 text-sm">
-                            <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg border border-green-600 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
-                            <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg border border-red-600 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                            <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                            <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                           </td>
                         </tr>
                       ))}

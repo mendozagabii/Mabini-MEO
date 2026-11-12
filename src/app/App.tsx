@@ -116,6 +116,7 @@ interface Maintenance {
   localRoadName: string;
   type: string;
   scheduledDate: string;
+  dateStarted?: string;
   completedDate?: string;
   cost: number;
   status: 'Scheduled' | 'In Progress' | 'Completed' | 'Deferred';

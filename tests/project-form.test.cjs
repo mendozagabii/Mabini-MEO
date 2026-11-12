@@ -603,9 +603,10 @@ test('maintenance completion date field enforces the 2000 lower bound in the bro
   await act(async () => root.render(React.createElement(MaintenanceModule, {maintenanceRecords:[],localRoadList:[],inspections:[],userRole:'Staff - Encoder',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}})));
   await act(async () => [...container.querySelectorAll('button')].find(b=>b.textContent.includes('Schedule Maintenance')).click());
   const input = document.querySelector('.module-form-panel input[type=date]:not([readonly])');
-  assert.equal(input.min,'2000-01-01'); assert.equal(input.max,'9999-12-31'); assert.equal(input.required,true);
+  assert.equal(input.min,'2000-01-01'); assert.equal(input.max,'9999-12-31'); assert.equal(input.required,false);
   input.value='1999-12-31'; assert.equal(input.validity.rangeUnderflow,true);
-  input.value='2000-01-01'; assert.equal(input.validity.valid,true);
+  await act(async()=>input.checkValidity()); assert.equal(input.validationMessage, 'Please fill out valid date.');
+  input.value='2000-01-01'; await act(async()=>input.dispatchEvent(new window.Event('input',{bubbles:true}))); assert.equal(input.validity.valid,true);
 });
 
 test('maintenance project dropdown shows any below-good component and removes scheduled projects', async () => {

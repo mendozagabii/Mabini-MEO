@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Wrench, Calendar, Search, MapPin, Pencil, Trash2, X, Printer, ClipboardCheck, Play, Table2 } from 'lucide-react';
+import { Plus, Wrench, Calendar, Search, MapPin, Pencil, Trash2, X, Printer, ClipboardCheck, Play, Table2, Pause, CheckCircle2 } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -17,6 +17,7 @@ interface Maintenance {
   localRoadName: string;
   type: string;
   scheduledDate: string;
+  dateStarted?: string;
   completedDate?: string;
   cost: number;
   status: 'Scheduled' | 'In Progress' | 'Completed' | 'Deferred';
@@ -151,7 +152,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       {
         title: 'Maintenance Activity Information',
         fields: [
-          { label: 'Date Started', value: road?.dateBuilt, width: 'third' },
+          { label: 'Date Started', value: record.dateStarted, width: 'third' },
           { label: 'Completion Date', value: record.completedDate, width: 'third' },
           { label: 'Type of Maintenance', value: record.type, width: 'third' },
           { label: 'Status', value: record.status, width: 'third' },
@@ -210,8 +211,8 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       projectDescription: selected?.projectDescription || selected?.description || '',
       location: selected?.location || '',
       contractor: selected?.contractorName || '',
-      dateStarted: selected?.dateBuilt || '',
-      completionDate: selected?.actualCompletionDate || '',
+      dateStarted: prev.dateStarted,
+      completionDate: prev.completionDate,
       type: prev.type,
       scheduledDate: prev.scheduledDate,
       cost: prev.cost,
@@ -253,7 +254,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       projectDescription: road?.projectDescription || road?.description || '',
       location: road?.location || '',
       contractor: road?.contractorName || '',
-      dateStarted: road?.dateBuilt || '',
+      dateStarted: record.dateStarted || '',
       completionDate: record.scheduledDate,
       maintenanceType: record.type,
       maintenanceActivities: record.description,
@@ -273,15 +274,10 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       returnToSection(projectSectionRef, 'project', '[aria-label="Select project"]');
       return;
     }
-    if (!formData.dateStarted || !hasFourDigitYear(formData.completionDate) || !formData.maintenanceType || !formData.maintenanceActivities.trim() || !formData.remarks.trim()) {
-      setActivityError([
-        !formData.dateStarted ? 'Date started is required.' : '',
-        !hasFourDigitYear(formData.completionDate) ? 'Enter a valid completion date from 2000 onward.' : '',
-        !formData.maintenanceType ? 'Select a maintenance type.' : '',
-        !formData.maintenanceActivities.trim() ? 'Enter the maintenance activities.' : '',
-        !formData.remarks.trim() ? 'Enter remarks.' : '',
-      ].filter(Boolean).join(' '));
-      returnToSection(activitySectionRef, 'activity', !formData.completionDate ? 'input[type="date"]:not([readonly])' : 'textarea');
+    const invalidDate = [formData.dateStarted, formData.completionDate].some(date => !!date && !hasFourDigitYear(date));
+    if (invalidDate || !formData.maintenanceType || (editingRecordId && (!formData.dateStarted || !formData.completionDate || !formData.maintenanceActivities.trim() || !formData.remarks.trim()))) {
+      setActivityError(invalidDate ? 'Please fill out valid date.' : 'Please fill out this field.');
+      returnToSection(activitySectionRef, 'activity');
       return;
     }
 
@@ -294,7 +290,8 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
         localRoadId: formData.localRoadId,
         localRoadName: localRoad.name,
         type: formData.maintenanceType || formData.type,
-        scheduledDate: formData.completionDate || formData.scheduledDate || formData.dateStarted,
+        scheduledDate: formData.completionDate,
+        dateStarted: formData.dateStarted,
         cost: Number(formData.cost) || 0,
         description: formData.maintenanceActivities || formData.description,
         remarks: formData.remarks,
@@ -486,23 +483,28 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Date Started *</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Date Started{editingRecordId ? ' *' : ''}</label>
                     <input
                       type="date"
                       value={formData.dateStarted}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900 cursor-not-allowed"
+                      min="2000-01-01" max="9999-12-31" required={!!editingRecordId}
+                      onChange={e => setFormData({ ...formData, dateStarted: e.target.value })}
+                      onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Please fill out valid date.')}
+                      onInput={e => e.currentTarget.setCustomValidity('')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Completion Date *</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Completion Date{editingRecordId ? ' *' : ''}</label>
                     <input
                       type="date"
                       value={formData.completionDate}
                       min="2000-01-01" max="9999-12-31"
+                      onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Please fill out valid date.')}
+                      onInput={e => e.currentTarget.setCustomValidity('')}
                       onChange={(e) => setFormData({ ...formData, completionDate: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
-                      required
+                      required={!!editingRecordId}
                     />
                   </div>
                   <div>
@@ -523,13 +525,13 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 </div>
 
                 <div className="mb-3">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Maintenance Activities*</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Maintenance Activities{editingRecordId ? '*' : ''}</label>
                   <AutoGrowTextarea
                     value={formData.maintenanceActivities}
                     onChange={(e) => setFormData({ ...formData, maintenanceActivities: e.target.value, description: e.target.value })}
                     rows={3}
                     className="w-full resize-y px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
-                    required
+                    required={!!editingRecordId}
                   />
                   {activityError && (
                     <p role="alert" className="mt-2 text-xs font-medium text-red-600">{activityError}</p>
@@ -537,13 +539,13 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Remarks *</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Remarks{editingRecordId ? ' *' : ''}</label>
                   <AutoGrowTextarea
                     value={formData.remarks}
                     onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                     onInvalid={(e) => e.currentTarget.setCustomValidity('Please fill out this field.')}
                     onInput={(e) => e.currentTarget.setCustomValidity('')}
-                    required
+                    required={!!editingRecordId}
                     rows={3}
                     className="w-full resize-y px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
                   />
@@ -623,7 +625,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Date Started</p>
-                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{road?.dateBuilt || ''}</p>
+                      <p className="min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{record.dateStarted || ''}</p>
                     </div>
                     <div>
                       <p className="mb-2 text-sm font-medium text-gray-700">Completion Date</p>
@@ -727,7 +729,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 <div className="flex items-center justify-between gap-3 text-sm leading-5 text-slate-700">
                   <span className="truncate">{referenceId}</span>
                   <span className="shrink-0 text-right">
-                    {record.completedDate || record.scheduledDate || 'Date not set'}
+                    {record.status === 'Completed' ? (record.completedDate || '') : ''}
                   </span>
                 </div>
 
@@ -746,18 +748,18 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 </div>
                 <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
                   <span className="flex items-center gap-1.5 text-sm text-slate-500">
-                    <Calendar className="h-4 w-4 text-slate-400" />
-                    {record.completedDate ? `Completed: ${record.completedDate}` : `Target: ${record.scheduledDate || 'Not set'}`}
+                    {record.status === 'Completed' && <><Calendar className="h-4 w-4 text-slate-400" />
+                    {record.completedDate ? `Completed: ${record.completedDate}` : ''}</>}
                   </span>
                   <div className="flex shrink-0 items-center gap-2">
                     {!isAdminReadDeleteOnly && (
                       <>
                         {/* @mine — icon-only controls keep accessible names and visible focus. */}
-                        <button type="button" onClick={(event) => { event.stopPropagation(); startEditing(record); }} aria-label={`Edit maintenance record for ${record.localRoadName}`} title="Edit" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                        {record.status !== 'Scheduled' && record.status !== 'Deferred' && <button type="button" onClick={(event) => { event.stopPropagation(); startEditing(record); }} aria-label={`Edit maintenance record for ${record.localRoadName}`} title="Edit" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                           <Pencil className="h-4 w-4" aria-hidden="true" />
-                        </button>
+                        </button>}
                         {record.status === 'Scheduled' && (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} className="text-sm font-semibold text-blue-700 hover:underline">Start</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} aria-label={`Start maintenance for ${record.localRoadName}`} title="Start" className="rounded-md p-2 text-slate-500 hover:text-blue-700"><Play className="h-4 w-4" aria-hidden="true" /></button>
                         )}
                         {record.status === 'Deferred' && (
                           <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} aria-label={`Continue maintenance for ${record.localRoadName}`} title="Continue" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
@@ -765,10 +767,10 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                           </button>
                         )}
                         {record.status === 'In Progress' && (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'Completed', new Date().toISOString().split('T')[0]); }} className="text-sm font-semibold text-emerald-600 hover:underline">Complete</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); if (!hasFourDigitYear(record.dateStarted || '') || !hasFourDigitYear(record.scheduledDate) || !record.type?.trim() || !record.description?.trim() || !record.remarks?.trim()) { window.alert('Complete the maintenance information before marking it completed.'); return; } onUpdateStatus(record.id, 'Completed', new Date().toISOString().split('T')[0]); }} aria-label={`Complete maintenance for ${record.localRoadName}`} title="Complete" className="rounded-md p-2 text-slate-500 hover:text-emerald-700"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /></button>
                         )}
                         {record.status !== 'Completed' && record.status !== 'Deferred' && (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'Deferred'); }} className="text-sm text-slate-500 hover:text-slate-800">Defer</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'Deferred'); }} aria-label={`Defer maintenance for ${record.localRoadName}`} title="Defer" className="rounded-md p-2 text-slate-500 hover:text-amber-700"><Pause className="h-4 w-4" aria-hidden="true" /></button>
                         )}
                       </>
                     )}

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ClipboardCheck, Calendar, X, Search, FileText, AlertCircle, Pencil, Trash2, Printer } from 'lucide-react';
+import { ClipboardCheck, Calendar, X, Search, FileText, AlertCircle, Pencil, Trash2, Printer, Table2 } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -223,6 +223,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const savingRef = useRef(false);
   const [editingInspection, setEditingInspection] = useState<Inspection | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [inspectionView, setInspectionView] = useState<'history' | 'overview'>('history');
   const [filterDate, setFilterDate] = useState('');
   const filterDateRef = useRef<HTMLInputElement>(null);
   const [selectedInspection, setSelectedInspection] = useState<{ inspection: Inspection; referenceId: string } | null>(null);
@@ -918,16 +919,16 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             </td>
                           </tr>
                           {/* @mine 2026-11-11 — remark + attachments underneath each category. */}
-                          <tr className="border-t border-gray-300 bg-slate-50 align-top">
+                          <tr className="border-t border-gray-300 bg-white align-top">
                             <td colSpan={3} className="px-3 py-3">
                               {/* @mine 2026-11-11 — remarks first, attachments directly underneath. */}
                               <div className="flex flex-col gap-3">
                                 <div>
                                   <label
                                     htmlFor={`category-remark-${row.key}`}
-                                    className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
+                                    className="mb-1 block text-sm font-semibold text-gray-700"
                                   >
-                                    {row.label} — Remarks {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
+                                    Remarks {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
                                   </label>
                                   <AutoGrowTextarea
                                     id={`category-remark-${row.key}`}
@@ -939,8 +940,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                                   />
                                 </div>
                                 <div>
-                                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                    {row.label} — Attachments {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
+                                  <span className="mb-1 block text-sm font-semibold text-gray-700">
+                                    Attachments {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
                                   </span>
                                   <div className="flex flex-wrap items-center gap-2">
                                     <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 hover:bg-gray-50">
@@ -1307,14 +1308,23 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
         </div>
 
-        <section aria-labelledby="inspection-history-title">
+        <section aria-label="Inspection records">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 id="inspection-history-title" className="flex items-center gap-3 text-lg font-bold text-blue-900">
-              <ClipboardCheck className="h-5 w-5 text-blue-600" />
-              Inspection History
-            </h2>
+            <div role="tablist" aria-label="Inspection views" className="flex flex-wrap gap-2">
+              <button type="button" role="tab" aria-selected={inspectionView === 'history'} onClick={() => setInspectionView('history')} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${inspectionView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}><ClipboardCheck className="h-5 w-5" aria-hidden="true" /> Inspection History</button>
+              <button type="button" role="tab" aria-selected={inspectionView === 'overview'} onClick={() => setInspectionView('overview')} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${inspectionView === 'overview' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}><Table2 className="h-5 w-5" aria-hidden="true" /> Overview</button>
+            </div>
             <span className="text-sm text-slate-500">{filteredInspections.length} {filteredInspections.length === 1 ? 'record' : 'records'} listed</span>
           </div>
+          {inspectionView === 'overview' ? <div role="tabpanel" aria-label="Inspection Overview" className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left"><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Status</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Findings</th></tr></thead>
+              <tbody className="divide-y divide-gray-200">{filteredInspections.map(({inspection, referenceId}) => {
+                const road = localRoadList.find(item => item.id === inspection.localRoadId);
+                const name = road?.projectName || road?.name || inspection.projectName || inspection.localRoadName;
+                const pending = isPendingInspectionRecord(inspection);
+                return <tr key={inspection.id} tabIndex={0} aria-label={`View inspection details for ${name}`} onClick={() => setSelectedInspection({inspection, referenceId})} onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setSelectedInspection({inspection, referenceId});}}} className="cursor-pointer hover:bg-blue-50 focus-visible:bg-blue-50"><td className="px-6 py-4 font-medium text-blue-700">{name}</td><td className="px-6 py-4"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${pending ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{pending ? 'Pending' : 'Completed'}</span></td><td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{pending ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}</td></tr>;
+              })}{filteredInspections.length === 0 && <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-500">No inspections match your search or filters.</td></tr>}</tbody>
+            </table></div> : (
           <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredInspections.map(({ inspection, referenceId }) => {
               const road = localRoadList.find((item) => item.id === inspection.localRoadId);
@@ -1353,6 +1363,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             ? 'Validation Inspection'
                             : 'Inspection Findings'}
                       </span>
+                      {inspection.isScheduledAnnualFollowUp && <p className="mt-1 text-sm text-slate-700">Provide the necessary inspection details.</p>}
                       {!isPendingInspection && <p className="inspection-remarks mt-1 truncate text-sm leading-6 text-slate-700">
                         {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No observation notes recorded.'}
                       </p>}
@@ -1408,7 +1419,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                   : 'No inspections match your search or selected filter.'}
               </div>
             )}
-          </div>
+          </div>)}
         </section>
         <div className="mb-10 mt-auto flex flex-col gap-2 border-t border-slate-200 px-1 pt-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span>Showing {filteredInspections.length} of {new Set(inspections.map(inspection => inspection.localRoadId)).size} projects</span>

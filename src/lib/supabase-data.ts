@@ -830,7 +830,7 @@ const MAINT_STATUS_FROM_DB: Record<string, string> = {
   scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Completed', deferred: 'Deferred',
 };
 const MAINT_TYPE_TO_DB: Record<string, string> = {
-  Corrective: 'corrective', Preventive: 'preventive', Routine: 'routine', Emergency: 'emergency',
+  Corrective: 'corrective', 'Corrective Type': 'corrective', Preventive: 'preventive', Routine: 'routine', Emergency: 'emergency',
 };
 const MAINT_TYPE_FROM_DB: Record<string, string> = Object.fromEntries(Object.entries(MAINT_TYPE_TO_DB).map(([a, b]) => [b, a]));
 
@@ -842,6 +842,7 @@ function mapMaintenance(m: Joined): StoredRecord {
     localRoadName: m.projects?.project_name ?? '',
     type: MAINT_TYPE_FROM_DB[m.maintenance_type] ?? cap(m.maintenance_type),
     scheduledDate: str(m.scheduled_date),
+    dateStarted: str(m.start_date),
     completedDate: str(m.completed_date) || undefined,
     cost: m.cost == null ? 0 : Number(m.cost),
     status: MAINT_STATUS_FROM_DB[m.status] ?? 'Scheduled',
@@ -869,7 +870,8 @@ export async function saveMaintenance(db: SupabaseClient, rec: StoredRecord, pro
     maintenance_type: MAINT_TYPE_TO_DB[str(rec.type)] ?? 'routine',
     activities: str(rec.description) || null,
     ...(rec.remarks !== undefined ? { remarks: str(rec.remarks) || null } : {}),
-    scheduled_date: str(rec.scheduledDate) || new Date().toISOString().slice(0, 10),
+    scheduled_date: str(rec.scheduledDate) || null,
+    start_date: str(rec.dateStarted) || null,
     completed_date: str(rec.completedDate) || null,
     cost: Number(rec.cost ?? 0) || 0,
     status: MAINT_STATUS_TO_DB[str(rec.status)] ?? 'scheduled',

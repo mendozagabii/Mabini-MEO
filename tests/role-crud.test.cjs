@@ -123,7 +123,7 @@ const maintenance = { id: 'm', localRoadId: 'p', localRoadName: 'Road', type: 'R
 const inspection = { id: 'i', localRoadId: 'p', localRoadName: 'Road', date: '2026-01-01', conditionRating: 8, remarks: '', inspector: 'Inspector' };
 const cases = [
   ['LocalRoadList', { data: [project], onAdd: noop, onEdit: noop, onDelete: noop }, 'Staff - Encoder', /Add Local Road|Add Project/, /Edit Road/, /Delete Road/],
-  ['MaintenanceModule', { maintenanceRecords: [maintenance], localRoadList: [project], inspections: [], onAddMaintenance: noop, onEditMaintenance: noop, onDeleteMaintenance: noop, onUpdateStatus: noop }, 'Staff - Encoder', /Schedule Maintenance/, /Edit maintenance record/, /Delete maintenance record/],
+  ['MaintenanceModule', { maintenanceRecords: [{...maintenance, status:'In Progress'}], localRoadList: [project], inspections: [], onAddMaintenance: noop, onEditMaintenance: noop, onDeleteMaintenance: noop, onUpdateStatus: noop }, 'Staff - Encoder', /Schedule Maintenance/, /Edit maintenance record/, /Delete maintenance record/],
   ['InspectionModule', { inspections: [inspection], localRoadList: [project], onAddInspection: noop, onEditInspection: noop, onDeleteInspection: noop }, 'Staff - Inspector', /Add Inspection/, /Edit inspection/, /Delete inspection/],
 ];
 for (const [name, props, staff, addPattern, editPattern, deletePattern] of cases) {
@@ -221,21 +221,21 @@ test('maintenance editing keeps remarks separate from activities', async () => {
   const old = { listMaintenance:data.listMaintenance, listRoads:data.listRoads, saveMaintenance:data.saveMaintenance };
   try {
     role = 'encoder';
-    data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'Scheduled', inspectionId:'i', remarks:'Old'}];
+    data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'In Progress', inspectionId:'i', remarks:'Old'}];
     data.listRoads = async () => [{id:'p'}];
     let saved;
     data.saveMaintenance = async (_db, payload) => (saved=payload);
-    const result = await routes.maintenance.PATCH(request({id:'m',localRoadId:'p', type:'Corrective Type', scheduledDate:'2026-02-01', cost:0, description:'Repair', remarks:'Needs traffic signs'}));
+    const result = await routes.maintenance.PATCH(request({id:'m',localRoadId:'p', type:'Corrective Type', dateStarted:'2026-01-01', scheduledDate:'2026-02-01', cost:0, description:'Repair', remarks:'Needs traffic signs'}));
     assert.equal(result.status, 200); assert.equal(saved.description, 'Repair'); assert.equal(saved.remarks, 'Needs traffic signs'); assert.equal(saved.inspectionId,'i');
   } finally { Object.assign(data, old); }
 });
 
-test('maintenance remarks are required for creation and full edits, but not status-only updates', async () => {
+test('maintenance remarks are required for full edits', async () => {
   role = 'encoder';
   assert.equal((await routes.maintenance.POST(request({localRoadId:'p',inspectionId:'i',remarks:'  '}))).status, 400);
   const old = data.listMaintenance;
   try {
-    data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'Scheduled'}];
+    data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'In Progress'}];
     assert.equal((await routes.maintenance.PATCH(request({id:'m',localRoadId:'p',type:'Corrective Type',scheduledDate:'2026-01-01',description:'Repair',cost:0,remarks:''}))).status, 400);
   } finally { data.listMaintenance = old; }
 });
@@ -247,9 +247,9 @@ test('maintenance completion date rejects years before 2000 and invalid dates on
     data.listRoads = async () => [{id:'p'}];
     data.listInspections = async () => [{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}];
     data.listArchivedInspections = async () => []; data.listArchivedMaintenance = async () => [];
-    data.listMaintenance = async () => [{id:'m',localRoadId:'p',status:'Scheduled'}];
+    data.listMaintenance = async () => [{id:'m',localRoadId:'p',status:'In Progress'}];
     data.saveMaintenance = async (_db, value) => ({...value,id:'m'});
-    const body = {localRoadId:'p',inspectionId:'i',type:'Corrective Type',cost:0,description:'Repair',remarks:'Needed'};
+    const body = {localRoadId:'p',inspectionId:'i',type:'Corrective Type',dateStarted:'2000-01-01',cost:0,description:'Repair',remarks:'Needed'};
     for (const date of ['1999-12-31','2025-02-29','10000-01-01']) {
       assert.equal((await routes.maintenance.POST(request({...body,scheduledDate:date}))).status,400);
       assert.equal((await routes.maintenance.PATCH(request({...body,id:'m',scheduledDate:date}))).status,400);
@@ -276,4 +276,35 @@ test('maintenance scheduling accepts any single fair, bad or poor component and 
     data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Good',Drainage:'N/A'}}];
     assert.equal((await routes.maintenance.POST(request(body))).status,409);
   } finally {Object.assign(data,old);}
+});
+
+test('maintenance schedule permits empty details, locks edits until start or continue, and requires details before completion', async () => {
+  const old={listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
+  try {
+    role='encoder'; data.listRoads=async()=>[{id:'p'}]; data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}];
+    data.listArchivedInspections=async()=>[]; data.listArchivedMaintenance=async()=>[];
+    let current={id:'m',localRoadId:'p',status:'Scheduled',type:'Corrective Type',scheduledDate:'',dateStarted:'',description:'',remarks:''};
+    data.listMaintenance=async()=>[current]; data.saveMaintenance=async(_db,payload)=>{current={...payload,id:'m'};return current};
+    assert.equal((await routes.maintenance.POST(request({localRoadId:'p',inspectionId:'i',type:'Corrective Type'}))).status,200);
+    const edit={id:'m',localRoadId:'p',type:'Corrective Type',dateStarted:'2026-01-01',scheduledDate:'2026-03-01',description:'Repair',remarks:'Needed',cost:0};
+    assert.equal((await routes.maintenance.PATCH(request(edit))).status,409);
+    assert.equal((await routes.maintenance.PATCH(request({id:'m',status:'In Progress'}))).status,200);
+    assert.equal((await routes.maintenance.PATCH(request({id:'m',status:'Completed'}))).status,409);
+    assert.equal((await routes.maintenance.PATCH(request({id:'m',status:'Deferred'}))).status,200);
+    assert.equal((await routes.maintenance.PATCH(request(edit))).status,409);
+    assert.equal((await routes.maintenance.PATCH(request({id:'m',status:'In Progress'}))).status,200);
+    assert.equal((await routes.maintenance.PATCH(request(edit))).status,200);
+    assert.equal(current.dateStarted,'2026-01-01');
+    assert.equal((await routes.maintenance.PATCH(request({id:'m',status:'Completed',completedDate:'2026-03-01'}))).status,200);
+  } finally {Object.assign(data,old);}
+});
+
+test('maintenance actions are icon-only, edit is gated by status, and unfinished cards hide dates', () => {
+  const Component=loadTs('src/app/components/MaintenanceModule.tsx',componentMocks).MaintenanceModule;
+  for (const [status, visible, hidden] of [['Scheduled',['Start','Defer'],['Edit','Complete']],['Deferred',['Continue'],['Edit','Complete']],['In Progress',['Edit','Complete','Defer'],['Start','Continue']],['Completed',['Edit'],['Start','Continue','Complete','Defer']]]) {
+    const html=renderToStaticMarkup(React.createElement(Component,{maintenanceRecords:[{...maintenance,status,scheduledDate:'2026-05-17'}],localRoadList:[project],inspections:[],onAddMaintenance:noop,onEditMaintenance:noop,onDeleteMaintenance:noop,onUpdateStatus:noop,userRole:'Staff - Encoder',currentUser:'User'}));
+    for (const action of visible) assert.match(html,new RegExp(`aria-label="${action} maintenance`));
+    for (const action of hidden) assert.doesNotMatch(html,new RegExp(`aria-label="${action} maintenance`));
+    if (status !== 'Completed') assert.doesNotMatch(html,/2026-05-17/);
+  }
 });
