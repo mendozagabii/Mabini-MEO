@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Workflow review sheet for the project team
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (new)
+- **What & why:** Owner asked for a plain-language document to send to their students so the end-to-end flow can be checked before the remaining workflow features are built. New docs/WORKFLOW-REVIEW.md explains the system, the four roles, Workflow A (with return for revision) and B, each step with its current status, the six proposed notification emails, the date rules (including the 29/30-day conflict), the inspection summary and assessment specifications, the known gaps the team should not re-report, and a 27-item checklist with the priority answers listed at the end. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-10 — [mine] Start validation at the first anniversary
 
 - Remove initial validation. Projects become eligible 30 days before the first anniversary of Actual Completion Date, then before later anniversaries; annual entries no longer depend on a legacy initial approval. Legacy initial decisions remain in the database but no longer produce tasks or revision badges.
