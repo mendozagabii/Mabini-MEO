@@ -249,6 +249,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const formSectionRefs = [projectSectionRef, roadSectionRef, inspectionSectionRef];
   const [validationNotice, setValidationNotice] = useState('');
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
+  // @mine — task 14: "All years" or one year for the overview print.
+  const [overviewPrintYear, setOverviewPrintYear] = useState('all');
   const [printAttachment, setPrintAttachment] = useState<Inspection['attachment']>();
   const [selectedInspectionAttachment, setSelectedInspectionAttachment] = useState<Inspection['attachment'] | null>(null);
   const canPrint = ['Admin', 'Head Engineer', 'Staff - Inspector'].includes(userRole);
@@ -629,6 +631,32 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       },
     ]);
     setSelectedInspection(null);
+  };
+
+  // @mine — task 14: the overview is printable as a whole or for one year, Head Engineer only.
+  const canPrintOverview = ['Admin', 'Head Engineer'].includes(userRole);
+  const overviewYears = Array.from(new Set(filteredInspections
+    .filter(({ inspection }) => !isPendingInspectionRecord(inspection))
+    .map(({ inspection }) => String(inspection.annualFollowUpYear || (inspection.date || '').slice(0, 4)))
+    .filter(year => /^\d{4}$/.test(year)))).sort();
+  const printOverview = (year: string) => {
+    const sections: PrintSection[] = filteredInspections
+      .filter(({ inspection }) => !isPendingInspectionRecord(inspection))
+      .filter(({ inspection }) => year === 'all' || String(inspection.annualFollowUpYear || (inspection.date || '').slice(0, 4)) === year)
+      .map(({ inspection }) => {
+        const road = localRoadList.find(item => item.id === inspection.localRoadId);
+        return {
+          title: road?.projectName || road?.name || inspection.projectName || inspection.localRoadName || 'Project',
+          fields: [
+            { label: 'Date of Inspection', value: inspection.date || '', width: 'half' as const },
+            { label: 'Amount Contracted', value: road?.contractedAmount ? `Php ${formatSavedProjectCurrency(String(road.contractedAmount))}` : '', width: 'half' as const },
+            { label: 'Findings / Remarks', value: findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || '', width: 'full' as const },
+          ],
+        };
+      });
+    if (!sections.length) { window.alert('There is nothing to print for this selection yet.'); return; }
+    setPrintAttachment(undefined);
+    setPrintSections(sections);
   };
 
   return (
@@ -1340,13 +1368,13 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             <span className="text-sm text-slate-500">{filteredInspections.length} {filteredInspections.length === 1 ? 'record' : 'records'} listed</span>
           </div>
           {inspectionView === 'overview' ? <div role="tabpanel" aria-label="Inspection Overview" className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-left"><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Date</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Contracted Amount</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Findings</th></tr></thead>
+            <table className="w-full text-left"><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Date</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Contracted Amount</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Findings</th>{canPrintOverview && <th className="w-px whitespace-nowrap px-6 py-3 text-right"><span className="inline-flex items-center gap-2"><select aria-label="Print inspection overview year" value={overviewPrintYear} onChange={event => setOverviewPrintYear(event.currentTarget.value)} className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-xs font-normal normal-case text-gray-700 outline-none focus:border-blue-400"><option value="all">All years</option>{overviewYears.map(year => <option key={year} value={year}>{year}</option>)}</select><button type="button" aria-label="Print inspection overview" onClick={() => printOverview(overviewPrintYear)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold normal-case text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"><Printer className="h-4 w-4" aria-hidden="true" /> Print</button></span></th>}</tr></thead>
               <tbody className="divide-y divide-gray-200">{filteredInspections.map(({inspection, referenceId}) => {
                 const road = localRoadList.find(item => item.id === inspection.localRoadId);
                 const name = road?.projectName || road?.name || inspection.projectName || inspection.localRoadName;
                 const pending = isPendingInspectionRecord(inspection);
                 return <tr key={inspection.id} tabIndex={0} aria-label={`View inspection details for ${name}`} onClick={() => setSelectedInspection({inspection, referenceId})} onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setSelectedInspection({inspection, referenceId});}}} className="cursor-pointer hover:bg-blue-50 focus-visible:bg-blue-50"><td className="px-6 py-4 font-medium text-blue-700">{name}</td><td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{pending ? '' : inspection.date || ''}</td><td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{road?.contractedAmount != null && road.contractedAmount !== '' ? `Php ${formatSavedProjectCurrency(String(road.contractedAmount))}` : ''}</td><td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{pending ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}</td></tr>;
-              })}{filteredInspections.length === 0 && <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-500">No inspections match your search or filters.</td></tr>}</tbody>
+              })}{filteredInspections.length === 0 && <tr><td colSpan={canPrintOverview ? 5 : 4} className="px-6 py-10 text-center text-slate-500">No inspections match your search or filters.</td></tr>}</tbody>
             </table></div> : (
           <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredInspections.map(({ inspection, referenceId }) => {

@@ -58,7 +58,8 @@ const mocks = {
     SelectItem: passthrough('div'),
   },
   './ConfirmActionDialog': { ConfirmActionDialog: () => null },
-  './PrintDocument': { PrintDocument: () => null },
+  // @mine — task 14: capture what the overview print hands to the print document.
+  './PrintDocument': { PrintDocument: props => { printedDocuments.push(props); return null; } },
   '@/lib/activity-log-client': { recordClientActivity: async () => {} },
   '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts'),
   '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts'),
@@ -67,6 +68,7 @@ const mocks = {
 
 const { inspectionCategories, InspectionModule } = loadTs('src/app/components/InspectionModule.tsx', mocks);
 
+const printedDocuments = [];
 const NEW_CATEGORIES = ['Drainage', 'Solar Lights', 'Slope Protection', 'Retaining Wall'];
 const LEGACY_RATINGS = {
   Concrete: 'Good', Asphalt: 'Fair', Gravel: 'N/A', Earth: 'N/A',
@@ -278,7 +280,17 @@ test('inspection overview follows history changes and pending annual cards keep 
     assert.match(container.textContent,/Pending/);
     const tabs=()=>[...container.querySelectorAll('[role=tab]')];
     await act(async()=>tabs().find(el=>el.textContent.includes('Overview')).click());
-    let table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent),['Project Name','Inspection Date','Contracted Amount','Findings']); assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','','','']);
+    let table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Inspection Date','Contracted Amount','Findings']);
+    // task 14: only the Head Engineer gets the overview print controls, in the header
+    if (role === 'Head Engineer') {
+      assert.equal(table.querySelectorAll('th').length, 5);
+      assert.ok(container.querySelector('button[aria-label="Print inspection overview"]'));
+      assert.ok(container.querySelector('select[aria-label="Print inspection overview year"]'));
+    } else {
+      assert.equal(table.querySelectorAll('th').length, 4);
+      assert.equal(container.querySelector('button[aria-label="Print inspection overview"]'), null);
+    }
+    assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','','','']);
     await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[{...pending,isScheduledAnnualFollowUp:false,conditionRating:6,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracks'}}],localRoadList:[{id:'road-1',name:'Poblacion Road',contractedAmount:'1234567.5'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:role})));
     table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','2027-01-01','Php 1,234,567.50','Cracks.']);
     await act(async()=>tabs().find(el=>el.textContent.includes('Inspection History')).click()); assert.match(container.textContent,/Cracks/);
@@ -298,4 +310,34 @@ test('inspection dates earlier than 29 days before the anniversary show the requ
   input.value='2026-03-02'; await act(async()=>input.dispatchEvent(new window.Event('input',{bubbles:true})));
   assert.equal(input.validity.valid,true);
   act(()=>root.unmount()); container.remove();
+});
+
+test('task 14: the inspection overview prints every record, or a single year', async () => {
+  const completed2026 = { id: 'a', localRoadId: 'road-1', localRoadName: 'Poblacion Road', date: '2026-11-11',
+    conditionRatings: { Concrete: 'Fair' }, conditionRemarks: { Concrete: 'Cracks' }, inspector: 'User' };
+  const completed2027 = { id: 'b', localRoadId: 'road-2', localRoadName: 'Anilao Road', date: '2027-03-04',
+    conditionRatings: { Concrete: 'Poor' }, conditionRemarks: { Concrete: 'Potholes' }, inspector: 'User' };
+  const pending = { id: 'c', localRoadId: 'road-3', localRoadName: 'Bagalangit Road', date: '2028-01-01',
+    annualFollowUpYear: 2028, isScheduledAnnualFollowUp: true, conditionRating: 0, remarks: '', inspector: '' };
+  const { container, root } = renderModule([completed2026, completed2027, pending], 'Head Engineer');
+  await act(async () => [...container.querySelectorAll('[role=tab]')].find(el => el.textContent.includes('Overview')).click());
+
+  const print = () => container.querySelector('button[aria-label="Print inspection overview"]');
+  await act(async () => print().click());
+  let sections = printedDocuments.at(-1).sections;
+  // the pending follow-up has nothing recorded yet, so it is not printed
+  assert.deepEqual(sections.map(section => section.title).sort(), ['Anilao Road', 'Poblacion Road']);
+  assert.deepEqual(sections[0].fields.map(field => field.label), ['Date of Inspection', 'Amount Contracted', 'Findings / Remarks']);
+
+  const year = container.querySelector('select[aria-label="Print inspection overview year"]');
+  const option = [...year.options].find(item => item.value === '2026');
+  assert.ok(option, 'the data years are offered');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(year, '2026');
+    year.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  await act(async () => print().click());
+  sections = printedDocuments.at(-1).sections;
+  assert.deepEqual(sections.map(section => section.title), ['Poblacion Road']);
+  act(() => root.unmount()); container.remove();
 });

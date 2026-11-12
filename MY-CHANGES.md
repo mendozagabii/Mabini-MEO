@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Print the inspection and maintenance overviews, all records or one year, and match the maintenance table to the inspection one
+- **Type:** Feature
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Bulk delivery of step 7 with task 14 (WORKFLOW-DECISIONS Q24). Inspection overview: the table header now carries, beside Findings and only for Admin and Head Engineer, an all-years / one-year selector and a Print button; printing builds one section per completed record with the four summary columns (Date of Inspection, Amount Contracted, Findings / Remarks) and hands them to the existing PrintDocument, while pending follow-ups are skipped because nothing has been recorded yet. Maintenance overview: the same selector and Print button beside Remarks with the same role gate, printing Project Name, Maintenance Date, Status and Remarks. The maintenance table was also aligned with the inspection one (rounded-xl container, semibold slate headers, blue-700 project name) so the two overviews read the same. Both header cells and the empty-state column span only exist for the roles that can print, so the tables keep four columns for everyone else. Took the opportunity to print the findings exactly as the screen shows them (Q20/B4). Tests: a new test drives the inspection overview print in both modes (all records excluding pending, then a single year) and asserts the section titles and field labels; the two existing overview tests now also assert the fifth header and the print controls appear only for the Head Engineer. tsc clean, 114/114 tests pass, next build succeeds.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Mark steps 4-5 and tasks 11-13 as built
 - **Type:** Docs
 - **Files:** `MY-CHANGES.md` (modified), `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/App.tsx` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `src/app/api/local-road/inspector-assignment/` (new), `src/app/api/local-road/inspectors/` (new), `supabase/migrations/20261114_project_inspector_assignment.sql` (new), `tests/inspector-assignment.test.cjs` (new)

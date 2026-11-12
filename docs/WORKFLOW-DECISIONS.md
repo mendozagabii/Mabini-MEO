@@ -1,7 +1,7 @@
 # WBLRMS — Decisions from the workflow review
 
 **Date:** 2026-11-12 (rev. 2) · **Branch:** `arena/0da75355-mabini-meo` · **Source:** answers to `docs/WORKFLOW-REVIEW.md` §10, then to follow-up questions B1–B7
-**Status:** 27 of 27 items decided · **steps 1–5 built** · tasks 11, 13, 15, 16 built · next: step 6 (emails)
+**Status:** 27 of 27 items decided · **steps 1–5 and 7 built** · tasks 11, 13, 14, 15, 16 built · next: step 6 (emails) and task 12 (five locations)
 
 ---
 
@@ -106,7 +106,7 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 | **4** ✅ | **Assign inspector** (Q2, Q3, Q7): one inspector per project, Head Engineer only, activity log entry, dropdown in the Head Engineer table | `projects.inspector_id` (migration applied) | done |
 | **5** ✅ | **Inspector scope** (Q8, Q9): listing filtered to the assigned project, recording refused for any other | none | done |
 | **6** | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | step 4 for email 5; mailbox credentials set in the hosting environment |
-| **7** | **Print both views** (Q24): whole overview, and one year | none | — |
+| **7** ✅ | **Print both views** (Q24): whole overview, and one year | none | done |
 | **8** | **30-day purge** (Q26): scheduled job, report-only mode first, then live | none (deletes data, not schema) | explicit go-ahead before the live run |
 | **9** | **Field removal** (Q25) | hide first, drop later | §3 |
 | **10** | **Five locations** (Q27): list of covered barangays, max 5, filter matches any | new `project_locations` table + backfill from the current single barangay | — |
@@ -126,7 +126,7 @@ Recorded as tasks 11–16 so they do not renumber the ten-step plan above.
 | **11** ✅ | Head Engineer's Project Management: **table like Validation Management** with **Project Name · Location · Contract Amount · Completion Date · Inspector** dropdown per row, clickable rows. | Head Engineer project list | done |
 | **12** | Project form **Location**: the encoder may enter **up to 5 locations**, with an **Add** button, and each accepts a long string (e.g. *"Sitio Dao, Anilao East, Mabini, Batangas"*). Viewing and printing show **one box with one line per location**; the **road name shows the same lines in one box**; **road network ID and road name each get their own row** in add, view, edit and print. | Project form, project view, project print | none |
 | **13** ✅ | Project Management (Head Engineer **and** Encoder): **location filter replaced by a completion-date filter**, as in Maintenance Management. | Head Engineer + Encoder project lists | done |
-| **14** | Maintenance **overview table interface** made to match the Inspection overview. In both overviews put a **print button in the header, on the right** — Inspection beside *Findings*, Maintenance beside *Remarks*. **Printing is Head Engineer only.** | Inspection overview, Maintenance overview | Step 7 (print both views) |
+| **14** ✅ | Maintenance **overview table interface** matches the Inspection overview. In both overviews a **print button in the header, on the right** — Inspection beside *Findings*, Maintenance beside *Remarks*, with an all-years / one-year selector. **Printing is Head Engineer only.** | Inspection overview, Maintenance overview | done |
 | **15** ✅ | The **Location shown in lists is the Barangay** under road information: project list, maintenance list, and the validation table. | those three lists | done (`c7fb4ee`) |
 | **16** ✅ | Validation Management: the **name in the table must be the Project Name** (not the road or location name). | Validation table | done (`c7fb4ee`) |
 

@@ -576,7 +576,16 @@ test('maintenance overview and history use the same live records for encoder and
     assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
     await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
     const table = container.querySelector('table');
-    assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent),['Project Name','Maintenance Date','Status','Remarks']);
+    assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Maintenance Date','Status','Remarks']);
+    // task 14: the print controls sit in the header, beside Remarks, for the Head Engineer only
+    if (role === 'Head Engineer') {
+      assert.equal(table.querySelectorAll('th').length, 5);
+      assert.ok(container.querySelector('button[aria-label="Print maintenance overview"]'));
+      assert.ok(container.querySelector('select[aria-label="Print maintenance overview year"]'));
+    } else {
+      assert.equal(table.querySelectorAll('th').length, 4);
+      assert.equal(container.querySelector('button[aria-label="Print maintenance overview"]'), null);
+    }
     assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Road','','Scheduled','Initial remark']);
     assert.match(table.textContent,/Road/); assert.match(table.textContent,/Scheduled/); assert.match(table.textContent,/Initial remark/);
     for (const status of ['Scheduled','In Progress','Deferred','Completed']) {
