@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Record the step 8 commit in the plan
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The step table cited a placeholder for step 8; it now names the commit that carries the purge.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Automatic 30-day deletion of archived records (step 8)
 - **Type:** Added
 - **Files:** `.env.example` (modified), `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `src/app/api/retention/` (new), `src/lib/retention.ts` (new), `tests/retention.test.cjs` (new), `vercel.json` (new)

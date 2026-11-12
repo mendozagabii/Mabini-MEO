@@ -107,7 +107,7 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 | **5** ✅ | **Inspector scope** (Q8, Q9): listing filtered to the assigned project, recording refused for any other | none | done |
 | **6** ✅ | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | built (`942e3eb`); **sends only once the mailbox is set** — `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` in the hosting environment |
 | **7** ✅ | **Print both views** (Q24): whole overview, and one year | none | done |
-| **8** ✅ | **30-day purge** (Q26): daily scheduled job, **report-only until `RETENTION_LIVE=1`**, deletes stored files before rows | none (deletes data, not schema) | built (`COMMIT`); **the live run still needs the explicit go-ahead** — set `RETENTION_LIVE=1` (and `CRON_SECRET`) only when the office says so |
+| **8** ✅ | **30-day purge** (Q26): daily scheduled job, **report-only until `RETENTION_LIVE=1`**, deletes stored files before rows | none (deletes data, not schema) | built (`1babedd`); **the live run still needs the explicit go-ahead** — set `RETENTION_LIVE=1` (and `CRON_SECRET`) only when the office says so |
 | **9** | **Field removal** (Q25) | hide first, drop later | §3 |
 | **10** ✅ | **Five locations** (Q27): free-text coverage lines, max 5, one line per location in the view and the print | `project_locations` table + backfill (migration applied) | done (`3ec5890`) |
 
