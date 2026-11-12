@@ -622,7 +622,7 @@ function mapInspection(i: Joined): StoredRecord {
   const conditionRemarks: Record<string, string> = {};
   for (const item of items) {
     const label = COMPONENT_FROM_DB[item.component] ?? item.component;
-    conditionRatings[label] = cap(item.rating);
+    conditionRatings[label] = str(item.rating).toLowerCase() === 'n/a' ? 'N/A' : cap(item.rating);
     const remark = str(item.remarks);
     if (remark) conditionRemarks[label] = remark;
   }
@@ -642,7 +642,7 @@ function mapInspection(i: Joined): StoredRecord {
     remarks: i.remarks ?? '',
     inspector: i.profiles?.full_name ?? i.profiles?.name ?? '',
     inspectorId: i.inspector_id ?? undefined,
-    inspectionType: INSPECTION_TYPE_FROM_DB[i.inspection_type] ?? 'Routine',
+    inspectionType: i.inspection_purpose || INSPECTION_TYPE_FROM_DB[i.inspection_type] || 'Routine',
     // @mine — annual follow-up markers (scheduled rows have no score yet).
     ...(i.annual_follow_up_year
       ? {
@@ -704,19 +704,28 @@ export const listInspections = (db: SupabaseClient, admin?: SupabaseClient) => l
 export const listArchivedInspections = (db: SupabaseClient) => listInspectionsWhere(db, true);
 
 export async function saveInspection(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
+  const idValue = str(rec.id);
+  const lookup = idValue ? await db.from('inspections').select('id, inspection_type, remarks').eq('id', idValue).maybeSingle() : null;
+  if (lookup?.error) throw lookup.error;
+  const existing = lookup?.data ?? null;
+  // The original enum continues to identify annual follow-ups. The user-facing
+  // type is stored separately so recording an annual inspection cannot generate duplicates.
+  const newPurpose = str(rec.inspectionType) === 'Monitoring and Maintenance Inspection' ? str(rec.inspectionType) : undefined;
+  // Validate staged files before modifying the inspection or its items.
+  const itemAttachments = (rec.conditionAttachments ?? {}) as Record<string, AttachmentInput[]>;
+  const preparedItemFiles = await prepareInspectionItemAttachments(db, itemAttachments, userId);
   const payload = {
     project_id: projectId,
     inspection_date: str(rec.date) || new Date().toISOString().slice(0, 10),
-    inspection_type: INSPECTION_TYPE_TO_DB[str(rec.inspectionType)] ?? 'routine',
+    inspection_type: existing?.inspection_type ?? INSPECTION_TYPE_TO_DB[str(rec.inspectionType)] ?? 'routine',
+    ...(newPurpose ? { inspection_purpose: newPurpose } : {}),
     inspector_id: userId,
     overall_score: rec.conditionRating == null || rec.conditionRating === '' ? null : Number(rec.conditionRating),
-    remarks: str(rec.remarks) || null,
+    remarks: existing?.remarks ?? (str(rec.remarks) || null),
     validation_status: VALIDATION_TO_DB[str(rec.validationStatus)] ?? 'pending',
-    // @mine — annual follow-up year (null for ordinary inspections).
     annual_follow_up_year: rec.annualFollowUpYear ? Number(rec.annualFollowUpYear) : null,
   };
-  let id = str(rec.id);
-  const existing = id ? (await db.from('inspections').select('id').eq('id', id).maybeSingle()).data : null;
+  let id = idValue;
   if (existing) {
     const { error } = await db.from('inspections').update(payload).eq('id', id);
     if (error) throw error;
@@ -737,7 +746,6 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
       .select('id, component').eq('inspection_id', id);
     const idByComponent = new Map<string, string>();
     for (const item of (existingItems ?? []) as Joined[]) idByComponent.set(str(item.component), str(item.id));
-    const kept = new Set<string>();
     for (const [component, rating] of entries) {
       const componentDb = COMPONENT_TO_DB[component];
       const row = {
@@ -748,22 +756,14 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
       if (existingId) {
         const { error } = await db.from('inspection_items').update(row).eq('id', existingId);
         if (error) throw error;
-        kept.add(existingId);
       } else {
         const { data: inserted, error } = await db.from('inspection_items')
           .insert({ inspection_id: id, component: componentDb, ...row }).select('id').single();
         if (error) throw error;
-        kept.add(str(inserted?.id));
       }
     }
-    // Only a category the inspector genuinely removed disappears (with its files).
-    for (const [componentDb, itemId] of idByComponent) {
-      if (!kept.has(itemId)) {
-        console.warn(`Removing inspection item ${componentDb} that is no longer part of the assessment.`);
-        const { error } = await db.from('inspection_items').delete().eq('id', itemId);
-        if (error) throw error;
-      }
-    }
+    // Keep older or unrecognized component rows and their attachments intact.
+
   }
   // @mine — persist the inspection's file attachment to Storage (best-effort).
   const attachment = rec.attachment as AttachmentInput | undefined;
@@ -777,8 +777,6 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
   }
   // @mine 2026-11-11 — per-category attachments. Staged uploads are verified against
   // Storage before any row is written; already-stored files are left untouched.
-  const itemAttachments = (rec.conditionAttachments ?? {}) as Record<string, AttachmentInput[]>;
-  const preparedItemFiles = await prepareInspectionItemAttachments(db, itemAttachments, userId);
   if (preparedItemFiles.length) {
     const { data: currentItems } = await db.from('inspection_items').select('id, component').eq('inspection_id', id);
     const itemIdByComponent = new Map<string, string>();
@@ -832,7 +830,7 @@ const MAINT_STATUS_FROM_DB: Record<string, string> = {
   scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Completed', deferred: 'Deferred',
 };
 const MAINT_TYPE_TO_DB: Record<string, string> = {
-  Corrective: 'corrective', Preventive: 'preventive', Routine: 'routine', Emergency: 'emergency',
+  Corrective: 'corrective', 'Corrective Type': 'corrective', 'Corrective Maintenance': 'corrective', Preventive: 'preventive', Routine: 'routine', Emergency: 'emergency',
 };
 const MAINT_TYPE_FROM_DB: Record<string, string> = Object.fromEntries(Object.entries(MAINT_TYPE_TO_DB).map(([a, b]) => [b, a]));
 
@@ -840,13 +838,16 @@ function mapMaintenance(m: Joined): StoredRecord {
   return {
     id: m.id,
     localRoadId: m.project_id,
+    inspectionId: m.inspection_id ?? undefined,
     localRoadName: m.projects?.project_name ?? '',
     type: MAINT_TYPE_FROM_DB[m.maintenance_type] ?? cap(m.maintenance_type),
     scheduledDate: str(m.scheduled_date),
+    dateStarted: str(m.start_date),
     completedDate: str(m.completed_date) || undefined,
     cost: m.cost == null ? 0 : Number(m.cost),
     status: MAINT_STATUS_FROM_DB[m.status] ?? 'Scheduled',
-    description: m.activities ?? m.remarks ?? '',
+    description: m.activities ?? '',
+    remarks: m.remarks ?? '',
     archivedAt: m.archived_at ?? undefined,
   };
 }
@@ -865,9 +866,12 @@ export const listArchivedMaintenance = (db: SupabaseClient) => listMaintenanceWh
 export async function saveMaintenance(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
   const payload = {
     project_id: projectId,
+    ...(rec.inspectionId !== undefined ? { inspection_id: str(rec.inspectionId) || null } : {}),
     maintenance_type: MAINT_TYPE_TO_DB[str(rec.type)] ?? 'routine',
     activities: str(rec.description) || null,
-    scheduled_date: str(rec.scheduledDate) || new Date().toISOString().slice(0, 10),
+    ...(rec.remarks !== undefined ? { remarks: str(rec.remarks) || null } : {}),
+    scheduled_date: str(rec.scheduledDate) || null,
+    start_date: str(rec.dateStarted) || null,
     completed_date: str(rec.completedDate) || null,
     cost: Number(rec.cost ?? 0) || 0,
     status: MAINT_STATUS_TO_DB[str(rec.status)] ?? 'scheduled',

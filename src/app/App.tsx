@@ -111,14 +111,17 @@ interface Inspection {
 
 interface Maintenance {
   id: string;
+  inspectionId?: string;
   localRoadId: string;
   localRoadName: string;
   type: string;
   scheduledDate: string;
+  dateStarted?: string;
   completedDate?: string;
   cost: number;
   status: 'Scheduled' | 'In Progress' | 'Completed' | 'Deferred';
   description: string;
+  remarks?: string;
 }
 
 const AI_RECOMMENDATIONS_STORAGE_KEY = 'local-road-ai-recommendations';
@@ -153,6 +156,8 @@ export default function App() {
   const [localRoadData, setLocalRoadData] = useState<LocalRoad[]>([]);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<Maintenance[]>([]);
+  const [scheduledInspectionIds, setScheduledInspectionIds] = useState<string[]>([]);
+  const [scheduledArchivedInspections, setScheduledArchivedInspections] = useState<any[]>([]);
   const [aiRecommendations, setAiRecommendations] = useState<PredictionResult[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -231,7 +236,15 @@ export default function App() {
       await Promise.all([
         load('/api/local-road', setLocalRoadData),
         load('/api/inspections', setInspections),
-        load('/api/maintenance', setMaintenanceRecords),
+        (async () => {
+          try {
+            const response = await fetch('/api/maintenance');
+            if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+            const payload = await response.json();
+            if (!Array.isArray(payload.data) || !Array.isArray(payload.scheduledInspectionIds)) throw new Error('Invalid maintenance response.');
+            if (active && current === generation) { setMaintenanceRecords(payload.data); setScheduledInspectionIds(payload.scheduledInspectionIds); setScheduledArchivedInspections(payload.scheduledArchivedInspections || []); }
+          } catch (error) { console.error('Failed to load maintenance records.', error); }
+        })(),
       ]);
       if (active && current === generation) setLoading(false);
     };
@@ -503,9 +516,11 @@ export default function App() {
             : item
         )
       );
+      return true;
     } catch (error) {
       console.error('Failed to save local road inspection.', error);
       window.alert(error instanceof Error ? error.message : 'Unable to save inspection.');
+      return false;
     }
   };
 
@@ -561,9 +576,12 @@ export default function App() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || 'Unable to save maintenance record.');
       setMaintenanceRecords((prev) => [...prev, payload.data]);
+      if (payload.data.inspectionId) setScheduledInspectionIds(prev => [...new Set([...prev, payload.data.inspectionId])]);
+      return true;
     } catch (error) {
       console.error('Failed to save local road maintenance.', error);
       window.alert(error instanceof Error ? error.message : 'Unable to save maintenance record.');
+      return false;
     }
   };
 
@@ -577,9 +595,11 @@ export default function App() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || 'Unable to update maintenance record.');
       setMaintenanceRecords((prev) => prev.map((item) => item.id === maintenance.id ? payload.data : item));
+      return true;
     } catch (error) {
       console.error('Failed to edit local road maintenance.', error);
       window.alert(error instanceof Error ? error.message : 'Unable to update maintenance record.');
+      return false;
     }
   };
 
@@ -687,6 +707,8 @@ export default function App() {
               {activeTab === 'maintenance-management' && hasAccess('maintenance-management') && (
                 <MaintenanceModule
                   maintenanceRecords={maintenanceRecords}
+                  scheduledInspectionIds={scheduledInspectionIds}
+                  scheduledArchivedInspections={scheduledArchivedInspections}
                   localRoadList={localRoadData}
                   inspections={inspections}
                   onAddMaintenance={handleAddMaintenance}

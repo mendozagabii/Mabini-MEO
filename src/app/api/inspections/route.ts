@@ -1,8 +1,10 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
+import { validateAssessment, findingsSummary } from '@/lib/inspection-selection';
+import { hasFourDigitYear, addCalendarMonths, addCalendarDays } from '@/lib/project-form-validation';
 import { NextResponse } from 'next/server';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
-  addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads,
+  addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads, listMaintenance, listArchivedMaintenance,
   permanentlyDeleteInspection, restoreInspection, saveInspection, saveRoad, type StoredRecord,
 } from '@/lib/supabase-data';
 
@@ -50,8 +52,21 @@ export async function POST(request: Request) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
   }
+  if (typeof payload.date !== 'string' || !hasFourDigitYear(payload.date)) {
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
+  }
+  const ratings = (payload.conditionRatings || {}) as Record<string, string>;
+  const remarks = (payload.conditionRemarks || {}) as Record<string, string>;
+  const attachments = (payload.conditionAttachments || {}) as Record<string, unknown[]>;
+  if (payload.inspectionType !== 'Monitoring and Maintenance Inspection' || !validateAssessment(ratings, remarks, attachments)) {
+    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for applicable components.' }, { status: 400 });
+  }
+  payload.remarks = findingsSummary(ratings, remarks);
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+  const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
+  if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
+  if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   try {
     const inspection = await saveInspection(auth.db, { ...payload, id: '' }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Created', details: `Created inspection ${inspection.id}` });
@@ -71,12 +86,36 @@ export async function PUT(request: Request) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.id !== 'string' || !payload.id || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid inspection and road ID are required.' }, { status: 400 });
   }
+  if (typeof payload.date !== 'string' || !hasFourDigitYear(payload.date)) {
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
+  }
+  const ratings = (payload.conditionRatings || {}) as Record<string, string>;
+  const remarks = (payload.conditionRemarks || {}) as Record<string, string>;
+  const attachments = (payload.conditionAttachments || {}) as Record<string, unknown[]>;
+  if (payload.inspectionType !== 'Monitoring and Maintenance Inspection' || !validateAssessment(ratings, remarks, attachments)) {
+    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for applicable components.' }, { status: 400 });
+  }
+  payload.remarks = findingsSummary(ratings, remarks);
   const existing = (await listInspections(auth.db)).find((item) => item.id === payload.id);
   if (!existing) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+  const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
+  if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
+  if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   try {
-    const inspection = await saveInspection(auth.db, { ...existing, ...payload, id: existing.id }, road.id, auth.userId);
+    // Scheduled follow-ups have no inspector yet, and older results may belong
+    // to another inspector. The role and record were checked above; use the
+    // server client so the inspector can record/update these permitted entries.
+    if (existing.localRoadId !== road.id) return NextResponse.json({ message: 'The project of an inspection cannot be changed.' }, { status: 400 });
+    if (existing.date !== payload.date) {
+      const minMaintenance = addCalendarDays(payload.date as string, 1);
+      const [active, archived] = await Promise.all([listMaintenance(auth.admin), listArchivedMaintenance(auth.admin)]);
+      if (!minMaintenance || [...active, ...archived].some(item => item.inspectionId === existing.id && [item.dateStarted, item.scheduledDate].some(date => typeof date === 'string' && date && date < minMaintenance))) {
+        return NextResponse.json({ message: 'This inspection date conflicts with linked maintenance dates.' }, { status: 409 });
+      }
+    }
+    const inspection = await saveInspection(auth.admin, { ...existing, ...payload, id: existing.id, annualFollowUpYear: existing.annualFollowUpYear, validationStatus: existing.validationStatus }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Updated', details: `Updated inspection ${inspection.id}` });
     const roadUpdate = await refreshRoadCondition(auth, road.id);
     return withRefresh(NextResponse.json({ success: true, data: inspection, roadUpdates: roadUpdate ? [roadUpdate] : [] }), auth);

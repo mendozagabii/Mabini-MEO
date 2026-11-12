@@ -1,6 +1,7 @@
 // @mine — rewritten for Supabase (was SQLite). App "road" records are
 // projects joined to roads; see src/lib/supabase-data.ts for the mapping.
 import { NextResponse } from 'next/server';
+import { hasFourDigitYear } from '@/lib/project-form-validation';
 import { validationTask, type ValidationProject } from '@/lib/project-validation-workflow';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
@@ -40,6 +41,9 @@ export async function POST(request: Request) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return NextResponse.json({ message: 'A road record is required.' }, { status: 400 });
   }
+  if (['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
+  }
   // @mine — validation belongs to the Validator, not project creation.
   if (['validationResult', 'validationRemarks', 'annualValidationYear'].some((key) => key in payload)) return forbidden();
   try {
@@ -65,6 +69,9 @@ export async function PATCH(request: Request) {
   }
   if (!payload || typeof payload.id !== 'string' || !payload.id) {
     return NextResponse.json({ message: 'A road ID is required.' }, { status: 400 });
+  }
+  if (auth.profile.roleDb === 'encoder' && ['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
   if (auth.profile.roleDb === 'encoder' && ['validationResult', 'validationRemarks', 'annualValidationYear'].some((key) => key in payload)) return forbidden();
   try {

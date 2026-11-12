@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Plus, Edit, Trash2, Shield, X, Save, Users, Activity, Archive, Search, Lock, Unlock, CheckCircle2, Award, UserX, ChevronDown, KeyRound, Eye, EyeOff, CalendarDays, Check } from 'lucide-react';
+import { User, Plus, Edit, Trash2, Shield, X, Save, Users, Activity, Archive, Search, Lock, Unlock, CheckCircle2, Award, UserX, ChevronDown, KeyRound, Eye, EyeOff, CalendarDays, Check, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import {
   DropdownMenu,
@@ -103,6 +103,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   const [activeTab, setActiveTab] = useState<'accounts' | 'activity' | 'archived'>('accounts');
   const [archiveFilter, setArchiveFilter] = useState<'users' | 'projects' | 'inspections' | 'maintenance'>('users');
   const [activityDateFilter, setActivityDateFilter] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('All Roles');
+  const [userStatusFilter, setUserStatusFilter] = useState('All Status');
   const [activityUserFilter, setActivityUserFilter] = useState('All Users');
   const [activeUserFormTab, setActiveUserFormTab] = useState<'account' | 'access'>('account');
   const userFormScrollRef = useRef<HTMLDivElement>(null);
@@ -188,6 +190,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   // @mine — null = unknown; false = no master code yet (first-run setup allowed).
   const [masterCodeConfigured, setMasterCodeConfigured] = useState<boolean | null>(null);
@@ -419,6 +423,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   });
 
   const handleAddUser = () => {
+    if (savingUser) return;
     const username = formData.username || formData.email.split('@')[0] || generatedEmployeeId.toLowerCase();
     if (!formData.name || !formData.email || !formData.password) {
       setDialog({
@@ -430,6 +435,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       return;
     }
 
+    setSavingUser(true);
     fetch('/api/auth/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -452,7 +458,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       handleClose();
     }).catch(error => {
       setDialog({ isOpen: true, type: 'error', title: 'Create Account Failed', message: error instanceof Error ? error.message : 'Unable to create the user account.' });
-    });
+    }).finally(() => setSavingUser(false));
   };
 
   const handleEditUser = (user: UserData) => {
@@ -470,7 +476,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   };
 
   const handleSaveEdit = async () => {
-    if (!editingUser) return;
+    if (!editingUser || savingUser) return;
+    setSavingUser(true);
 
     try {
       const response = await fetch('/api/auth/status', {
@@ -501,7 +508,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
         message: error instanceof Error ? error.message : 'Unable to update the user account.',
       });
       return;
-    }
+    } finally { setSavingUser(false); }
 
     setEditingUser(null);
     setFormData({ name: '', email: '', username: '', password: '', role: 'Staff - Encoder', status: 'Active' });
@@ -783,6 +790,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       return;
     }
 
+    if (savingPassword) return;
+    setSavingPassword(true);
     try {
       const response = await fetch('/api/auth/unlock', {
         method: 'PATCH',
@@ -820,7 +829,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
         title: 'Update Failed',
         message: 'Failed to update master password. Please try again.',
       });
-    }
+    } finally { setSavingPassword(false); }
   };
 
   const handleClose = () => {
@@ -834,6 +843,9 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
   const filteredUsers = users.filter((user) => {
     const term = search.trim().toLowerCase();
+    const normalizedRole = user.role === 'Admin' ? 'Head Engineer' : user.role.startsWith('Staff - ') ? user.role : `Staff - ${user.role}`;
+    if (userRoleFilter !== 'All Roles' && normalizedRole !== userRoleFilter) return false;
+    if (userStatusFilter !== 'All Status' && user.status !== userStatusFilter) return false;
     if (!term) return true;
 
     const searchable = [
@@ -975,8 +987,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   className="h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
-              <button type="button" className="flex items-center justify-between gap-8 rounded-2xl border border-slate-200 px-5 py-3 text-left font-medium text-slate-700">All Roles <ChevronDown className="h-4 w-4 text-slate-400" /></button>
-              <button type="button" className="flex items-center justify-between gap-8 rounded-2xl border border-slate-200 px-5 py-3 text-left font-medium text-slate-700">All Status <ChevronDown className="h-4 w-4 text-slate-400" /></button>
+              <select aria-label="Filter users by role" value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{['All Roles', 'Head Engineer', 'Staff - Encoder', 'Staff - Inspector', 'Staff - Validator'].map(role => <option key={role}>{role}</option>)}</select>
+              <select aria-label="Filter users by status" value={userStatusFilter} onChange={e => setUserStatusFilter(e.target.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{['All Status', 'Active', 'Inactive'].map(status => <option key={status}>{status}</option>)}</select>
             </div>
             </div>
           </div>
@@ -1115,7 +1127,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                 <input
                   type="date"
                   value={activityDateFilter}
-                  onChange={(event) => setActivityDateFilter(event.target.value)}
+                  min="1000-01-01" max="9999-12-31"
+                  onChange={(event) => { if (!event.target.value || event.target.validity.valid) setActivityDateFilter(event.target.value); }}
                   aria-label="Filter activity logs by date"
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 />
@@ -1190,8 +1203,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               </Select>
             </div>
           </div>
-          <p className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            Archived users, projects, inspections, and maintenance records are automatically permanently deleted 30 days after archiving. Restore anything you want to keep before then.
+          <p className="mb-5 text-center text-sm text-gray-500">
+            Recently deleted records will be kept here for 30 days , after which they will be automatically and permanently deleted.
           </p>
           {archiveFilter === 'users' && (
             <section>
@@ -1231,11 +1244,9 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.createdDate}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <div className="flex items-center gap-2">
-                              <button onClick={() => handleRestoreUser(user.id)} className="text-green-500 hover:text-green-700 px-3 py-1 rounded hover:bg-green-50 transition-colors">
-                                Restore
-                              </button>
-                              <button onClick={() => handleDeleteArchivedUser(user.id)} className="text-red-500 hover:text-red-700 p-1" aria-label={`Delete ${user.name}`}>
-                                <Trash2 className="w-4 h-4" />
+                              <button onClick={() => handleRestoreUser(user.id)} type="button" aria-label={`Restore ${user.name}`} title="Restore" className="inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                              <button onClick={() => handleDeleteArchivedUser(user.id)} type="button" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600" aria-label={`Delete permanently ${user.name}`} title="Delete permanently">
+                                <Trash2 className="w-4 h-4" aria-hidden="true" />
                               </button>
                             </div>
                           </td>
@@ -1270,8 +1281,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                         <td className="px-6 py-4 text-sm text-gray-600">{record.projectCategory || '—'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{record.location || '—'}</td>
                         <td className="px-6 py-4 text-sm">
-                          <button onClick={() => handleRestoreRecord(record.id)} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                          <button onClick={() => confirmDeleteArchivedRecord('project', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                          <button onClick={() => handleRestoreRecord(record.id)} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                          <button onClick={() => confirmDeleteArchivedRecord('project', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                         </td>
                       </tr>
                     ))}
@@ -1300,8 +1311,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm font-medium text-slate-700">{record.projectName || record.localRoadName || record.roadName || record.name || 'Unnamed project'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.date || '—'}</td>
                           <td className="px-6 py-4 text-sm">
-                            <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                            <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                            <button onClick={async () => { await fetch('/api/inspections', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                            <button onClick={() => confirmDeleteArchivedRecord('inspection', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                           </td>
                         </tr>
                       ))}
@@ -1334,8 +1345,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                           <td className="px-6 py-4 text-sm text-gray-600">{record.completedDate || '—'}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{record.status || '—'}</td>
                           <td className="px-6 py-4 text-sm">
-                            <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} className="mr-3 text-green-600 hover:text-green-800">Restore</button>
-                            <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} className="text-red-600 hover:text-red-800">Delete permanently</button>
+                            <button onClick={async () => { await fetch('/api/maintenance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: record.id, action: 'restore' }) }); await refreshArchivedRecords(); window.dispatchEvent(new Event('local-road-records-changed')); }} type="button" aria-label={`Restore ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Restore" className="mr-2 inline-flex items-center rounded-lg p-2 text-green-700 hover:text-green-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
+                            <button onClick={() => confirmDeleteArchivedRecord('maintenance', record)} type="button" aria-label={`Delete permanently ${record.projectName || record.localRoadName || record.name || 'record'}`} title="Delete permanently" className="inline-flex items-center rounded-lg p-2 text-red-700 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                           </td>
                         </tr>
                       ))}
@@ -1478,9 +1489,10 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               </button>
               <button
                 onClick={editingUser ? handleSaveEdit : handleAddUser}
+                disabled={savingUser}
                 className="h-10 flex-1 rounded-2xl bg-blue-600 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
               >
-                {editingUser ? 'Save Changes' : 'Create Account'}
+                {savingUser ? (editingUser ? 'Updating...' : 'Saving...') : (editingUser ? 'Save Changes' : 'Create Account')}
               </button>
             </div>
           </div>
@@ -1565,9 +1577,10 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
               <button
                   type="button"
                   onClick={handlePasswordUpdate}
+                  disabled={savingPassword}
                   className="flex h-10 flex-1 items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
               >
-                  Update Master Password
+                  {savingPassword ? 'Updating...' : 'Update Master Password'}
               </button>
               </div>
             </div>

@@ -615,7 +615,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                       }`}>
                         {status}{task?.year ? ` · Annual ${task.year}` : ''}
                       </span>
-                      {task?.year && <p className="mt-1 text-xs text-slate-500">Due {task.dueDate}</p>}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">

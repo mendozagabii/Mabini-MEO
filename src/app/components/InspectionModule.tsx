@@ -1,12 +1,14 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ClipboardCheck, Calendar, X, Search, FileText, AlertCircle, Pencil, Trash2, Printer, Plus } from 'lucide-react';
+import { ClipboardCheck, Calendar, X, Search, FileText, AlertCircle, Pencil, Trash2, Printer, Table2 } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
-import { attachmentError, attachmentMime } from '@/lib/attachment-validation';
+import { latestByProject, isPendingInspection, findingsSummary } from '@/lib/inspection-selection';
+import { hasFourDigitYear, addCalendarMonths, formatSavedProjectCurrency } from '@/lib/project-form-validation';
+import { attachmentError } from '@/lib/attachment-validation';
 
 interface Inspection {
   id: string;
@@ -49,7 +51,7 @@ interface Inspection {
 interface InspectionModuleProps {
   inspections: Inspection[];
   localRoadList: any[];
-  onAddInspection: (inspection: Omit<Inspection, 'id'>) => void;
+  onAddInspection: (inspection: Omit<Inspection, 'id'>) => Promise<boolean> | void;
   onEditInspection: (inspection: Inspection) => Promise<boolean>;
   onDeleteInspection: (id: string) => Promise<boolean>;
   currentUser: string;
@@ -217,9 +219,13 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   // @mine — Admin accounts are displayed as Head Engineer.
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
   const [showForm, setShowForm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
   const [editingInspection, setEditingInspection] = useState<Inspection | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [inspectionView, setInspectionView] = useState<'history' | 'overview'>('history');
+  const [filterDate, setFilterDate] = useState('');
+  const filterDateRef = useRef<HTMLInputElement>(null);
   const [selectedInspection, setSelectedInspection] = useState<{ inspection: Inspection; referenceId: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Inspection | null>(null);
   const [activeFormTab, setActiveFormTab] = useState<(typeof inspectionFormTabs)[number]['id']>('project');
@@ -228,8 +234,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const roadSectionRef = useRef<HTMLElement>(null);
   const inspectionSectionRef = useRef<HTMLElement>(null);
   const formSectionRefs = [projectSectionRef, roadSectionRef, inspectionSectionRef];
-  const [attachmentName, setAttachmentName] = useState('No file chosen');
-  const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
   const [validationNotice, setValidationNotice] = useState('');
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
   const [printAttachment, setPrintAttachment] = useState<Inspection['attachment']>();
@@ -260,38 +264,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     conditionRating: 'Good',
     remarks: '',
   });
-
-  const startNewInspection = () => {
-    setEditingInspection(null);
-    setConditionRatings({});
-    setConditionRemarks({});
-    setConditionAttachments({});
-    setCategoryNotice('');
-    setSelectedAttachment(null);
-    setAttachmentName('No file chosen');
-    setValidationNotice('');
-    setActiveFormTab('project');
-    setFormData({
-      localRoadId: '',
-      projectName: '',
-      projectCategory: '',
-      projectDescription: '',
-      location: '',
-      dateStarted: '',
-      targetCompletionDate: '',
-      noOfExtensions: '',
-      actualCompletionDate: '',
-      roadNetworkId: '',
-      roadName: '',
-      components: '',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-      inspectionType: '',
-      conditionRating: 'Good',
-      remarks: '',
-    });
-    setShowForm(true);
-  };
 
   useEffect(() => {
     if (!showForm) return;
@@ -334,7 +306,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
   const selectedProject = localRoadList.find(item => item.id === formData.localRoadId);
   const conditionRatingOptions = ['Good', 'Fair', 'Poor', 'Bad', 'N/A'];
-  const inspectionFilters = ['All', 'For inspection', 'Inspected'];
 
   const getRatingScore = (rating: number | string) => {
     const numericRating = Number(rating);
@@ -355,23 +326,23 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     return 'Pending Validation';
   };
 
-  const isPendingInspectionRecord = (inspection: Inspection) =>
-    inspection.isScheduledAnnualFollowUp === true ||
-    inspection.isPendingValidationInspection === true ||
-    (inspection.isValidationInspection === true && inspection.isPendingValidationInspection !== false);
+  const isPendingInspectionRecord = isPendingInspection;
 
-  const filteredInspections = inspections
+  // A date search can find a historical follow-up, but never shows more than
+  // one card for the same project. No stored inspections are removed.
+  const datedInspections = filterDate
+    ? inspections.filter(inspection => !isPendingInspectionRecord(inspection) && inspection.date === filterDate)
+    : inspections;
+  const originalOrder = new Map(inspections.slice().reverse().map((inspection, index) => [inspection.id, index]));
+  const filteredInspections = latestByProject(datedInspections)
     .slice()
     .reverse()
-    .map((inspection, index) => ({
+    .map((inspection) => ({
       inspection,
-      referenceId: `INSP-${inspection.date?.slice(0, 4) || new Date().getFullYear()}-${String(index + 1).padStart(3, '0')}`,
+      referenceId: `INSP-${(isPendingInspectionRecord(inspection) ? inspection.annualFollowUpYear : inspection.date?.slice(0, 4)) || new Date().getFullYear()}-${String((originalOrder.get(inspection.id) ?? 0) + 1).padStart(3, '0')}`,
     }))
     .filter(({ inspection, referenceId }) => {
-      const matchesFilter = activeFilter === 'All' ||
-        (activeFilter === 'For inspection'
-        ? isPendingInspectionRecord(inspection)
-        : !isPendingInspectionRecord(inspection));
+      const matchesFilter = !filterDate || (!isPendingInspectionRecord(inspection) && inspection.date === filterDate);
       const road = localRoadList.find((item) => item.id === inspection.localRoadId);
       const searchableText = [
         inspection.localRoadName,
@@ -451,24 +422,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     }
   };
 
-  const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const problem = attachmentError(file);
-    if (problem) {
-      setSelectedAttachment(null);
-      setAttachmentName('No file chosen');
-      setValidationNotice(problem);
-      event.target.value = '';
-      return;
-    }
-
-    setSelectedAttachment(file);
-    setAttachmentName(file.name);
-    setValidationNotice('');
-  };
-
   const startEditingInspection = (inspection: Inspection) => {
     const road = localRoadList.find((item) => item.id === inspection.localRoadId);
     const overallRating = getConditionLabel(inspection);
@@ -495,13 +448,11 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       roadName: road?.roadName || road?.name || inspection.roadName || inspection.localRoadName,
       components: road?.components || inspection.components || '',
       description: road?.description || inspection.description || '',
-      date: inspection.date,
-      inspectionType: inspection.inspectionType || '',
+      date: isPendingInspectionRecord(inspection) ? '' : inspection.date,
+      inspectionType: inspection.inspectionType === 'Monitoring and Maintenance Inspection' ? inspection.inspectionType : '',
       conditionRating: String(inspection.conditionRating),
       remarks: inspection.remarks || '',
     }));
-    setSelectedAttachment(null);
-    setAttachmentName(inspection.attachment?.name || 'No file chosen');
     setValidationNotice('');
     setActiveFormTab('project');
     setShowForm(true);
@@ -514,13 +465,21 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     const missingConditionRatings = conditionAssessmentLabels.filter((label) => !conditionRatings[label]);
     const validationMessages = [];
     if (!localRoad) validationMessages.push('Select a Project / Program / Activity Name.');
-    if (!formData.date) validationMessages.push('Enter the inspection date.');
+    if (!hasFourDigitYear(formData.date)) validationMessages.push(formData.date ? 'Please fill out valid date.' : 'Enter the inspection date.');
+    const minimumInspectionDate = addCalendarMonths(localRoad?.actualCompletionDate || '', 11);
+    if (!minimumInspectionDate) validationMessages.push('The project completion date could not be verified.');
+    else if (formData.date && formData.date < minimumInspectionDate) validationMessages.push('Please fill out valid date.');
     if (!formData.inspectionType) validationMessages.push('Select an inspection type.');
     if (missingConditionRatings.length > 0) {
       validationMessages.push('Select a condition rating for every category. Choose N/A when it does not apply.');
     }
-    if (!formData.remarks.trim()) validationMessages.push('Enter the inspection findings.');
-    if (!selectedAttachment && !editingInspection?.attachment) validationMessages.push('Attach a PDF, JPG, or PNG file (10 MB maximum).');
+    const applicable = conditionAssessmentLabels.filter(label => conditionRatings[label] && conditionRatings[label] !== 'N/A');
+    const missingRemarks = applicable.filter(label => !conditionRemarks[label]?.trim());
+    const missingAttachments = applicable.filter(label => !(conditionAttachments[label]?.length));
+    if (!missingConditionRatings.length && !applicable.length) validationMessages.push('Select at least one applicable component to generate inspection findings.');
+    if (missingRemarks.length) validationMessages.push(`Remarks are required for: ${missingRemarks.join(', ')}.`);
+    if (missingAttachments.length) validationMessages.push(`Attachments are required for: ${missingAttachments.join(', ')}.`);
+    if (uploadingCategory) validationMessages.push('Wait for the attachment upload to finish.');
     if (validationMessages.length > 0) {
       setValidationNotice(validationMessages.join(' '));
       if (!localRoad) returnToSection(projectSectionRef, 'project', '[aria-label="Project / Program / Activity Name"]');
@@ -531,31 +490,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     }
 
     if (localRoad) {
-      let attachment = editingInspection?.attachment;
-      if (selectedAttachment) {
-        try {
-          attachment = await new Promise<NonNullable<Inspection['attachment']>>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              if (typeof reader.result !== 'string') {
-                reject(new Error('Unable to read the selected attachment.'));
-                return;
-              }
-              resolve({
-                name: selectedAttachment.name,
-                type: attachmentMime(selectedAttachment.name, selectedAttachment.type) || '',
-                dataUrl: reader.result,
-              });
-            };
-            reader.onerror = () => reject(reader.error || new Error('Unable to read the selected attachment.'));
-            reader.readAsDataURL(selectedAttachment);
-          });
-        } catch (error) {
-          console.error('Failed to read inspection attachment.', error);
-          setValidationNotice('The selected attachment could not be read. Please choose the file again.');
-          return;
-        }
-      }
       const averageRating = selectedRatings.length
         ? selectedRatings.reduce((total, rating) => total + getRatingScore(rating), 0) / selectedRatings.length
         : 0;
@@ -565,7 +499,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       );
       const inspectionData = {
         ...formData,
-        attachment,
+        attachment: editingInspection?.attachment,
+        remarks: findingsSummary(conditionRatings, conditionRemarks),
         conditionRating: averageRating,
         conditionRatings,
         conditionRemarks: categoryRemarks,
@@ -574,20 +509,21 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
         localRoadName: localRoad.name,
         inspector: editingInspection?.inspector || currentUser,
       };
-      if (editingInspection) {
-        const saved = await onEditInspection({ ...editingInspection, ...inspectionData });
-        if (!saved) return;
-      } else {
-        onAddInspection(inspectionData);
-      }
+      if (savingRef.current) return;
+      savingRef.current = true;
+      setIsSaving(true);
+      try {
+        const saved = editingInspection
+          ? await onEditInspection({ ...editingInspection, ...inspectionData })
+          : await onAddInspection(inspectionData);
+        if (saved === false) return;
+      } finally { savingRef.current = false; setIsSaving(false); }
       setEditingInspection(null);
       setConditionRatings({});
       setConditionRemarks({});
       setConditionAttachments({});
       setCategoryNotice('');
-      setSelectedAttachment(null);
-      setValidationNotice('');
-      setAttachmentName('No file chosen');
+        setValidationNotice('');
       setFormData({
         localRoadId: '',
         projectName: '',
@@ -639,7 +575,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
           { label: 'Location', value: road?.location || inspection.location, width: 'half' },
           { label: 'Date Started', value: road?.dateBuilt || inspection.dateStarted, width: 'half' },
           { label: 'Target Completion Date', value: road?.targetCompletionDate || inspection.targetCompletionDate, width: 'half' },
-          { label: 'No. of Extensions', value: road?.noOfExtensions || inspection.noOfExtensions, width: 'half' },
+          { label: 'No. of Extensions', value: Number(road?.noOfExtensions || inspection.noOfExtensions) ? road?.noOfExtensions || inspection.noOfExtensions : '', width: 'half' },
           { label: 'Actual Completion Date', value: road?.actualCompletionDate || inspection.actualCompletionDate, width: 'half' },
         ],
       },
@@ -655,7 +591,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       {
         title: 'Inspector Information',
         fields: [
-          { label: 'Inspection Date', value: inspection.date, width: 'half' },
+          { label: 'Inspection Date', value: isPendingInspectionRecord(inspection) ? '' : inspection.date, width: 'half' },
           { label: 'Inspection Type', value: inspection.inspectionType, width: 'half' },
         ],
       },
@@ -665,7 +601,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       },
       {
         title: 'Inspection Findings',
-        fields: [{ label: 'Findings', value: inspection.remarks }],
+        fields: [{ label: 'Findings', value: findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks }],
       },
       {
         title: 'Prepared by',
@@ -699,16 +635,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
               Field audits, local road condition assessments, and inspection findings.
             </p>
           </div>
-          {!isAdminReadDeleteOnly && (
-            <button
-              type="button"
-              onClick={startNewInspection}
-              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 font-semibold text-white shadow-md transition hover:brightness-105"
-            >
-              <Plus className="h-5 w-5" />
-              Add Inspection
-            </button>
-          )}
+
         </div>
 
         {showForm && (
@@ -725,9 +652,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     setShowForm(false);
                     setEditingInspection(null);
                     setConditionRatings({});
-                    setSelectedAttachment(null);
-                    setAttachmentName('No file chosen');
-                    setValidationNotice('');
+                                                  setValidationNotice('');
                   }}
                   className="text-gray-300 transition-colors hover:text-white"
                   aria-label="Close inspection form"
@@ -752,7 +677,13 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                 ))}
               </nav>
 
-              <form onSubmit={handleSubmit} className="form-modal-fields flex min-h-0 flex-1 flex-col overflow-hidden">
+              <form onSubmit={handleSubmit} onInvalidCapture={event => {
+                const input = event.target as HTMLInputElement;
+                if (input.type === 'date' && (input.validity.rangeUnderflow || input.validity.rangeOverflow || input.validity.badInput)) input.setCustomValidity('Please fill out valid date.');
+              }} onInputCapture={event => {
+                const input = event.target as HTMLInputElement;
+                if (input.type === 'date') input.setCustomValidity('');
+              }} className="form-modal-fields flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div
                   ref={formScrollRef}
                   onScroll={updateActiveFormTab}
@@ -902,8 +833,13 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         <div className="p-3 bg-[#f3f4f6]">
                           <input
                             type="date"
-                            value={formData.date}
-                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                            min={addCalendarMonths(formData.actualCompletionDate, 11) || '2000-01-01'}
+                            max="9999-12-31"
+                            onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Please fill out valid date.')}
+                            onInput={e => e.currentTarget.setCustomValidity('')}
+                            defaultValue={formData.date}
+                            onChange={(e) => { if (e.target.value) setFormData(prev => ({ ...prev, date: e.target.value })); }}
+                            onBlur={(e) => { if (!e.target.value) setFormData(prev => ({ ...prev, date: '' })); }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-base"
                             required
                           />
@@ -921,7 +857,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                               <SelectValue placeholder="Select Type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Acceptance Inspection">Acceptance Inspection</SelectItem>
+                              <SelectItem value="Monitoring and Maintenance Inspection">Monitoring and Maintenance Inspection</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -988,16 +924,16 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             </td>
                           </tr>
                           {/* @mine 2026-11-11 — remark + attachments underneath each category. */}
-                          <tr className="border-t border-gray-300 bg-slate-50 align-top">
+                          <tr className="border-t border-gray-300 bg-white align-top">
                             <td colSpan={3} className="px-3 py-3">
                               {/* @mine 2026-11-11 — remarks first, attachments directly underneath. */}
                               <div className="flex flex-col gap-3">
                                 <div>
                                   <label
                                     htmlFor={`category-remark-${row.key}`}
-                                    className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
+                                    className="mb-1 block text-sm font-semibold text-gray-700"
                                   >
-                                    {row.label} — Remarks <span className="font-normal normal-case text-slate-500">(optional)</span>
+                                    Remarks {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
                                   </label>
                                   <AutoGrowTextarea
                                     id={`category-remark-${row.key}`}
@@ -1009,8 +945,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                                   />
                                 </div>
                                 <div>
-                                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                    {row.label} — Attachments <span className="font-normal normal-case text-slate-500">(optional)</span>
+                                  <span className="mb-1 block text-sm font-semibold text-gray-700">
+                                    Attachments {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
                                   </span>
                                   <div className="flex flex-wrap items-center gap-2">
                                     <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 hover:bg-gray-50">
@@ -1065,10 +1001,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     </table>
                   </div>
 
-                  <div className="mt-3 text-xs text-gray-600">
-                    <span className="font-medium">N/A: Not applicable – type/element not present.</span>
-                    <span className="ml-2">Remarks and attachments under each category are optional; files are limited to PDF, JPG, or PNG and 10 MB each.</span>
-                  </div>
                   {categoryNotice && (
                     <div role="alert" className="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">
                       {categoryNotice}
@@ -1078,31 +1010,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
                 <div className="border-b pb-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Inspection Findings*</h3>
-                  <AutoGrowTextarea
-                    value={formData.remarks}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900 resize-y"
-                    placeholder="Enter inspection findings..."
-                    required
-                  />
-                </div>
-
-                <div className="border-b pb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Attachment*</h3>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <label className="inline-flex cursor-pointer items-center justify-center px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition-colors min-w-[140px]">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        className="hidden"
-                        aria-label="Required inspection attachment"
-                        onChange={handleAttachmentChange}
-                      />
-                      Choose File
-                    </label>
-                    <span className="text-sm text-gray-700">{attachmentName}</span>
+                  <div aria-label="Inspection findings summary" className="w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-slate-50 px-3 py-2 text-gray-900">
+                    {findingsSummary(conditionRatings, conditionRemarks) || 'The summary will appear as component remarks are entered.'}
                   </div>
-                  <p className="mt-3 text-sm text-gray-600">Supported File Formats: PDF, JPG, PNG | Max Size: 10 MB</p>
                 </div>
 
                 <div className="border-b pb-6 text-gray-900">
@@ -1127,9 +1037,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                       setShowForm(false);
                       setEditingInspection(null);
                       setConditionRatings({});
-                      setSelectedAttachment(null);
-                      setAttachmentName('No file chosen');
-                      setValidationNotice('');
+                                                        setValidationNotice('');
                     }}
                     className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
                   >
@@ -1137,9 +1045,10 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                   </button>
                   <button
                     type="submit"
+                    disabled={isSaving}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    {editingInspection ? 'Save Changes' : 'Submit Inspection'}
+                    {isSaving ? (editingInspection ? 'Updating...' : 'Submitting...') : (editingInspection ? 'Save Changes' : 'Submit Inspection')}
                   </button>
                   </div>
                 </div>
@@ -1177,8 +1086,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     {[
                       { label: 'Project / Program / Activity Name', value: projectName },
                       { label: 'Project Category', value: road?.projectCategory || road?.type || inspection.projectCategory || 'Local Road' },
-                      { label: 'Location', value: road?.location || inspection.location || 'Not specified' },
-                      { label: 'Inspection Date', value: inspection.date || 'Not specified' },
+                      { label: 'Location', value: road?.location || inspection.location || '' },
+                      { label: 'Inspection Date', value: isPendingInspectionRecord(inspection) ? '' : inspection.date || '' },
                     ].map(({ label, value }) => (
                       <div key={label}>
                         <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
@@ -1192,7 +1101,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     <h3 className="mb-4 text-lg font-semibold text-gray-900">Road Information</h3>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       {[
-                        ['Road Network ID No.', road?.roadNetworkId || inspection.roadNetworkId || 'Not specified'],
+                        ['Road Network ID No.', road?.roadNetworkId || inspection.roadNetworkId || ''],
                         ['Road Name', road?.roadName || road?.name || inspection.roadName || 'Not specified'],
                       ].map(([label, value]) => (
                         <div key={label}><span className="mb-2 block text-sm font-medium text-gray-700">{label}</span><span className="block min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm text-gray-700">{value}</span></div>
@@ -1204,8 +1113,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     <h3 className="mb-4 text-lg font-semibold text-gray-900">Inspection Details</h3>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       {[
-                        ['Inspector', inspection.inspector || 'Not specified'],
-                        ['Inspection Type', inspection.inspectionType || 'Not specified'],
+                        ['Inspector', inspection.inspector || ''],
+                        ['Inspection Type', isPendingInspectionRecord(inspection) ? '' : inspection.inspectionType || ''],
                         ['Integrity', `${score}%`],
                         ['Condition', condition],
                         [inspection.isAnnualFollowUp ? 'Follow-up Status' : 'Validation Status', inspection.validationStatus || 'Pending Validation'],
@@ -1215,7 +1124,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     </div>
                     <p className="mb-2 mt-4 block text-sm font-medium text-gray-700">Observation Notes</p>
                     <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700">
-                      {inspection.remarks || 'No inspection notes provided.'}
+                      {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}
                     </p>
                   </section>
                   {(road?.projectDescription || road?.description || inspection.projectDescription || inspection.roadNetworkId || road?.roadNetworkId) && (
@@ -1379,7 +1288,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
         </Dialog>
 
         <div className="mb-8 flex flex-col items-stretch justify-between gap-4 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
-          <label className="relative block w-full sm:max-w-[620px]">
+          <label className="relative block w-full min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
@@ -1390,34 +1299,38 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="group" aria-label="Filter inspections by status">
-            {inspectionFilters.map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setActiveFilter(filter)}
-                aria-pressed={activeFilter === filter}
-                className={`shrink-0 rounded-xl px-4 py-2.5 font-medium transition ${
-                  activeFilter === filter
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-white/70'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2">
+                <Calendar aria-hidden="true" className="h-4 w-4 text-blue-600" />
+                <span className="sr-only">Filter inspections by date</span>
+                <input type="date" aria-label="Filter by inspection date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
+                  onChange={event => { if (event.target.value && event.target.validity.valid) setFilterDate(event.target.value); }}
+                  onBlur={event => { if (!event.target.value) setFilterDate(''); }}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
+              </label>
+              {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
+            </div>
+
         </div>
 
-        <section aria-labelledby="inspection-history-title">
+        <section aria-label="Inspection records">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 id="inspection-history-title" className="flex items-center gap-3 text-lg font-bold text-blue-900">
-              <ClipboardCheck className="h-5 w-5 text-blue-600" />
-              Inspection History
-            </h2>
+            <div role="tablist" aria-label="Inspection views" className="flex flex-wrap gap-2">
+              <button type="button" role="tab" aria-selected={inspectionView === 'history'} onClick={() => setInspectionView('history')} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${inspectionView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}><ClipboardCheck className="h-5 w-5" aria-hidden="true" /> Inspection History</button>
+              <button type="button" role="tab" aria-selected={inspectionView === 'overview'} onClick={() => setInspectionView('overview')} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${inspectionView === 'overview' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}><Table2 className="h-5 w-5" aria-hidden="true" /> Overview</button>
+            </div>
             <span className="text-sm text-slate-500">{filteredInspections.length} {filteredInspections.length === 1 ? 'record' : 'records'} listed</span>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {inspectionView === 'overview' ? <div role="tabpanel" aria-label="Inspection Overview" className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left"><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Date</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Contracted Amount</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Findings</th></tr></thead>
+              <tbody className="divide-y divide-gray-200">{filteredInspections.map(({inspection, referenceId}) => {
+                const road = localRoadList.find(item => item.id === inspection.localRoadId);
+                const name = road?.projectName || road?.name || inspection.projectName || inspection.localRoadName;
+                const pending = isPendingInspectionRecord(inspection);
+                return <tr key={inspection.id} tabIndex={0} aria-label={`View inspection details for ${name}`} onClick={() => setSelectedInspection({inspection, referenceId})} onKeyDown={event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setSelectedInspection({inspection, referenceId});}}} className="cursor-pointer hover:bg-blue-50 focus-visible:bg-blue-50"><td className="px-6 py-4 font-medium text-blue-700">{name}</td><td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{pending ? '' : inspection.date || ''}</td><td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{road?.contractedAmount != null && road.contractedAmount !== '' ? `Php ${formatSavedProjectCurrency(String(road.contractedAmount))}` : ''}</td><td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{pending ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}</td></tr>;
+              })}{filteredInspections.length === 0 && <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-500">No inspections match your search or filters.</td></tr>}</tbody>
+            </table></div> : (
+          <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredInspections.map(({ inspection, referenceId }) => {
               const road = localRoadList.find((item) => item.id === inspection.localRoadId);
               const isPendingInspection = isPendingInspectionRecord(inspection);
@@ -1435,19 +1348,19 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     }
                   }}
                   title="Click to view full inspection details"
-                  className="group flex h-[300px] cursor-pointer flex-col rounded-[22px] border border-slate-200 bg-white p-5 text-left shadow-sm transition duration-200 hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(59,130,246,0.12),0_12px_28px_rgba(37,99,235,0.16)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="group flex h-auto cursor-pointer flex-col rounded-[22px] border border-slate-200 bg-white p-5 text-left shadow-sm transition duration-200 hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(59,130,246,0.12),0_12px_28px_rgba(37,99,235,0.16)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                     <div className="flex items-center justify-between gap-3 text-sm leading-5 text-slate-700">
                       <span className="truncate">{referenceId}</span>
-                      <span className="shrink-0 text-right">{inspection.date || 'Date not specified'}</span>
+                      <span className="shrink-0 text-right">{isPendingInspection ? '' : inspection.date || ''}</span>
                     </div>
-                    <h3 className="inspection-road-name mt-3 line-clamp-2 text-base font-bold text-slate-900 transition-colors group-hover:text-blue-700" title={projectName}>
+                    <h3 className="inspection-road-name mt-3 min-w-0 truncate text-base font-bold text-slate-900 transition-colors group-hover:text-blue-700" title={projectName}>
                       {projectName}
                     </h3>
                     <p className="inspection-road-category mt-1 text-sm text-slate-500">
                       {road?.projectCategory || road?.type || 'Local Road'}
                     </p>
-                    <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
                       <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {inspection.isScheduledAnnualFollowUp
                             ? `Annual Follow-up · ${inspection.annualFollowUpYear}`
@@ -1455,13 +1368,10 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             ? 'Validation Inspection'
                             : 'Inspection Findings'}
                       </span>
-                      <p className="inspection-remarks mt-1 line-clamp-5 text-sm leading-6 text-slate-700">
-                        {inspection.isScheduledAnnualFollowUp
-                          ? `Inspection due by ${inspection.date}. Edit this entry to record the annual inspection.`
-                          : isPendingInspection
-                          ? 'The project was validated. Edit this entry to record inspection findings.'
-                          : inspection.remarks || 'No observation notes recorded.'}
-                      </p>
+                      {inspection.isScheduledAnnualFollowUp && <p className="mt-1 text-sm text-slate-700">Provide the necessary inspection details.</p>}
+                      {!isPendingInspection && <p className="inspection-remarks mt-1 truncate text-sm leading-6 text-slate-700">
+                        {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No observation notes recorded.'}
+                      </p>}
                     </div>
                   <footer className="mt-4 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -1472,10 +1382,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                       {isPendingInspection ? 'Pending' : 'Completed'}
                     </span>
                     <div className="flex shrink-0 items-center gap-3">
-                      <span className="flex shrink-0 items-center gap-1.5 text-sm text-slate-500">
-                        <Calendar className="h-4 w-4" />
-                        {inspection.date || 'Date not specified'}
-                      </span>
+                      {!isPendingInspection && inspection.date && <span className="flex shrink-0 items-center gap-1.5 text-sm text-slate-500">
+                        <Calendar className="h-4 w-4" />{inspection.date}
+                      </span>}
                       {!isAdminReadDeleteOnly && <button
                         type="button"
                         onClick={(event) => {
@@ -1511,14 +1420,14 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             {filteredInspections.length === 0 && (
               <div className="col-span-full rounded-[22px] border border-slate-200 bg-white px-6 py-14 text-center text-slate-500">
                 {inspections.length === 0
-                  ? 'No inspections recorded yet. Add your first inspection above.'
+                  ? 'No inspections recorded yet.'
                   : 'No inspections match your search or selected filter.'}
               </div>
             )}
-          </div>
+          </div>)}
         </section>
         <div className="mb-10 mt-auto flex flex-col gap-2 border-t border-slate-200 px-1 pt-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>Showing {filteredInspections.length} of {inspections.length} total inspection records</span>
+          <span>Showing {filteredInspections.length} of {new Set(inspections.map(inspection => inspection.localRoadId)).size} projects</span>
           <span className="font-medium text-blue-700">Municipality of Mabini, Batangas</span>
         </div>
       </div>

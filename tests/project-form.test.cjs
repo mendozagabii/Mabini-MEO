@@ -117,7 +117,7 @@ test('form has only a turnover attachment and bounds all date inputs', async () 
   assert.equal(form.querySelectorAll('input[type=file]:not([class=hidden])').length, 1);
   const inputs = [...form.querySelectorAll('input[type=date]')];
   assert.equal(inputs.length, 5);
-  for (const input of inputs) { assert.equal(input.min, '1000-01-01'); assert.equal(input.max, '9999-12-31'); }
+  for (const input of inputs) { assert.equal(input.min, '2000-01-01'); assert.equal(input.max, '9999-12-31'); }
   assert.doesNotMatch(container.textContent, /No\. of Extensions \*/);
   for (const name of ['PCAD License No.', 'Completion Percentage']) assert.equal(field(name), null);
   assert.ok(field('Road Network ID No.'));
@@ -497,6 +497,8 @@ test('maintenance detail labels have no required markers', async () => {
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
   const ui = new Proxy({}, { get: () => Dummy });
   const { MaintenanceModule } = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts'),
+    '@/lib/project-form-validation': validation,
     './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
     '@/lib/activity-log-client': { recordClientActivity: async () => {} },
   });
@@ -554,4 +556,100 @@ test('validator reopens an updated returned project with an empty remarks input'
   const label = [...detail.querySelectorAll('p')].find(el => el.textContent === 'Validation Result');
   assert.equal(label.nextElementSibling.textContent, 'Pending Validation');
   assert.match(detail.textContent, /Previous revision remarks/); // History remains visible separately.
+});
+
+test('maintenance overview and history use the same live records for encoder and head engineer', async () => {
+  const Dummy = ({children}) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, {get: () => Dummy});
+  const {MaintenanceModule} = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),
+    '@/lib/project-form-validation': validation,
+    './ui/textarea': {AutoGrowTextarea: props => React.createElement('textarea', props)}, './ui/dialog':ui, './ui/select':ui,
+    './ConfirmActionDialog':ui, './PrintDocument':ui, '@/lib/activity-log-client':{recordClientActivity:async()=>{}},
+  });
+  const road = {id:'p',name:'Road',projectName:'Road'};
+  const record = {id:'m',localRoadId:'p',localRoadName:'Road',type:'Corrective Type',scheduledDate:'2026-01-01',status:'Scheduled',cost:0,description:'Repair',remarks:'Initial remark'};
+  for (const role of ['Head Engineer','Staff - Encoder']) {
+    await reset();
+    const props = {localRoadList:[road],inspections:[],userRole:role,currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}};
+    await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[record]})));
+    assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
+    await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
+    const table = container.querySelector('table');
+    assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent),['Project Name','Maintenance Date','Status','Remarks']);
+    assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Road','','Scheduled','Initial remark']);
+    assert.match(table.textContent,/Road/); assert.match(table.textContent,/Scheduled/); assert.match(table.textContent,/Initial remark/);
+    for (const status of ['Scheduled','In Progress','Deferred','Completed']) {
+      await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{...record,status,dateStarted:'2026-02-02',completedDate:'2026-03-03',remarks:'Updated remark'}]})));
+      assert.deepEqual([...container.querySelectorAll('table tbody td')].map(td=>td.textContent),['Road',status === 'Completed' ? '2026-03-03' : '2026-02-02',status,'Updated remark']);
+    }
+    await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Maintenance History')).click());
+    assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
+    assert.equal(container.querySelector('[aria-label="Filter maintenance records by status"]'), null);
+    const filter = container.querySelector('[aria-label="Filter by maintenance completion date"]');
+    await act(async () => { Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(filter, '2027-01-01'); filter.dispatchEvent(new window.Event('input', {bubbles:true})); filter.dispatchEvent(new window.Event('change', {bubbles:true})); });
+    assert.equal(container.querySelector('[aria-label="View maintenance details for Road"]'), null);
+    await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Clear').click());
+    assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
+  }
+});
+
+test('maintenance completion date field enforces the 2000 lower bound in the browser', async () => {
+  const Dummy = ({children}) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, {get: () => Dummy});
+  const {MaintenanceModule} = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'), '@/lib/project-form-validation':validation,
+    './ui/textarea':{AutoGrowTextarea: props=>React.createElement('textarea',props)}, './ui/dialog':ui, './ui/select':ui,
+    './ConfirmActionDialog':ui, './PrintDocument':ui, '@/lib/activity-log-client':{recordClientActivity:async()=>{}},
+  });
+  await reset();
+  await act(async () => root.render(React.createElement(MaintenanceModule, {maintenanceRecords:[],localRoadList:[],inspections:[],userRole:'Staff - Encoder',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}})));
+  await act(async () => [...container.querySelectorAll('button')].find(b=>b.textContent.includes('Schedule Maintenance')).click());
+  const input = document.querySelector('.module-form-panel input[type=date]:not([readonly])');
+  assert.equal(input.min,'2000-01-01'); assert.equal(input.max,'9999-12-31'); assert.equal(input.required,false);
+  input.value='1999-12-31'; assert.equal(input.validity.rangeUnderflow,true);
+  await act(async()=>input.checkValidity()); assert.equal(input.validationMessage, 'Please fill out valid date.');
+  input.value='2000-01-01'; await act(async()=>input.dispatchEvent(new window.Event('input',{bubbles:true}))); assert.equal(input.validity.valid,true);
+});
+
+test('maintenance project dropdown shows any below-good component and removes scheduled projects', async () => {
+  const Dummy = ({children}) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, {get: () => Dummy});
+  const select = {Select: Dummy, SelectTrigger: Dummy, SelectValue: () => null, SelectContent: Dummy, SelectItem: ({children, value}) => React.createElement('span', {'data-option':value}, children)};
+  const {MaintenanceModule} = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'), '@/lib/project-form-validation':validation,
+    './ui/textarea':{AutoGrowTextarea: props=>React.createElement('textarea',props)}, './ui/dialog':ui, './ui/select':select,
+    './ConfirmActionDialog':ui, './PrintDocument':ui, '@/lib/activity-log-client':{recordClientActivity:async()=>{}},
+  });
+  const roads = ['Fair','Bad','Poor','Good','Pending'].map(name => ({id:name, name:name+' Road', projectName:name+' Road'}));
+  const inspections = roads.map(({id}) => ({id:'i'+id,localRoadId:id,date:'2026-01-01',conditionRatings:{Concrete:'Good',Drainage:id==='Pending'?'Fair':id},...(id==='Pending'?{isScheduledAnnualFollowUp:true}:{})}));
+  const props = {maintenanceRecords:[],scheduledInspectionIds:[],localRoadList:roads,inspections,userRole:'Staff - Encoder',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}};
+  await reset();
+  await act(async () => root.render(React.createElement(MaintenanceModule, props)));
+  await act(async () => [...container.querySelectorAll('button')].find(b=>b.textContent.includes('Schedule Maintenance')).click());
+  const options = () => [...document.querySelectorAll('[data-option]')].map(e=>e.getAttribute('data-option')).filter(value=>roads.some(road=>road.id===value));
+  assert.deepEqual(options(),['Fair','Bad','Poor']);
+  await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{id:'m',inspectionId:'iFair',localRoadId:'Fair',localRoadName:'Fair Road',scheduledDate:'2026-01-01',status:'Scheduled',cost:0,type:'Routine',description:'Repair'}]})));
+  assert.deepEqual(options(),['Bad','Poor']);
+  await act(async () => root.render(React.createElement(MaintenanceModule, {...props,scheduledInspectionIds:['iBad','iPoor']})));
+  assert.deepEqual(options(),['Fair']);
+});
+
+test('maintenance edit uses linked inspection date as the minimum for both fields', async () => {
+  const Dummy=({children})=>React.createElement(React.Fragment,null,children);
+  const ui=new Proxy({}, {get:()=>Dummy});
+  const {MaintenanceModule}=loadTs('src/app/components/MaintenanceModule.tsx',{
+    '@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),'@/lib/project-form-validation':validation,
+    './ui/textarea':{AutoGrowTextarea:props=>React.createElement('textarea',props)},'./ui/dialog':ui,'./ui/select':ui,
+    './ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}}
+  });
+  const props={maintenanceRecords:[{id:'m',localRoadId:'p',localRoadName:'Road',inspectionId:'i',type:'Corrective Maintenance',status:'In Progress',dateStarted:'2026-01-08',scheduledDate:'2026-02-01',description:'Repair',remarks:'Needed',cost:0}],localRoadList:[{id:'p',name:'Road'}],inspections:[{id:'i',localRoadId:'p',date:'2026-01-01'}],userRole:'Staff - Encoder',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}};
+  await reset(); await act(async()=>root.render(React.createElement(MaintenanceModule,props)));
+  await act(async()=>container.querySelector('[aria-label="Edit maintenance record for Road"]').click());
+  const fields=[...document.querySelectorAll('.module-form-panel input[type=date]')];
+  assert.equal(fields.length,2); assert.ok(fields.every(field=>field.min==='2026-01-02'));
+  fields[0].value='2026-01-01'; await act(async()=>fields[0].checkValidity());
+  assert.equal(fields[0].validationMessage,'Please fill out valid date.');
+  fields[1].value='2026-01-01'; await act(async()=>fields[1].checkValidity());
+  assert.equal(fields[1].validationMessage,'Please fill out valid date.');
 });
