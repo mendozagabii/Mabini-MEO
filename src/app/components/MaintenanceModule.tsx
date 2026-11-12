@@ -281,7 +281,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
     }
     const invalidDate = [formData.dateStarted, formData.completionDate].some(date => !!date && !hasFourDigitYear(date));
     const tooEarly = !!minimumMaintenanceDate && [formData.dateStarted, formData.completionDate].some(date => !!date && date < minimumMaintenanceDate);
-    if (inspectionUnavailable || tooEarly) { setActivityError(inspectionUnavailable ? 'The linked inspection date could not be verified.' : 'Maintenance dates must be at least 7 days after the inspection date.'); returnToSection(activitySectionRef, 'activity'); return; }
+    if (inspectionUnavailable || tooEarly) { setActivityError(inspectionUnavailable ? 'The linked inspection date could not be verified.' : 'Please fill out valid date.'); returnToSection(activitySectionRef, 'activity'); return; }
     if (invalidDate || !formData.maintenanceType || (editingRecordId && (!formData.dateStarted || !formData.completionDate || !formData.maintenanceActivities.trim() || !formData.remarks.trim()))) {
       setActivityError(invalidDate ? 'Please fill out valid date.' : 'Please fill out this field.');
       returnToSection(activitySectionRef, 'activity');
@@ -496,7 +496,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                       value={formData.dateStarted}
                       min={minimumMaintenanceDate || "2000-01-01"} max="9999-12-31" required={!!editingRecordId}
                       onChange={e => setFormData({ ...formData, dateStarted: e.target.value })}
-                      onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : e.currentTarget.validity.rangeUnderflow && minimumMaintenanceDate ? 'Maintenance dates must be at least 7 days after the inspection date.' : 'Please fill out valid date.')}
+                      onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Please fill out valid date.')}
                       onInput={e => e.currentTarget.setCustomValidity('')}
                       className="w-full px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
                     />
@@ -507,7 +507,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                       type="date"
                       value={formData.completionDate}
                       min={minimumMaintenanceDate || "2000-01-01"} max="9999-12-31"
-                      onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : e.currentTarget.validity.rangeUnderflow && minimumMaintenanceDate ? 'Maintenance dates must be at least 7 days after the inspection date.' : 'Please fill out valid date.')}
+                      onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Please fill out valid date.')}
                       onInput={e => e.currentTarget.setCustomValidity('')}
                       onChange={(e) => setFormData({ ...formData, completionDate: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"

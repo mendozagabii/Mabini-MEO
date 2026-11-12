@@ -646,5 +646,7 @@ test('maintenance edit uses linked inspection date as the minimum for both field
   const fields=[...document.querySelectorAll('.module-form-panel input[type=date]')];
   assert.equal(fields.length,2); assert.ok(fields.every(field=>field.min==='2026-01-08'));
   fields[0].value='2026-01-07'; await act(async()=>fields[0].checkValidity());
-  assert.equal(fields[0].validationMessage,'Maintenance dates must be at least 7 days after the inspection date.');
+  assert.equal(fields[0].validationMessage,'Please fill out valid date.');
+  fields[1].value='2026-01-07'; await act(async()=>fields[1].checkValidity());
+  assert.equal(fields[1].validationMessage,'Please fill out valid date.');
 });

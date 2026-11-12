@@ -467,7 +467,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     if (!localRoad) validationMessages.push('Select a Project / Program / Activity Name.');
     if (!hasFourDigitYear(formData.date)) validationMessages.push(formData.date ? 'Please fill out valid date.' : 'Enter the inspection date.');
     const minimumInspectionDate = addCalendarMonths(localRoad?.actualCompletionDate || '', 11);
-    if (!minimumInspectionDate || (formData.date && formData.date < minimumInspectionDate)) validationMessages.push('Inspection date must be at least 11 months after the project completion date.');
+    if (!minimumInspectionDate) validationMessages.push('The project completion date could not be verified.');
+    else if (formData.date && formData.date < minimumInspectionDate) validationMessages.push('Please fill out valid date.');
     if (!formData.inspectionType) validationMessages.push('Select an inspection type.');
     if (missingConditionRatings.length > 0) {
       validationMessages.push('Select a condition rating for every category. Choose N/A when it does not apply.');
@@ -834,7 +835,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             type="date"
                             min={addCalendarMonths(formData.actualCompletionDate, 11) || '2000-01-01'}
                             max="9999-12-31"
-                            onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Inspection date must be at least 11 months after the project completion date.')}
+                            onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Please fill out valid date.')}
                             onInput={e => e.currentTarget.setCustomValidity('')}
                             defaultValue={formData.date}
                             onChange={(e) => { if (e.target.value) setFormData(prev => ({ ...prev, date: e.target.value })); }}

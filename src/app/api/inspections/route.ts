@@ -65,7 +65,8 @@ export async function POST(request: Request) {
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
   const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
-  if (!minimum || payload.date < minimum) return NextResponse.json({ message: 'Inspection date must be at least 11 months after the project completion date.' }, { status: 400 });
+  if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
+  if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   try {
     const inspection = await saveInspection(auth.db, { ...payload, id: '' }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Created', details: `Created inspection ${inspection.id}` });
@@ -100,7 +101,8 @@ export async function PUT(request: Request) {
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
   const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
-  if (!minimum || payload.date < minimum) return NextResponse.json({ message: 'Inspection date must be at least 11 months after the project completion date.' }, { status: 400 });
+  if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
+  if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   try {
     // Scheduled follow-ups have no inspector yet, and older results may belong
     // to another inspector. The role and record were checked above; use the

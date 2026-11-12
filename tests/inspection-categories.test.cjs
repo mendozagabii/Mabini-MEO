@@ -285,3 +285,16 @@ test('inspection overview follows history changes and pending annual cards keep 
     act(()=>root.unmount()); container.remove();
   }
 });
+
+test('inspection dates outside the eleven-month minimum show the requested native message', async () => {
+  const {container,root}=renderModule([pendingInspection]);
+  await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[pendingInspection],localRoadList:[{id:'road-1',name:'Poblacion Road',actualCompletionDate:'2025-03-31'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:'Staff - Inspector'})));
+  openPendingForm(container);
+  const input=[...container.querySelectorAll('input[type=date]')].find(el=>!el.readOnly && el.required);
+  assert.ok(input); assert.equal(input.min,'2026-02-28');
+  input.value='2026-02-27'; await act(async()=>input.checkValidity());
+  assert.equal(input.validationMessage,'Please fill out valid date.');
+  input.value='2026-02-28'; await act(async()=>input.dispatchEvent(new window.Event('input',{bubbles:true})));
+  assert.equal(input.validity.valid,true);
+  act(()=>root.unmount()); container.remove();
+});

@@ -321,7 +321,8 @@ test('inspection create and edit require eleven calendar months after project co
     const conditionRatings=Object.fromEntries(labels.map(label=>[label,label==='Concrete'?'Fair':'N/A']));
     const body={id:'i',localRoadId:'p',inspectionType:'Monitoring and Maintenance Inspection',conditionRatings,conditionRemarks:{Concrete:'Crack'},conditionAttachments:{Concrete:[{stored:true}]}};
     for (const method of ['POST','PUT']) {
-      assert.equal((await routes.inspections[method](request({...body,date:'2026-02-27'}))).status,400);
+      const invalid = await routes.inspections[method](request({...body,date:'2026-02-27'}));
+      assert.equal(invalid.status,400); assert.equal(invalid.body.message,'Please fill out valid date.');
       assert.equal((await routes.inspections[method](request({...body,date:'2026-02-28'}))).status,200);
     }
     data.listRoads=async()=>[{id:'p'}];
@@ -338,7 +339,8 @@ test('maintenance dates use linked inspection plus seven days, including archive
     data.saveMaintenance=async(_db,payload)=>({...payload,id:'m'});
     const body={localRoadId:'p',inspectionId:'i',type:'Corrective Maintenance',description:'Repair',remarks:'Needed',cost:0};
     for (const field of ['dateStarted','scheduledDate']) {
-      assert.equal((await routes.maintenance.POST(request({...body,[field]:'2026-01-07'}))).status,400);
+      const invalid = await routes.maintenance.POST(request({...body,[field]:'2026-01-07'}));
+      assert.equal(invalid.status,400); assert.equal(invalid.body.message,'Please fill out valid date.');
       assert.equal((await routes.maintenance.POST(request({...body,[field]:'2026-01-08'}))).status,200);
     }
     data.listMaintenance=async()=>[{id:'m',localRoadId:'p',status:'In Progress',inspectionId:'i'}];
