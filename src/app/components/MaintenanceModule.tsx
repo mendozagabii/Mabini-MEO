@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { eligibleMaintenanceInspections } from '@/lib/inspection-selection';
+import { hasFourDigitYear } from '@/lib/project-form-validation';
 import { recordClientActivity } from '@/lib/activity-log-client';
 
 interface Maintenance {
@@ -50,7 +51,8 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
   const [isSaving, setIsSaving] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [filterDate, setFilterDate] = useState('');
+  const filterDateRef = useRef<HTMLInputElement>(null);
   const [maintenanceView, setMaintenanceView] = useState<'history' | 'overview'>('history');
   const [selectedMaintenance, setSelectedMaintenance] = useState<{ record: Maintenance; referenceId: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Maintenance | null>(null);
@@ -63,7 +65,6 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
   const projectSectionRef = useRef<HTMLElement>(null);
   const activitySectionRef = useRef<HTMLElement>(null);
   const formSectionRefs = [projectSectionRef, activitySectionRef];
-  const maintenanceFilters = ['All', 'For maintenance', 'Completed'];
   const statusStyles: Record<Maintenance['status'], string> = {
     Scheduled: 'border-amber-200 bg-amber-50 text-amber-700',
     'In Progress': 'border-blue-200 bg-blue-50 text-blue-700',
@@ -88,8 +89,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
     }))
     .filter(({ record, referenceId }) => {
       const road = localRoadList.find((item) => item.id === record.localRoadId);
-      const matchesStatus = statusFilter === 'All' ||
-        (statusFilter === 'For maintenance' ? record.status !== 'Completed' : record.status === 'Completed');
+      const matchesDate = !filterDate || record.scheduledDate === filterDate;
       const query = searchTerm.trim().toLowerCase();
       const searchable = [
         referenceId,
@@ -101,7 +101,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
         record.description,
         record.type,
       ].filter(Boolean).join(' ').toLowerCase();
-      return matchesStatus && searchable.includes(query);
+      return matchesDate && searchable.includes(query);
     });
   const [formData, setFormData] = useState({
     localRoadId: '',
@@ -273,10 +273,10 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       returnToSection(projectSectionRef, 'project', '[aria-label="Select project"]');
       return;
     }
-    if (!formData.dateStarted || !formData.completionDate || !formData.maintenanceType || !formData.maintenanceActivities.trim() || !formData.remarks.trim()) {
+    if (!formData.dateStarted || !hasFourDigitYear(formData.completionDate) || !formData.maintenanceType || !formData.maintenanceActivities.trim() || !formData.remarks.trim()) {
       setActivityError([
         !formData.dateStarted ? 'Date started is required.' : '',
-        !formData.completionDate ? 'Completion date is required.' : '',
+        !hasFourDigitYear(formData.completionDate) ? 'Enter a valid completion date from 2000 onward.' : '',
         !formData.maintenanceType ? 'Select a maintenance type.' : '',
         !formData.maintenanceActivities.trim() ? 'Enter the maintenance activities.' : '',
         !formData.remarks.trim() ? 'Enter remarks.' : '',
@@ -357,22 +357,16 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="group" aria-label="Filter maintenance records by status">
-            {maintenanceFilters.map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setStatusFilter(filter)}
-                aria-pressed={statusFilter === filter}
-                className={`shrink-0 rounded-xl px-4 py-2.5 font-medium transition ${
-                  statusFilter === filter
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-white/70'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2">
+              <Calendar aria-hidden="true" className="h-4 w-4 text-blue-600" />
+              <span className="sr-only">Filter maintenance by completion date</span>
+              <input type="date" aria-label="Filter by maintenance completion date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
+                onChange={event => { if (event.target.value && event.target.validity.valid) setFilterDate(event.target.value); }}
+                onBlur={event => { if (!event.target.value) setFilterDate(''); }}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
+            </label>
+            {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
           </div>
         </div>
       </section>
@@ -505,6 +499,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                     <input
                       type="date"
                       value={formData.completionDate}
+                      min="2000-01-01" max="9999-12-31"
                       onChange={(e) => setFormData({ ...formData, completionDate: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
                       required

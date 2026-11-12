@@ -239,3 +239,23 @@ test('maintenance remarks are required for creation and full edits, but not stat
     assert.equal((await routes.maintenance.PATCH(request({id:'m',localRoadId:'p',type:'Corrective Type',scheduledDate:'2026-01-01',description:'Repair',cost:0,remarks:''}))).status, 400);
   } finally { data.listMaintenance = old; }
 });
+
+test('maintenance completion date rejects years before 2000 and invalid dates on create and edit', async () => {
+  role = 'encoder';
+  const old = {listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
+  try {
+    data.listRoads = async () => [{id:'p'}];
+    data.listInspections = async () => [{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}];
+    data.listArchivedInspections = async () => []; data.listArchivedMaintenance = async () => [];
+    data.listMaintenance = async () => [{id:'m',localRoadId:'p',status:'Scheduled'}];
+    data.saveMaintenance = async (_db, value) => ({...value,id:'m'});
+    const body = {localRoadId:'p',inspectionId:'i',type:'Corrective Type',cost:0,description:'Repair',remarks:'Needed'};
+    for (const date of ['1999-12-31','2025-02-29','10000-01-01']) {
+      assert.equal((await routes.maintenance.POST(request({...body,scheduledDate:date}))).status,400);
+      assert.equal((await routes.maintenance.PATCH(request({...body,id:'m',scheduledDate:date}))).status,400);
+      assert.equal((await routes.maintenance.PATCH(request({id:'m',status:'Completed',completedDate:date}))).status,400);
+    }
+    assert.equal((await routes.maintenance.POST(request({...body,scheduledDate:'2000-01-01'}))).status,200);
+    assert.equal((await routes.maintenance.PATCH(request({...body,id:'m',scheduledDate:'2000-01-01'}))).status,200);
+  } finally {Object.assign(data,old);}
+});

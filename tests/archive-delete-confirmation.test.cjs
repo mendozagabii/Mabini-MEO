@@ -28,21 +28,29 @@ const calls = [];
 global.fetch = async (url, options = {}) => {
   calls.push({ url, method: options.method || 'GET' });
   const archived = url.startsWith('/api/local-road') ? [{id:'p',projectName:'Project P'}] : url.startsWith('/api/inspections') ? [{id:'i',projectName:'Project I',date:'2026-01-01'}] : url.startsWith('/api/maintenance') ? [{id:'m',projectName:'Project M',scheduledDate:'2026-02-01'}] : [];
-  return { ok: true, json: async () => ({ users: [], archivedUsers: [], archived, logs: [], locked: {} }) };
+  return { ok: true, json: async () => ({ users: [], archivedUsers: [{userId:'u',name:'Archived User',email:'user@example.com',username:'user',role:'Staff - Encoder',status:'Inactive'}], archived, logs: [], locked: {} }) };
 };
 const button = text => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === text);
 
 test('archived project, inspection and maintenance deletion requires explicit confirmation', async () => {
   await act(async () => root.render(React.createElement(mod.exports.UserManagementModule, { currentUserEmail: 'test@example.com' })));
   await act(async () => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Archived (')).click());
+  for (const action of ['Restore', 'Delete permanently']) {
+    const icon = document.querySelector(`[aria-label="${action} Archived User"]`);
+    assert.ok(icon.querySelector('svg')); assert.equal(icon.textContent.trim(), '');
+  }
   for (const [filter, label, url] of [['Project (1)', 'Project P', '/api/local-road?id=p&permanent=true'], ['Inspections (1)', 'Project I', '/api/inspections?id=i&permanent=true'], ['Maintenance (1)', 'Project M', '/api/maintenance?permanent=true']]) {
     await act(async () => button(filter).click());
-    await act(async () => button('Delete permanently').click());
+    const remove = document.querySelector(`[aria-label="Delete permanently ${label}"]`);
+    const restore = document.querySelector(`[aria-label="Restore ${label}"]`);
+    assert.ok(remove.querySelector('svg')); assert.ok(restore.querySelector('svg'));
+    assert.equal(remove.textContent.trim(), ''); assert.equal(restore.textContent.trim(), '');
+    await act(async () => remove.click());
     assert.match(document.body.textContent, new RegExp(`Permanently delete.*${label}.*cannot be undone`));
     assert.equal(calls.filter(call => call.method === 'DELETE').length, 0);
     await act(async () => button('Cancel').click());
     assert.equal(calls.filter(call => call.method === 'DELETE').length, 0);
-    await act(async () => button('Delete permanently').click());
+    await act(async () => document.querySelector(`[aria-label="Delete permanently ${label}"]`).click());
     await act(async () => button('Delete').click());
     assert.equal(calls.filter(call => call.method === 'DELETE').at(-1).url, url);
     calls.length = 0;

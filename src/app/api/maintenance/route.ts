@@ -1,6 +1,7 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { NextResponse } from 'next/server';
 import { eligibleMaintenanceInspections } from '@/lib/inspection-selection';
+import { hasFourDigitYear } from '@/lib/project-form-validation';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveMaintenance, listArchivedMaintenance, listMaintenance, listRoads, listInspections, listArchivedInspections,
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
   }
   if (typeof payload.remarks !== 'string' || !payload.remarks.trim()) return NextResponse.json({ message: 'Please fill out this field.' }, { status: 400 });
+  if (typeof payload.scheduledDate !== 'string' || !hasFourDigitYear(payload.scheduledDate)) return NextResponse.json({ message: 'Enter a valid completion date from 2000 onward.' }, { status: 400 });
   if (typeof payload.inspectionId !== 'string' || !payload.inspectionId) return NextResponse.json({ message: 'Select a project with an eligible inspection.' }, { status: 400 });
   try {
     const [inspections, active, archived, archivedInspections] = await Promise.all([listInspections(auth.db), listMaintenance(auth.db), listArchivedMaintenance(auth.db), listArchivedInspections(auth.db)]);
@@ -72,6 +74,7 @@ export async function PATCH(request: Request) {
       if (!['Scheduled', 'In Progress', 'Completed', 'Deferred'].includes(String(payload.status))) {
         return NextResponse.json({ message: 'A valid maintenance status is required.' }, { status: 400 });
       }
+      if (payload.completedDate != null && payload.completedDate !== '' && (typeof payload.completedDate !== 'string' || !hasFourDigitYear(payload.completedDate))) return NextResponse.json({ message: 'Enter a valid completion date from 2000 onward.' }, { status: 400 });
       if (record.status === 'Completed' && payload.status === 'Deferred') return NextResponse.json({ message: 'Completed maintenance cannot be deferred.' }, { status: 409 });
       const updated = await saveMaintenance(auth.db, {
         ...record, status: payload.status,
@@ -85,6 +88,7 @@ export async function PATCH(request: Request) {
     if (typeof payload.localRoadId !== 'string' || typeof payload.type !== 'string' || typeof payload.scheduledDate !== 'string' || typeof payload.description !== 'string' || !Number.isFinite(Number(payload.cost))) {
       return NextResponse.json({ message: 'Valid maintenance details are required.' }, { status: 400 });
     }
+    if (!hasFourDigitYear(payload.scheduledDate)) return NextResponse.json({ message: 'Enter a valid completion date from 2000 onward.' }, { status: 400 });
     if (payload.localRoadId !== record.localRoadId) return NextResponse.json({ message: 'The project of an existing maintenance record cannot be changed.' }, { status: 400 });
     const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
     if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
