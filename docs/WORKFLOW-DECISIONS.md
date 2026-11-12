@@ -1,7 +1,7 @@
 # WBLRMS — Decisions from the workflow review
 
 **Date:** 2026-11-12 (rev. 2) · **Branch:** `arena/0da75355-mabini-meo` · **Source:** answers to `docs/WORKFLOW-REVIEW.md` §10, then to follow-up questions B1–B7
-**Status:** 27 of 27 items decided · **steps 1–5 and 7 built** · tasks 11, 13, 14, 15, 16 built · next: step 6 (emails) and task 12 (five locations)
+**Status:** 27 of 27 items decided · **steps 1–5 and 7 built** · tasks 11–16 built · next: step 6 (emails), then step 8 (purge) and step 9 (field removal)
 
 ---
 
@@ -124,7 +124,7 @@ Recorded as tasks 11–16 so they do not renumber the ten-step plan above.
 | # | Requirement (as stated) | Screens touched | Depends on |
 |---|---|---|---|
 | **11** ✅ | Head Engineer's Project Management: **table like Validation Management** with **Project Name · Location · Contract Amount · Completion Date · Inspector** dropdown per row, clickable rows. | Head Engineer project list | done |
-| **12** | Project form **Location**: the encoder may enter **up to 5 locations**, with an **Add** button, and each accepts a long string (e.g. *"Sitio Dao, Anilao East, Mabini, Batangas"*). Viewing and printing show **one box with one line per location**; the **road name shows the same lines in one box**; **road network ID and road name each get their own row** in add, view, edit and print. | Project form, project view, project print | none |
+| **12** ✅ | Project form **Location**: the encoder may enter **up to 5 locations**, with an **Add** button, and each accepts a long string (e.g. *"Sitio Dao, Anilao East, Mabini, Batangas"*). Viewing and printing show **one box with one line per location**; the **road name shows the same lines in one box**; **road network ID and road name each get their own row** in add, view, edit and print. | Project form, project view, project print | done (`e81712f`) |
 | **13** ✅ | Project Management (Head Engineer **and** Encoder): **location filter replaced by a completion-date filter**, as in Maintenance Management. | Head Engineer + Encoder project lists | done |
 | **14** ✅ | Maintenance **overview table interface** matches the Inspection overview. In both overviews a **print button in the header, on the right** — Inspection beside *Findings*, Maintenance beside *Remarks*, with an all-years / one-year selector. **Printing is Head Engineer only.** | Inspection overview, Maintenance overview | done |
 | **15** ✅ | The **Location shown in lists is the Barangay** under road information: project list, maintenance list, and the validation table. | those three lists | done (`c7fb4ee`) |
@@ -137,10 +137,12 @@ Today `location` and `barangay` are both read from the single `barangays.name` l
 - **Location** = a list of up to 5 free-text lines, stored in a new `project_locations` table (project, position, label).
 - **Barangay** = the existing single link, kept as-is, and used by the lists and the filters.
 
-That is the reading implemented unless the office says otherwise. Two details to confirm when task 12 starts:
+That is the reading implemented. Read from B7 on 2026-11-15, with the two open details settled as follows:
 
-1. Are the five lines **free text only**, with no barangay dropdown behind them? (Today the form asks for a barangay as well.)
-2. Does the **Barangay field stay required**, so every project still has one for the lists and the totals?
+1. The five lines are **free text only** — no barangay dropdown behind them.
+2. **Barangay stays required**, so every project still has one for the lists and the totals.
+
+Both points are assumed rather than stated by the office; if either is wrong only the form changes, not the storage.
 
 ### Where these fit in the plan
 

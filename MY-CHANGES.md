@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Coverage locations: five free-text lines per project (task 12)
+- **Type:** Added
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/project-form-validation.ts` (modified), `src/lib/supabase-data.ts` (modified), `tests/project-form.test.cjs` (modified), `supabase/migrations/20261115_project_locations.sql` (new)
+- **What & why:** The office asked for up to five coverage locations per project, each a long free-text line, instead of one Location box. They are stored in a new project_locations table, edited as one line per input in the form, and shown and printed as one box with one line per location, with Road Network ID No. and Road Name now on separate rows. Barangay stays a single required value, so the lists and filters are unchanged.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Print the inspection and maintenance overviews, all records or one year, and match the maintenance table to the inspection one
 - **Type:** Feature
 - **Files:** `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)

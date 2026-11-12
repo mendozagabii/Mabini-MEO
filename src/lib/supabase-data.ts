@@ -40,6 +40,12 @@ type Joined = Record<string, any>; // eslint-disable-line @typescript-eslint/no-
 function mapProject(p: Joined): StoredRecord {
   const road = (p.roads ?? {}) as Joined;
   const contractor = (p.contractors ?? {}) as Joined;
+  // @mine — task 12: up to five free-text coverage locations, in their own order.
+  const coverage = ((p.project_locations ?? []) as Joined[])
+    .slice()
+    .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
+    .map((row) => str(row.label))
+    .filter((label) => label !== '');
   const validation =
     p.validation_status === 'approved' ? 'Validated' : p.validation_status === 'rejected' ? 'Return for Revision' : undefined;
   return {
@@ -50,7 +56,10 @@ function mapProject(p: Joined): StoredRecord {
     projectName: p.project_name ?? '',
     type: p.project_categories?.name ?? p.category_other ?? '',
     projectCategory: p.project_categories?.name ?? p.category_other ?? '',
-    location: p.barangays?.name ?? '',
+    // @mine — task 12: the coverage lines read as one box with one line per location,
+    // so every screen that already shows `location` keeps working unchanged.
+    location: coverage.length ? coverage.join('\n') : (p.barangays?.name ?? ''),
+    locations: coverage,
     barangay: p.barangays?.name ?? '',
     // @mine — the single inspector assigned by the Head Engineer (WORKFLOW-DECISIONS Q3).
     inspectorId: p.inspector_id ?? '',
@@ -89,7 +98,7 @@ function mapProject(p: Joined): StoredRecord {
 }
 
 const PROJECT_SELECT =
-  '*, roads!projects_road_id_fkey(*), barangays!projects_barangay_id_fkey(name), project_categories(name), contractors!projects_contractor_id_fkey(*)';
+  '*, roads!projects_road_id_fkey(*), barangays!projects_barangay_id_fkey(name), project_categories(name), contractors!projects_contractor_id_fkey(*), project_locations(position, label)';
 
 /* --------------------- @mine: attachments (Supabase Storage) --------------------- */
 
@@ -535,8 +544,30 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     projectId = data.id as string;
   }
 
-  // The project already exists here; report attachment failures without inviting a duplicate create.
+  // @mine — task 12: the coverage locations are replaced as a set on every save, so a
+  // removed line really disappears. Best-effort like the attachments below: the project
+  // itself is already committed, so a failure here warns instead of failing the save.
   let attachmentWarning = '';
+  // Only a caller that actually sent the list may replace it — a partial update (a
+  // validation result, an inspector assignment) must never wipe the stored lines.
+  if (Array.isArray(rec.locations)) {
+    const locations = (rec.locations as unknown[]).map((label) => String(label ?? '').trim()).filter(Boolean).slice(0, 5);
+    try {
+      const { error: clearError } = await db.from('project_locations').delete().eq('project_id', projectId);
+      if (clearError) throw clearError;
+      if (locations.length) {
+        const { error: insertError } = await db.from('project_locations').insert(
+          locations.map((label, index) => ({ project_id: projectId, position: index + 1, label })),
+        );
+        if (insertError) throw insertError;
+      }
+    } catch (error) {
+      console.error('Project saved but its locations could not be stored.', error);
+      attachmentWarning = 'The project was saved, but its locations could not be updated. Please edit the project and try again.';
+    }
+  }
+
+  // The project already exists here; report attachment failures without inviting a duplicate create.
   const linkedRows: Joined[] = [];
   for (const attachment of stagedAttachments) {
     const { error } = await db.from('attachments').insert({

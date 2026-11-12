@@ -1,7 +1,7 @@
 // @mine — rewritten for Supabase (was SQLite). App "road" records are
 // projects joined to roads; see src/lib/supabase-data.ts for the mapping.
 import { NextResponse } from 'next/server';
-import { hasFourDigitYear } from '@/lib/project-form-validation';
+import { hasFourDigitYear, projectLocationsError } from '@/lib/project-form-validation';
 import { isValidationLocked, validationTask, type ValidationProject } from '@/lib/project-validation-workflow';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
@@ -69,6 +69,9 @@ export async function POST(request: Request) {
   if (['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
     return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
+  // @mine — task 12: at most five coverage locations, each up to 500 characters.
+  const postLocationsError = projectLocationsError(payload.locations);
+  if (postLocationsError) return NextResponse.json({ message: postLocationsError }, { status: 400 });
   // @mine — validation belongs to the Validator, not project creation.
   if (['validationResult', 'validationRemarks', 'annualValidationYear'].some((key) => key in payload)) return forbidden();
   try {
@@ -99,6 +102,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
   if (auth.profile.roleDb === 'encoder' && ['validationResult', 'validationRemarks', 'annualValidationYear'].some((key) => key in payload)) return forbidden();
+  // @mine — task 12: at most five coverage locations, each up to 500 characters.
+  const patchLocationsError = projectLocationsError(payload.locations);
+  if (patchLocationsError) return NextResponse.json({ message: patchLocationsError }, { status: 400 });
   try {
     const roads = await listRoads(auth.db, auth.admin);
     const current = roads.find((road) => road.id === payload.id);

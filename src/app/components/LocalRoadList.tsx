@@ -30,6 +30,8 @@ interface LocalRoad {
   projectName?: string;
   projectCategory?: string;
   projectDescription?: string;
+  // @mine — task 12: up to five free-text coverage locations.
+  locations?: string[];
   targetCompletionDate?: string;
   noOfExtensions?: string;
   actualCompletionDate?: string;
@@ -103,6 +105,13 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   // @mine — only non-encoder, non-validator, non-head-engineer views retain the legacy fields.
   const showLegacyCost = !validationMode && !['Staff - Encoder', 'Head Engineer'].includes(userRole);
 
+  // @mine — task 12: the coverage lines read as one box with one line per location,
+  // falling back to a legacy single value when a record predates the coverage table.
+  const locationLines = (item: LocalRoad): string[] =>
+    (item.locations?.length ? item.locations : String(item.location || '').split('\n'))
+      .map((line) => String(line ?? '').trim())
+      .filter(Boolean);
+
   const printSelectedProject = (item: LocalRoad) => {
     void recordClientActivity(
       currentUser,
@@ -116,7 +125,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           { label: 'Project / Program / Activity Name', value: item.projectName || item.name, width: 'half' },
           { label: 'Project Category', value: item.projectCategory || item.type, width: 'half' },
           { label: 'Project Description', value: item.projectDescription || item.description, width: 'full' },
-          { label: 'Location', value: item.location, width: 'full' },
+          { label: 'Location', value: locationLines(item).join('\n'), width: 'full' },
           { label: 'Date Started', value: item.dateBuilt, width: 'quarter' },
           { label: 'Target Completion Date', value: item.targetCompletionDate, width: 'quarter' },
           { label: 'No. of Extensions', value: Number(item.noOfExtensions) === 0 ? '' : item.noOfExtensions, width: 'quarter' },
@@ -126,8 +135,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
       {
         title: 'Road Information',
         fields: [
-          { label: 'Road Network ID No.', value: item.roadNetworkId, width: 'half' },
-          { label: 'Road Name', value: item.roadName || item.location, width: 'half' },
+          // @mine — task 12: the road network id and the road name get a row each.
+          { label: 'Road Network ID No.', value: item.roadNetworkId, width: 'full' },
+          { label: 'Road Name', value: locationLines(item).join('\n') || item.roadName, width: 'full' },
           { label: 'Barangay', value: item.barangay, width: 'full' },
           { label: 'Components', value: item.components, width: 'full' },
           { label: 'Description', value: item.description, width: 'full' },
@@ -253,7 +263,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             </div>
             <div className="mb-4 mt-4">
               <p className="mb-2 block text-sm font-medium text-gray-700">Location</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.location || ''}</p>
+              {/* @mine — task 12: one box, one line per coverage location. */}
+              <p data-field="Location" className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{locationLines(selectedItem).join('\n')}</p>
             </div>
             <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
               {[
@@ -271,14 +282,15 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             </section>
             <section className="border-b pb-6 pt-5">
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Road Information</h3>
-              <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              {/* @mine — task 12: Road Network ID No. and Road Name each on their own row. */}
+              <div className="mb-4 grid grid-cols-1 gap-4">
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Road Network ID No.</p>
               <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadNetworkId || ''}</p>
             </div>
             <div>
               <p className="mb-2 block text-sm font-medium text-gray-700">Road Name</p>
-              <p className="min-h-[3rem] w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{selectedItem.roadName || selectedItem.location || ''}</p>
+              <p className="min-h-[3rem] w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700">{locationLines(selectedItem).join('\n') || selectedItem.roadName || ''}</p>
             </div>
               </div>
             <div>

@@ -28,6 +28,8 @@ interface LocalRoad {
   projectName?: string;
   projectCategory?: string;
   projectDescription?: string;
+  // @mine — task 12: up to five free-text coverage locations.
+  locations?: string[];
   dateStarted?: string;
   targetCompletionDate?: string;
   noOfExtensions?: string;
@@ -55,7 +57,8 @@ interface ProjectFormData {
   projectName: string;
   projectCategory: string;
   projectDescription: string;
-  location: string;
+  // @mine — task 12: one free-text line per coverage location (at most five).
+  locations: string[];
   dateStarted: string;
   targetCompletionDate: string;
   noOfExtensions: string;
@@ -103,7 +106,9 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   projectName: road?.projectName || road?.name || '',
   projectCategory: road?.projectCategory || road?.type || '',
   projectDescription: road?.projectDescription || road?.description || '',
-  location: road?.location || '',
+  // @mine — task 12: prefer the stored coverage lines; a legacy single location
+  // becomes the first line so old records keep showing everything they had.
+  locations: road?.locations?.length ? [...road.locations] : [road?.location || ''],
   dateStarted: road?.dateStarted || road?.dateBuilt || '',
   targetCompletionDate: road?.targetCompletionDate || '',
   noOfExtensions: road?.noOfExtensions || '',
@@ -163,14 +168,25 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     setActiveFormTab('project');
   }, [editId]);
 
-  // Auto-update roadName when location changes
+  // Auto-update roadName when the first coverage location changes
+  // @mine — task 12: "Location" is now up to five lines, so the road name follows the first.
+  const primaryLocation = formData.locations[0] ?? '';
   useEffect(() => {
     if (item) return;
     setFormData(prev => ({
       ...prev,
-      roadName: prev.location,
+      roadName: prev.locations[0] ?? '',
     }));
-  }, [formData.location, item]);
+  }, [primaryLocation, item]);
+
+  // @mine — task 12: the five coverage lines are edited in place; blanks are dropped on save.
+  const setLocationLine = (index: number, value: string) =>
+    setFormData(prev => ({
+      ...prev,
+      locations: prev.locations.map((line, position) => (position === index ? value : line)),
+    }));
+  const addLocationLine = () =>
+    setFormData(prev => (prev.locations.length >= 5 ? prev : { ...prev, locations: [...prev.locations, ''] }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,10 +242,14 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         uploadedAttachments.push({ name: file.name, type: upload.type, size: file.size, dataUrl: '', category: 'Turnover Certificate', storagePath: upload.path, staged: true });
       }
 
+      // @mine — task 12: up to five trimmed, non-blank coverage lines.
+      const coverageLocations = formData.locations.map(line => line.trim()).filter(Boolean).slice(0, 5);
       const localRoadData = {
         name: formData.projectName,
         type: formData.projectCategory,
-        location: formData.location,
+        // `location` stays the single-value field other screens read; the lines are the new truth.
+        location: coverageLocations[0] ?? '',
+        locations: coverageLocations,
         dateBuilt: formData.dateStarted,
         dateStarted: formData.dateStarted,
         condition: 'Good',
@@ -475,15 +495,35 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Location *
               </label>
-              <AutoGrowTextarea
-                data-field="Location"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                rows={2}
-                className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                aria-label="Location"
-                required
-              />
+              {/* @mine — task 12: one line per coverage location, up to five. */}
+              <p className="mb-2 text-xs text-gray-500">
+                One line per location, up to five. Example: Sitio Dao, Anilao East, Mabini, Batangas
+              </p>
+              <div className="space-y-2">
+                {formData.locations.map((line, index) => (
+                  <input
+                    key={index}
+                    type="text"
+                    data-field={index === 0 ? 'Location' : `Location ${index + 1}`}
+                    value={line}
+                    maxLength={500}
+                    onChange={(e) => setLocationLine(index, e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
+                    placeholder={index === 0 ? 'Sitio Dao, Anilao East, Mabini, Batangas' : 'Another coverage location'}
+                    aria-label={index === 0 ? 'Location' : `Location ${index + 1}`}
+                    required={index === 0}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addLocationLine}
+                disabled={formData.locations.length >= 5}
+                data-field="Add Location"
+                className="mt-2 rounded-lg border border-[#0ea5e9] px-3 py-2 text-sm font-medium text-[#0ea5e9] transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
+              >
+                {formData.locations.length >= 5 ? 'Five locations is the maximum' : 'Add location'}
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">

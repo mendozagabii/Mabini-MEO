@@ -760,3 +760,94 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   assert.equal(container.querySelector('input[aria-label="Filter by project completion date"]'), null);
   await reset();
 });
+
+test('task 12: a project records up to five free-text coverage locations', async () => {
+  let saved;
+  await reset(); await render(value => { saved = value; });
+  assert.ok(field('Location'));
+  assert.equal(field('Location 2'), null);
+  const addButton = () => [...container.querySelectorAll('button')].find(button => /Add location|Five locations/.test(button.textContent));
+  assert.equal(addButton().textContent, 'Add location');
+  for (let index = 2; index <= 5; index += 1) {
+    await act(async () => addButton().click());
+    assert.ok(field(`Location ${index}`), `expected line ${index}`);
+  }
+  assert.equal(container.querySelectorAll('input[data-field^="Location"]').length, 5);
+  assert.equal(addButton().disabled, true);
+  assert.equal(addButton().textContent, 'Five locations is the maximum');
+  assert.equal(field('Location 6'), null);
+
+  await fill(); await file();
+  await change('Location', '  Sitio Dao, Anilao East, Mabini, Batangas  ');
+  await change('Location 2', 'Sitio Balibago');
+  await change('Location 3', '   ');
+  await submit();
+  // blanks and padding are dropped, and the legacy single value keeps the first line
+  assert.deepEqual(saved.locations, ['Sitio Dao, Anilao East, Mabini, Batangas', 'Sitio Balibago']);
+  assert.equal(saved.location, 'Sitio Dao, Anilao East, Mabini, Batangas');
+
+  // editing a saved project shows every stored line, one per input
+  await reset();
+  await render(() => {}, { item: { id: 'p1', name: 'Road', projectName: 'Road', location: 'Sitio Dao',
+    locations: ['Sitio Dao', 'Anilao East, Mabini, Batangas'], dateBuilt: '2020-01-01', condition: 'Good' }, editId: 'p1' });
+  assert.equal(field('Location').value, 'Sitio Dao');
+  assert.equal(field('Location 2').value, 'Anilao East, Mabini, Batangas');
+  await reset();
+});
+
+test('task 12: the project detail shows one box with a line per location', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  let sections;
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui,
+    './PrintDocument': { PrintDocument: props => { sections = props.sections; return null; } },
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  const coverage = ['Sitio Dao', 'Anilao East, Mabini, Batangas'];
+  const item = { id: 'p', name: 'Coastal Road', projectName: 'Coastal Road', roadName: 'Coastal Road',
+    roadNetworkId: 'RN-12', location: coverage.join('\n'), locations: coverage, barangay: 'Anilao East',
+    dateBuilt: '2020-01-01', condition: 'Good' };
+
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
+  await act(async () => container.querySelector('[aria-label="View details for Coastal Road"]').click());
+
+  const box = container.querySelector('[data-field="Location"]');
+  assert.ok(box, 'the detail view keeps a single location box');
+  assert.match(box.className, /whitespace-pre-wrap/);
+  assert.equal(box.textContent, coverage.join('\n')); // one line per location
+
+  // Road Network ID No. and Road Name each get their own row
+  const rowOf = text => {
+    const label = [...container.querySelectorAll('p')].find(node => node.textContent === text);
+    assert.ok(label, `missing the ${text} label`);
+    return label.parentElement;
+  };
+  const idRow = rowOf('Road Network ID No.');
+  const nameRow = rowOf('Road Name');
+  assert.notEqual(idRow, nameRow, 'Road Network ID No. and Road Name are not the same row');
+  assert.equal(idRow.parentElement, nameRow.parentElement);
+  assert.doesNotMatch(idRow.parentElement.className, /md:grid-cols-2/);
+  assert.match(idRow.parentElement.className, /grid-cols-1/);
+  assert.equal(nameRow.querySelector('p:last-of-type').textContent, coverage.join('\n')); // the road name shows the same lines
+
+  await act(async () => [...container.querySelectorAll('button')].find(button => /Print/.test(button.textContent)).click());
+  const fields = sections.flatMap(section => section.fields);
+  assert.equal(fields.find(entry => entry.label === 'Location').value, coverage.join('\n'));
+  assert.equal(fields.find(entry => entry.label === 'Location').width, 'full');
+  assert.equal(fields.find(entry => entry.label === 'Road Name').value, coverage.join('\n'));
+  assert.equal(fields.find(entry => entry.label === 'Road Name').width, 'full');
+  assert.equal(fields.find(entry => entry.label === 'Road Network ID No.').width, 'full');
+  await reset();
+});
+
+test('task 12: the server rejects more than five locations or an overlong line', () => {
+  assert.equal(validation.projectLocationsError(['a', 'b']), null);
+  assert.equal(validation.projectLocationsError(undefined), null);
+  assert.match(validation.projectLocationsError(['1', '2', '3', '4', '5', '6']), /at most 5 locations/);
+  assert.match(validation.projectLocationsError(['x'.repeat(501)]), /500 characters or fewer/);
+  assert.equal(validation.projectLocationsError(['x'.repeat(500)]), null);
+});

@@ -71,3 +71,19 @@ export function anniversaryMinusDays(value: string, year: number, days: number):
   const result = anniversary.toISOString().slice(0, 10);
   return hasFourDigitYear(result) ? result : null;
 }
+
+/**
+ * @mine — task 12: a project covers at most five locations, each a free-text line
+ * such as "Sitio Dao, Anilao East, Mabini, Batangas".
+ */
+export const MAX_PROJECT_LOCATIONS = 5;
+
+/** @mine — null when the list is acceptable, otherwise the message to show. */
+export function projectLocationsError(value: unknown): string | null {
+  if (value == null) return null;
+  if (!Array.isArray(value)) return 'The locations must be a list.';
+  const cleaned = value.map((item) => String(item ?? '').trim()).filter(Boolean);
+  if (cleaned.length > MAX_PROJECT_LOCATIONS) return `A project can cover at most ${MAX_PROJECT_LOCATIONS} locations.`;
+  if (cleaned.some((label) => label.length > 500)) return 'Each location must be 500 characters or fewer.';
+  return null;
+}
