@@ -42,11 +42,19 @@ export function maintenanceEligible(inspection: InspectionSummary): boolean {
 
 export const assessmentComponents = ['Concrete', 'Asphalt', 'Gravel', 'Earth', 'Shoulder', 'Side Drain', 'Sidewalk', 'Drainage', 'Solar Lights', 'Slope Protection', 'Retaining Wall'];
 export function findingsSummary(ratings: Record<string, string>, remarks: Record<string, string>): string {
-  return assessmentComponents.filter(label => ratings[label] !== 'N/A' && remarks[label]?.trim())
-    .map(label => {
-      const text = remarks[label].trim().replace(/\s+/g, ' ');
-      return `${label}: ${text.length > 160 ? `${text.slice(0, 157)}...` : text}`;
-    }).join('; ');
+  // Combine the inspector's observations without inventing details or exposing
+  // a category-by-category list. Full remarks remain stored under each component.
+  const seen = new Set<string>();
+  const observations = assessmentComponents.flatMap(label => {
+    if (ratings[label] === 'N/A' || !remarks[label]?.trim()) return [];
+    const text = remarks[label].trim().replace(/\s+/g, ' ').replace(/[.;]+$/, '');
+    const key = text.toLowerCase();
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [text];
+  });
+  const combined = observations.join('; ');
+  return combined.length > 320 ? `${combined.slice(0, 317).trimEnd()}...` : combined ? `${combined}.` : '';
 }
 export function validateAssessment(ratings: Record<string, string>, remarks: Record<string, string>, attachments: Record<string, unknown[]>): boolean {
   const allowed = ['Good', 'Fair', 'Poor', 'Bad', 'N/A'];

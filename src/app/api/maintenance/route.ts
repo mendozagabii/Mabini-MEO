@@ -1,5 +1,6 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { NextResponse } from 'next/server';
+import { maintenanceStartDate, effectiveMaintenanceStatus } from '@/lib/maintenance-schedule';
 import { latestByProject, maintenanceEligible, isPendingInspection } from '@/lib/inspection-selection';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
@@ -31,17 +32,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
   }
   if (typeof payload.inspectionId !== 'string' || !payload.inspectionId) return NextResponse.json({ message: 'Select a project with an eligible inspection.' }, { status: 400 });
+  let inspectionDate = '';
   try {
     const [inspections, active, archived] = await Promise.all([listInspections(auth.db), listMaintenance(auth.db), listArchivedMaintenance(auth.db)]);
     const latest = latestByProject(inspections.filter(item => !isPendingInspection(item as any)) as any[]).find(item => item.localRoadId === payload.localRoadId);
     if (!latest || latest.id !== payload.inspectionId || !maintenanceEligible(latest) || [...active, ...archived].some(item => item.inspectionId === payload.inspectionId)) {
       return NextResponse.json({ message: 'This inspection is no longer available for scheduling. Refresh and try again.' }, { status: 409 });
     }
+    inspectionDate = String(latest.date || '');
+    if (!maintenanceStartDate(inspectionDate)) return NextResponse.json({ message: 'The inspection needs a valid date before maintenance can be scheduled.' }, { status: 400 });
   } catch (error) { console.error('Failed to check inspection eligibility.', error); return NextResponse.json({ message: 'Unable to check inspection eligibility.' }, { status: 500 }); }
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
   try {
-    const record = await saveMaintenance(auth.db, { ...payload, id: '' }, road.id, auth.userId);
+    const record = await saveMaintenance(auth.db, { ...payload, id: '', scheduledDate: maintenanceStartDate(inspectionDate), status: effectiveMaintenanceStatus('Scheduled', inspectionDate) }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Maintenance Created', details: `Created maintenance record ${record.id}` });
     return withRefresh(NextResponse.json({ success: true, data: record }), auth);
   } catch (error) {
@@ -69,6 +73,7 @@ export async function PATCH(request: Request) {
       if (!['Scheduled', 'In Progress', 'Completed', 'Deferred'].includes(String(payload.status))) {
         return NextResponse.json({ message: 'A valid maintenance status is required.' }, { status: 400 });
       }
+      if (record.inspectionId && payload.status === 'In Progress' && (record.status === 'Scheduled' || effectiveMaintenanceStatus('Scheduled', String(record.inspectionDate || '')) !== 'In Progress')) return NextResponse.json({ message: 'Maintenance starts automatically one week after inspection.' }, { status: 409 });
       if (record.status === 'Completed' && payload.status === 'Deferred') return NextResponse.json({ message: 'Completed maintenance cannot be deferred.' }, { status: 409 });
       const updated = await saveMaintenance(auth.db, {
         ...record, status: payload.status,
@@ -88,8 +93,8 @@ export async function PATCH(request: Request) {
       ...record,
       localRoadId: road.id,
       type: payload.type,
-      scheduledDate: payload.scheduledDate,
-      status: record.status === 'Deferred' && payload.scheduledDate !== record.scheduledDate ? 'Scheduled' : record.status,
+      scheduledDate: record.inspectionId ? record.scheduledDate : payload.scheduledDate,
+      status: !record.inspectionId && record.status === 'Deferred' && payload.scheduledDate !== record.scheduledDate ? 'Scheduled' : record.status,
       cost: Number(payload.cost),
       description: payload.description,
       ...(payload.remarks !== undefined ? { remarks: payload.remarks } : {}),

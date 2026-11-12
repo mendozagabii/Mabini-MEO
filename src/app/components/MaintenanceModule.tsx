@@ -6,12 +6,14 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dial
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
+import { maintenanceStartDate, effectiveMaintenanceStatus } from '@/lib/maintenance-schedule';
 import { latestByProject, maintenanceEligible, isPendingInspection } from '@/lib/inspection-selection';
 import { recordClientActivity } from '@/lib/activity-log-client';
 
 interface Maintenance {
   id: string;
   inspectionId?: string;
+  inspectionDate?: string;
   localRoadId: string;
   localRoadName: string;
   type: string;
@@ -211,7 +213,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       location: selected?.location || '',
       contractor: selected?.contractorName || '',
       dateStarted: selected?.dateBuilt || '',
-      completionDate: selected?.actualCompletionDate || '',
+      completionDate: maintenanceStartDate(eligibleInspections.find(inspection => inspection.localRoadId === projectId)?.date || '') || '',
       type: prev.type,
       scheduledDate: prev.scheduledDate,
       cost: prev.cost,
@@ -500,10 +502,11 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Completion Date *</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">{!editingRecordId || maintenanceRecords.find(record => record.id === editingRecordId)?.inspectionId ? 'Scheduled Start Date' : 'Completion Date'} *</label>
                     <input
                       type="date"
                       value={formData.completionDate}
+                      readOnly={!editingRecordId || !!maintenanceRecords.find(record => record.id === editingRecordId)?.inspectionId}
                       onChange={(e) => setFormData({ ...formData, completionDate: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-sm bg-gray-50 text-gray-900"
                       required
@@ -720,7 +723,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
                   <span className="flex items-center gap-1.5 text-sm text-slate-500">
                     <Calendar className="h-4 w-4 text-slate-400" />
-                    {record.completedDate ? `Completed: ${record.completedDate}` : `Target: ${record.scheduledDate || 'Not set'}`}
+                    {record.completedDate ? `Completed: ${record.completedDate}` : `Start: ${record.scheduledDate || 'Not set'}`}
                   </span>
                   <div className="flex shrink-0 items-center gap-2">
                     {!isAdminReadDeleteOnly && (
@@ -729,10 +732,10 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                         <button type="button" onClick={(event) => { event.stopPropagation(); startEditing(record); }} aria-label={`Edit maintenance record for ${record.localRoadName}`} title="Edit" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         </button>
-                        {record.status === 'Scheduled' && (
+                        {record.status === 'Scheduled' && !record.inspectionId && (
                           <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} className="text-sm font-semibold text-blue-700 hover:underline">Start</button>
                         )}
-                        {record.status === 'Deferred' && (
+                        {record.status === 'Deferred' && (!record.inspectionId || effectiveMaintenanceStatus('Scheduled', record.inspectionDate || '') === 'In Progress') && (
                           <button type="button" onClick={(event) => { event.stopPropagation(); onUpdateStatus(record.id, 'In Progress'); }} aria-label={`Continue maintenance for ${record.localRoadName}`} title="Continue" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                             <Play className="h-4 w-4" aria-hidden="true" />
                           </button>

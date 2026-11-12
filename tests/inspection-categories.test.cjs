@@ -265,7 +265,7 @@ test('inspection cards use one-line truncation, hide trigger dates and offer the
   assert.equal(container.querySelector('[aria-label="Filter inspections by status"]'), null);
   const card = container.querySelector('article');
   assert.ok(card.querySelector('.inspection-road-name').classList.contains('truncate'));
-  assert.ok(card.querySelector('.inspection-remarks').classList.contains('truncate'));
+  assert.equal(card.querySelector('.inspection-remarks'), null); // pending follow-ups have no findings row
   assert.doesNotMatch(card.textContent, /2026-11-11|Inspection due by|Edit this entry/);
   act(() => root.unmount()); container.remove();
 });

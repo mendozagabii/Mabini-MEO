@@ -497,6 +497,7 @@ test('maintenance detail labels have no required markers', async () => {
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
   const ui = new Proxy({}, { get: () => Dummy });
   const { MaintenanceModule } = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/maintenance-schedule': loadTs('src/lib/maintenance-schedule.ts'),
     '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts'),
     './ui/textarea': ui, './ui/dialog': { ...ui, Dialog: Dummy, DialogContent: ({children, className}) => React.createElement('div', {className}, children), DialogTitle: Dummy, DialogDescription: Dummy }, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
     '@/lib/activity-log-client': { recordClientActivity: async () => {} },

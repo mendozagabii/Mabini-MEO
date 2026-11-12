@@ -38,7 +38,7 @@ const data = {
   archiveMaintenance: async () => (calls.push('maintenance'), true),
   addActivityLog: async () => {},
 };
-const mocks = { '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}), '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts', {}), '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts', {}), '@/lib/api': api, '@/lib/supabase-data': data, 'next/server': { NextResponse: { json: (body, init) => response(init?.status ?? 200, body) } } };
+const mocks = { '@/lib/maintenance-schedule': loadTs('src/lib/maintenance-schedule.ts', {}), '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}), '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts', {}), '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts', {}), '@/lib/api': api, '@/lib/supabase-data': data, 'next/server': { NextResponse: { json: (body, init) => response(init?.status ?? 200, body) } } };
 const routes = Object.fromEntries(['local-road', 'maintenance', 'inspections'].map((name) => [name, loadTs(`src/app/api/${name}/route.ts`, mocks)]));
 function request(body = {}, query = '') { return { url: `https://example.test/api?${query}`, json: async () => body }; }
 
@@ -116,6 +116,7 @@ const componentMocks = {
   '@/lib/attachment-validation': loadTs('src/lib/attachment-validation.ts', {}),
   '@/lib/project-form-validation': loadTs('src/lib/project-form-validation.ts', {}),
   '@/lib/inspection-selection': loadTs('src/lib/inspection-selection.ts', {}),
+  '@/lib/maintenance-schedule': loadTs('src/lib/maintenance-schedule.ts', {}),
 };
 const noop = () => {};
 const project = { id: 'p', name: 'Road', projectName: 'Road', type: 'Road', location: 'Town', dateBuilt: '', condition: 'Good' };
@@ -213,7 +214,7 @@ test('inspector can record a pending follow-up through the role-checked server c
     const labels = loadTs('src/lib/inspection-selection.ts', {}).assessmentComponents;
     const conditionRatings = Object.fromEntries(labels.map(label => [label, label === 'Concrete' ? 'Fair' : 'N/A']));
     const response = await routes.inspections.PUT(request({id:'i',localRoadId:'p', date:'2026-12-15', annualFollowUpYear:9999, inspectionType:'Monitoring and Maintenance Inspection', conditionRatings, conditionRemarks:{Concrete:'Cracks'}, conditionAttachments:{Concrete:[{stored:true}]}}));
-    assert.equal(response.status, 200); assert.deepEqual(usedDb, auth().admin); assert.equal(sent.annualFollowUpYear, 2027); assert.equal(sent.remarks, 'Concrete: Cracks');
+    assert.equal(response.status, 200); assert.deepEqual(usedDb, auth().admin); assert.equal(sent.annualFollowUpYear, 2027); assert.equal(sent.remarks, 'Cracks.');
   } finally { Object.assign(data, old); }
 });
 
@@ -227,5 +228,20 @@ test('maintenance editing keeps remarks separate from activities', async () => {
     data.saveMaintenance = async (_db, payload) => (saved=payload);
     const result = await routes.maintenance.PATCH(request({id:'m',localRoadId:'p', type:'Corrective Type', scheduledDate:'2026-02-01', cost:0, description:'Repair', remarks:'Needs traffic signs'}));
     assert.equal(result.status, 200); assert.equal(saved.description, 'Repair'); assert.equal(saved.remarks, 'Needs traffic signs'); assert.equal(saved.inspectionId,'i');
+  } finally { Object.assign(data, old); }
+});
+
+test('maintenance creation enforces inspection plus seven days and the current automatic status', async () => {
+  const old = { listRoads:data.listRoads, listInspections:data.listInspections, listMaintenance:data.listMaintenance, listArchivedMaintenance:data.listArchivedMaintenance, saveMaintenance:data.saveMaintenance };
+  try {
+    role = 'encoder'; data.listRoads = async () => [{id:'p'}]; data.listMaintenance = async () => []; data.listArchivedMaintenance = async () => [];
+    let saved; data.saveMaintenance = async (_db, payload) => (saved = {...payload, id:'m'});
+    for (const [date, start, status] of [['2020-01-01','2020-01-08','In Progress'],['2099-12-28','2100-01-04','Scheduled']]) {
+      data.listInspections = async () => [{id:'i', localRoadId:'p', date, conditionRatings:{Concrete:'Fair'}}];
+      const result = await routes.maintenance.POST(request({localRoadId:'p', inspectionId:'i', scheduledDate:'2026-01-01', status:'Completed'}));
+      assert.equal(result.status, 200); assert.equal(saved.scheduledDate,start); assert.equal(saved.status,status);
+    }
+    data.listMaintenance = async () => [{id:'m',localRoadId:'p',inspectionId:'i', inspectionDate:'2099-12-28', scheduledDate:'2100-01-04',status:'Scheduled'}];
+    assert.equal((await routes.maintenance.PATCH(request({id:'m',status:'In Progress'}))).status, 409);
   } finally { Object.assign(data, old); }
 });

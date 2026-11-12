@@ -78,7 +78,7 @@ test('validator can only update a currently due annual task, never an initial de
 });
 
 test('annual validation writes only validation columns and fails on zero rows', async () => {
-  const dm = load('src/lib/supabase-data.ts', { '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
+  const dm = load('src/lib/supabase-data.ts', { '@/lib/maintenance-schedule': load('src/lib/maintenance-schedule.ts'), '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
   let calls = [], found = true;
   const db = { from: table => {
     const chain = {
@@ -105,7 +105,7 @@ test('only annual returns are requeued, and never before the first anniversary w
 });
 
 test('requeue conditionally updates only the returned annual decision', async () => {
-  const dm = load('src/lib/supabase-data.ts', { '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
+  const dm = load('src/lib/supabase-data.ts', { '@/lib/maintenance-schedule': load('src/lib/maintenance-schedule.ts'), '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
   let calls = [], found = true;
   const db = { from: table => {
     const chain = {
@@ -175,7 +175,7 @@ test('an encoder edit requeues every outstanding returned decision', async () =>
 
 // @mine — exercise the real annual entry generator without contacting Supabase.
 test('first anniversary entry is generated only on its 30-day opening date, across year boundaries', async () => {
-  const dm = load('src/lib/supabase-data.ts', { '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
+  const dm = load('src/lib/supabase-data.ts', { '@/lib/maintenance-schedule': load('src/lib/maintenance-schedule.ts'), '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
   const RealDate = global.Date;
   for (const [completion, day, expected] of [
     ['2026-11-11', '2026-10-12', null], ['2026-11-11', '2027-10-11', null],

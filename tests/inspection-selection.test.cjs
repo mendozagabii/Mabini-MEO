@@ -41,9 +41,14 @@ test('required components have remarks and files except N/A; findings summarize 
   assert.equal(validateAssessment(ratings, remarks, files), false);
   ratings.Concrete = 'Fair';
   assert.equal(validateAssessment(ratings, remarks, files), true);
-  assert.equal(findingsSummary(ratings, remarks), 'Concrete: Cracks near the bridge');
+  assert.equal(findingsSummary(ratings, remarks), 'Cracks near the bridge.');
   assert.equal(validateAssessment(ratings, {}, files), false);
   assert.equal(validateAssessment(ratings, remarks, {}), false);
   const long = findingsSummary(ratings, {Concrete:'x'.repeat(300)});
-  assert.ok(long.length < 180);
+  assert.ok(long.length <= 320);
+});
+
+test('findings combine component remarks into one concise summary without category prefixes', () => {
+  const {findingsSummary} = load('src/lib/inspection-selection.ts');
+  assert.equal(findingsSummary({Concrete:'Good', Drainage:'Fair', Asphalt:'Poor'}, {Concrete:'No cracks.', Drainage:'Water collects at the outlet.', Asphalt:'No cracks.'}), 'No cracks; Water collects at the outlet.');
 });

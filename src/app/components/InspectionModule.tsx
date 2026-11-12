@@ -1315,7 +1315,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             </h2>
             <span className="text-sm text-slate-500">{filteredInspections.length} {filteredInspections.length === 1 ? 'record' : 'records'} listed</span>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredInspections.map(({ inspection, referenceId }) => {
               const road = localRoadList.find((item) => item.id === inspection.localRoadId);
               const isPendingInspection = isPendingInspectionRecord(inspection);
@@ -1333,7 +1333,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     }
                   }}
                   title="Click to view full inspection details"
-                  className="group flex h-[300px] cursor-pointer flex-col rounded-[22px] border border-slate-200 bg-white p-5 text-left shadow-sm transition duration-200 hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(59,130,246,0.12),0_12px_28px_rgba(37,99,235,0.16)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="group flex h-auto cursor-pointer flex-col rounded-[22px] border border-slate-200 bg-white p-5 text-left shadow-sm transition duration-200 hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(59,130,246,0.12),0_12px_28px_rgba(37,99,235,0.16)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                     <div className="flex items-center justify-between gap-3 text-sm leading-5 text-slate-700">
                       <span className="truncate">{referenceId}</span>
@@ -1345,7 +1345,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     <p className="inspection-road-category mt-1 text-sm text-slate-500">
                       {road?.projectCategory || road?.type || 'Local Road'}
                     </p>
-                    <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
                       <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {inspection.isScheduledAnnualFollowUp
                             ? `Annual Follow-up · ${inspection.annualFollowUpYear}`
@@ -1353,11 +1353,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                             ? 'Validation Inspection'
                             : 'Inspection Findings'}
                       </span>
-                      <p className="inspection-remarks mt-1 truncate text-sm leading-6 text-slate-700">
-                        {isPendingInspection
-                          ? ''
-                          : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No observation notes recorded.'}
-                      </p>
+                      {!isPendingInspection && <p className="inspection-remarks mt-1 truncate text-sm leading-6 text-slate-700">
+                        {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No observation notes recorded.'}
+                      </p>}
                     </div>
                   <footer className="mt-4 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
