@@ -26,3 +26,24 @@ export function hasFourDigitYear(value: string): boolean {
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
+
+/** Add calendar months, clamping month-end dates (e.g. March 31 to February 28). */
+export function addCalendarMonths(value: string, months: number): string | null {
+  if (!hasFourDigitYear(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const total = year * 12 + month - 1 + months;
+  const targetYear = Math.floor(total / 12);
+  const targetMonth = total % 12;
+  if (targetYear < 2000 || targetYear > 9999) return null;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return `${String(targetYear).padStart(4, '0')}-${String(targetMonth + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+}
+
+/** Add exact calendar days in UTC, avoiding local time and daylight saving changes. */
+export function addCalendarDays(value: string, days: number): string | null {
+  if (!hasFourDigitYear(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  const result = date.toISOString().slice(0, 10);
+  return hasFourDigitYear(result) ? result : null;
+}

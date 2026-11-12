@@ -7,7 +7,7 @@ import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
 import { latestByProject, isPendingInspection, findingsSummary } from '@/lib/inspection-selection';
-import { hasFourDigitYear } from '@/lib/project-form-validation';
+import { hasFourDigitYear, addCalendarMonths } from '@/lib/project-form-validation';
 import { attachmentError } from '@/lib/attachment-validation';
 
 interface Inspection {
@@ -466,6 +466,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     const validationMessages = [];
     if (!localRoad) validationMessages.push('Select a Project / Program / Activity Name.');
     if (!hasFourDigitYear(formData.date)) validationMessages.push(formData.date ? 'Please fill out valid date.' : 'Enter the inspection date.');
+    const minimumInspectionDate = addCalendarMonths(localRoad?.actualCompletionDate || '', 11);
+    if (!minimumInspectionDate || (formData.date && formData.date < minimumInspectionDate)) validationMessages.push('Inspection date must be at least 11 months after the project completion date.');
     if (!formData.inspectionType) validationMessages.push('Select an inspection type.');
     if (missingConditionRatings.length > 0) {
       validationMessages.push('Select a condition rating for every category. Choose N/A when it does not apply.');
@@ -830,8 +832,10 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         <div className="p-3 bg-[#f3f4f6]">
                           <input
                             type="date"
-                            min="2000-01-01"
+                            min={addCalendarMonths(formData.actualCompletionDate, 11) || '2000-01-01'}
                             max="9999-12-31"
+                            onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Inspection date must be at least 11 months after the project completion date.')}
+                            onInput={e => e.currentTarget.setCustomValidity('')}
                             defaultValue={formData.date}
                             onChange={(e) => { if (e.target.value) setFormData(prev => ({ ...prev, date: e.target.value })); }}
                             onBlur={(e) => { if (!e.target.value) setFormData(prev => ({ ...prev, date: '' })); }}

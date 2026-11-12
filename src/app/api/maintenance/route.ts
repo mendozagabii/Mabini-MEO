@@ -1,7 +1,7 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { NextResponse } from 'next/server';
 import { eligibleMaintenanceInspections } from '@/lib/inspection-selection';
-import { hasFourDigitYear } from '@/lib/project-form-validation';
+import { hasFourDigitYear, addCalendarDays } from '@/lib/project-form-validation';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveMaintenance, listArchivedMaintenance, listMaintenance, listRoads, listInspections, listArchivedInspections,
@@ -44,6 +44,8 @@ export async function POST(request: Request) {
     if (!eligible || eligible.id !== payload.inspectionId) {
       return NextResponse.json({ message: 'This inspection is no longer available for scheduling. Refresh and try again.' }, { status: 409 });
     }
+    const minimum = addCalendarDays(String(eligible.date || ''), 7);
+    if (!minimum || [payload.dateStarted, payload.scheduledDate].some(date => typeof date === 'string' && date && date < minimum)) return NextResponse.json({ message: 'Maintenance dates must be at least 7 days after the inspection date.' }, { status: 400 });
   } catch (error) { console.error('Failed to check inspection eligibility.', error); return NextResponse.json({ message: 'Unable to check inspection eligibility.' }, { status: 500 }); }
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
@@ -95,6 +97,13 @@ export async function PATCH(request: Request) {
     }
     if (!hasFourDigitYear(payload.scheduledDate) || typeof payload.dateStarted !== 'string' || !hasFourDigitYear(payload.dateStarted)) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
     if (!payload.type.trim() || !payload.description.trim()) return NextResponse.json({ message: 'Please fill out this field.' }, { status: 400 });
+    if (record.inspectionId) {
+      const [activeInspections, archivedInspections] = await Promise.all([listInspections(auth.db), listArchivedInspections(auth.db)]);
+      const linked = [...activeInspections, ...archivedInspections].find(item => item.id === record.inspectionId && item.localRoadId === record.localRoadId);
+      const minimum = linked && addCalendarDays(String(linked.date || ''), 7);
+      if (!minimum) return NextResponse.json({ message: 'The linked inspection date could not be verified.' }, { status: 409 });
+      if (payload.dateStarted < minimum || payload.scheduledDate < minimum) return NextResponse.json({ message: 'Maintenance dates must be at least 7 days after the inspection date.' }, { status: 400 });
+    }
     if (payload.localRoadId !== record.localRoadId) return NextResponse.json({ message: 'The project of an existing maintenance record cannot be changed.' }, { status: 400 });
     const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
     if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });

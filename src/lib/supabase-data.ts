@@ -830,7 +830,7 @@ const MAINT_STATUS_FROM_DB: Record<string, string> = {
   scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Completed', deferred: 'Deferred',
 };
 const MAINT_TYPE_TO_DB: Record<string, string> = {
-  Corrective: 'corrective', 'Corrective Type': 'corrective', Preventive: 'preventive', Routine: 'routine', Emergency: 'emergency',
+  Corrective: 'corrective', 'Corrective Type': 'corrective', 'Corrective Maintenance': 'corrective', Preventive: 'preventive', Routine: 'routine', Emergency: 'emergency',
 };
 const MAINT_TYPE_FROM_DB: Record<string, string> = Object.fromEntries(Object.entries(MAINT_TYPE_TO_DB).map(([a, b]) => [b, a]));
 

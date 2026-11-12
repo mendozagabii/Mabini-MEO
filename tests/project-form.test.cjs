@@ -631,3 +631,20 @@ test('maintenance project dropdown shows any below-good component and removes sc
   await act(async () => root.render(React.createElement(MaintenanceModule, {...props,scheduledInspectionIds:['iBad','iPoor']})));
   assert.deepEqual(options(),['Fair']);
 });
+
+test('maintenance edit uses linked inspection date as the minimum for both fields', async () => {
+  const Dummy=({children})=>React.createElement(React.Fragment,null,children);
+  const ui=new Proxy({}, {get:()=>Dummy});
+  const {MaintenanceModule}=loadTs('src/app/components/MaintenanceModule.tsx',{
+    '@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),'@/lib/project-form-validation':validation,
+    './ui/textarea':{AutoGrowTextarea:props=>React.createElement('textarea',props)},'./ui/dialog':ui,'./ui/select':ui,
+    './ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}}
+  });
+  const props={maintenanceRecords:[{id:'m',localRoadId:'p',localRoadName:'Road',inspectionId:'i',type:'Corrective Maintenance',status:'In Progress',dateStarted:'2026-01-08',scheduledDate:'2026-02-01',description:'Repair',remarks:'Needed',cost:0}],localRoadList:[{id:'p',name:'Road'}],inspections:[{id:'i',localRoadId:'p',date:'2026-01-01'}],userRole:'Staff - Encoder',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}};
+  await reset(); await act(async()=>root.render(React.createElement(MaintenanceModule,props)));
+  await act(async()=>container.querySelector('[aria-label="Edit maintenance record for Road"]').click());
+  const fields=[...document.querySelectorAll('.module-form-panel input[type=date]')];
+  assert.equal(fields.length,2); assert.ok(fields.every(field=>field.min==='2026-01-08'));
+  fields[0].value='2026-01-07'; await act(async()=>fields[0].checkValidity());
+  assert.equal(fields[0].validationMessage,'Maintenance dates must be at least 7 days after the inspection date.');
+});

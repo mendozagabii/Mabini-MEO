@@ -68,3 +68,13 @@ test('a project returns to scheduling only for a newer completed eligible annual
   assert.deepEqual(eligibleMaintenanceInspections([first,later],['first','later']), []);
   assert.deepEqual(eligibleMaintenanceInspections([first,{...later,conditionRatings:{A:'Good'}}],['first']), []);
 });
+
+test('calendar month and day minimums use real UTC dates, including leap years and month ends', () => {
+  const {addCalendarMonths,addCalendarDays}=load('src/lib/project-form-validation.ts');
+  assert.equal(addCalendarMonths('2025-03-31',11),'2026-02-28');
+  assert.equal(addCalendarMonths('2023-03-31',11),'2024-02-29');
+  assert.equal(addCalendarMonths('2026-01-15',11),'2026-12-15');
+  assert.equal(addCalendarDays('2024-02-25',7),'2024-03-03');
+  assert.equal(addCalendarDays('2025-12-29',7),'2026-01-05');
+  assert.equal(addCalendarMonths('',11),null);
+});

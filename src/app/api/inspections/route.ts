@@ -1,10 +1,10 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { validateAssessment, findingsSummary } from '@/lib/inspection-selection';
-import { hasFourDigitYear } from '@/lib/project-form-validation';
+import { hasFourDigitYear, addCalendarMonths, addCalendarDays } from '@/lib/project-form-validation';
 import { NextResponse } from 'next/server';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
-  addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads,
+  addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads, listMaintenance, listArchivedMaintenance,
   permanentlyDeleteInspection, restoreInspection, saveInspection, saveRoad, type StoredRecord,
 } from '@/lib/supabase-data';
 
@@ -64,6 +64,8 @@ export async function POST(request: Request) {
   payload.remarks = findingsSummary(ratings, remarks);
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+  const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
+  if (!minimum || payload.date < minimum) return NextResponse.json({ message: 'Inspection date must be at least 11 months after the project completion date.' }, { status: 400 });
   try {
     const inspection = await saveInspection(auth.db, { ...payload, id: '' }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Created', details: `Created inspection ${inspection.id}` });
@@ -97,11 +99,20 @@ export async function PUT(request: Request) {
   if (!existing) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+  const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
+  if (!minimum || payload.date < minimum) return NextResponse.json({ message: 'Inspection date must be at least 11 months after the project completion date.' }, { status: 400 });
   try {
     // Scheduled follow-ups have no inspector yet, and older results may belong
     // to another inspector. The role and record were checked above; use the
     // server client so the inspector can record/update these permitted entries.
     if (existing.localRoadId !== road.id) return NextResponse.json({ message: 'The project of an inspection cannot be changed.' }, { status: 400 });
+    if (existing.date !== payload.date) {
+      const minMaintenance = addCalendarDays(payload.date as string, 7);
+      const [active, archived] = await Promise.all([listMaintenance(auth.admin), listArchivedMaintenance(auth.admin)]);
+      if (!minMaintenance || [...active, ...archived].some(item => item.inspectionId === existing.id && [item.dateStarted, item.scheduledDate].some(date => typeof date === 'string' && date && date < minMaintenance))) {
+        return NextResponse.json({ message: 'This inspection date conflicts with linked maintenance dates.' }, { status: 409 });
+      }
+    }
     const inspection = await saveInspection(auth.admin, { ...existing, ...payload, id: existing.id, annualFollowUpYear: existing.annualFollowUpYear, validationStatus: existing.validationStatus }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Updated', details: `Updated inspection ${inspection.id}` });
     const roadUpdate = await refreshRoadCondition(auth, road.id);
