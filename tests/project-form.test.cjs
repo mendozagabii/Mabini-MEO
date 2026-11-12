@@ -576,10 +576,13 @@ test('maintenance overview and history use the same live records for encoder and
     assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
     await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
     const table = container.querySelector('table');
-    assert.match(table.textContent,/Project Name/); assert.match(table.textContent,/Status/); assert.match(table.textContent,/Remarks/);
+    assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent),['Project Name','Maintenance Date','Status','Remarks']);
+    assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Road','','Scheduled','Initial remark']);
     assert.match(table.textContent,/Road/); assert.match(table.textContent,/Scheduled/); assert.match(table.textContent,/Initial remark/);
-    await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{...record,status:'Completed',remarks:'Updated remark'}]})));
-    assert.match(container.querySelector('table').textContent,/Completed/); assert.match(container.querySelector('table').textContent,/Updated remark/);
+    for (const status of ['Scheduled','In Progress','Deferred','Completed']) {
+      await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{...record,status,dateStarted:'2026-02-02',completedDate:'2026-03-03',remarks:'Updated remark'}]})));
+      assert.deepEqual([...container.querySelectorAll('table tbody td')].map(td=>td.textContent),['Road',status === 'Completed' ? '2026-03-03' : '2026-02-02',status,'Updated remark']);
+    }
     await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Maintenance History')).click());
     assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
     assert.equal(container.querySelector('[aria-label="Filter maintenance records by status"]'), null);

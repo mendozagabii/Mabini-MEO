@@ -697,6 +697,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
           <table className="w-full text-left">
             <thead className="border-b border-gray-200 bg-gray-50"><tr>
               <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Project Name</th>
+              <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Maintenance Date</th>
               <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
               <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Remarks</th>
             </tr></thead>
@@ -706,11 +707,12 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 const name = road?.projectName || road?.name || record.localRoadName;
                 return <tr key={record.id} tabIndex={0} aria-label={`View maintenance details for ${name}`} onClick={() => openMaintenanceDetails(record, referenceId)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openMaintenanceDetails(record, referenceId); } }} className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50">
                   <td className="px-6 py-4 font-medium text-blue-600">{name}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{(record.status === 'Completed' ? record.completedDate : record.dateStarted) || ''}</td>
                   <td className="px-6 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[record.status]}`}>{record.status}</span></td>
                   <td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{record.remarks || ''}</td>
                 </tr>;
               })}
-              {visibleRecords.length === 0 && <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-500">No maintenance records match your search or filters.</td></tr>}
+              {visibleRecords.length === 0 && <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-500">No maintenance records match your search or filters.</td></tr>}
             </tbody>
           </table>
         </div>
