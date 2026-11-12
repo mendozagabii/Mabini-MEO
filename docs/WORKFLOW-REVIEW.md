@@ -5,7 +5,7 @@
 **Purpose:** To confirm, step by step, that the workflow the system implements is the workflow the office actually needs — **before** the remaining features (inspector assignment and email notifications) are built on top of it.
 
 > **How to use this sheet**
-> Read sections 1–7 first. Then answer the checklist in **section 9**. For each item write **Yes / No / Not sure** and one line of explanation. Where a screenshot helps, attach it. Do not treat section 8 as bugs — those are known, already-listed gaps.
+> Read sections 1–8 first. Then answer the checklist in **section 10**. For each item write **Yes / No / Not sure** and one line of explanation. Where a screenshot helps, attach it. Do not treat section 9 as bugs — those are known, already-listed gaps.
 
 ---
 
@@ -162,7 +162,82 @@ Rule to confirm: **if all rated categories are "Good", the Findings column stays
 
 ---
 
-## 8. Known gaps — do not report these as new bugs
+## 8. What will be adjusted, per role
+
+The table below is what **each role** will gain, lose or see differently once this flow is finalised. It is the practical counterpart of §4: the same work, seen from the person doing it.
+
+Status legend as before: ✅ already in place · ⚠️ partly in place / needs a decision · ❌ to be built
+
+### 8.1 Head Engineer
+
+*Net effect:* gains the assignment step and the printable reports; stops hand-deleting archived records.
+
+| Adjustment | Where it is seen | Why | Status |
+|---|---|---|---|
+| **Assign an inspector** to a validated project — pick a person, the project moves to that inspector's list | Project detail + Inspection list: a new **Assign Inspector** action | This is step 7, the missing link that currently blocks Workflow A and the assignment email | ❌ |
+| Receives a **"Validated"** email when a validator approves a project | Email inbox | Tells them there is something to assign without opening the system | ❌ |
+| **Print the whole overview**, and print **one year only** | Inspection → Overview: report/print buttons | The board and the Mayor's office ask for a yearly summary; only single records can be printed today | ❌ |
+| The **30-day archive rule becomes real** — archived records disappear on their own | System → Archived Records | The screen already promises "kept 30 days, then permanently deleted", but nothing performs the deletion, so it is done by hand today | ⚠️ |
+| Activity logs show **project / inspection / maintenance names** instead of internal IDs | System → Activity Logs | Auditing is unreadable today for inspection and maintenance rows | ⚠️ |
+| **PCAB License No.** and **Completion Percentage** disappear from the project view | Project detail | The fields are no longer maintained, but the columns still exist | ⚠️ |
+| No change to user management, analytics or the dashboard | — | Already working | ✅ |
+
+### 8.2 Encoder
+
+*Net effect:* gets told when a project comes back or when an inspection has been recorded, instead of finding out by checking the list.
+
+| Adjustment | Where it is seen | Why | Status |
+|---|---|---|---|
+| Receives a **"For Revision"** email with the project name | Email inbox | The return currently shows only as a badge in the list | ❌ |
+| Receives an **"Inspection Recorded"** email once the inspector saves results | Email inbox | Closes the loop; the encoder is the one who schedules maintenance next | ❌ |
+| Re-submitting an updated project **automatically notifies the validator** | Project form → Save | Removes the "did they see it?" follow-up | ❌ |
+| Sees a **"For Revision"** badge and the validator's remarks before editing | Project list → project detail | Already implemented; being kept as-is | ✅ |
+| The project may be **locked after validation** — no further encoder edits | Project form | Prevents editing a record that has already been approved (needs the answer to item 4) | ⚠️ |
+| **PCAB License No.** and **Completion Percentage** removed from the form | Project form | Duplicated from 8.1 | ⚠️ |
+| Up to **5 locations** per project, and the filter matches any of them | Project form + project list filter | Today one barangay per project; the multi-location rework was cancelled once already | ⚠️ |
+| Maintenance scheduling stays the encoder's job, still only for Fair / Poor / Bad inspections, still starting from the day after the inspection | Maintenance module | Already correct | ✅ |
+| Lists load faster (attachments no longer fetched row by row) | Project list, Inspection list | The current list view requests a secure link per attachment while loading | ⚠️ |
+
+### 8.3 Inspector
+
+*Net effect:* the biggest change of the four roles — the inspector stops seeing the whole municipality and starts seeing a worklist.
+
+| Adjustment | Where it is seen | Why | Status |
+|---|---|---|---|
+| **Only assigned inspections are visible**; the rest of the module is out of reach | Inspection module, first screen | Today every inspector sees every inspection, including other people's unfinished work | ❌ |
+| Receives an **"Inspector Assigned"** email naming the project | Email inbox | The work arrives by email instead of by refreshing the list | ❌ |
+| Records the assessment across the **11 categories** — Concrete, Asphalt, Gravel, Earth, Shoulder, Side Drain, Sidewalk, Drainage, Solar Lights, Slope Protection, Retaining Wall | Inspection form | Four categories were added (Drainage, Solar Lights, Slope Protection, Retaining Wall) | ✅ |
+| Rates each category **Good / Fair / Poor / Bad / N/A**, with a remark and attachments underneath | Inspection form | Unchanged in shape | ✅ |
+| For **Monitoring and Maintenance Inspection**, a remark **and at least one attachment** are required for every category that is not N/A | Inspection form, on save | Evidence is enforced by the server, not just the screen — the save is refused if it is missing | ⚠️ decide whether this should apply to all inspection types (item 23) |
+| A rating must be given for **every** category, even when there is nothing to report (that is what **N/A** is for) | Inspection form, on save | Prevents half-finished assessments being saved | ✅ |
+| Findings for a project stay **blank while everything is Good** | Inspection → Overview summary table | Keeps the summary readable: only Fair / Poor / Bad and remarked categories are listed | ✅ |
+| Recorded results become the project's current condition and open it for maintenance scheduling | Inspection list → Maintenance | Already wired | ✅ |
+
+### 8.4 Validator
+
+*Net effect:* the queue arrives on a fixed date each year, and the hand-offs no longer depend on somebody remembering to say so.
+
+| Adjustment | Where it is seen | Why | Status |
+|---|---|---|---|
+| Receives a **"For Validation"** email when a project enters the queue (automatic, 30 days before the first anniversary) | Email inbox | The queue fills itself; the validator no longer has to look for it | ❌ |
+| Receives a **"Project Information Updated"** email when a returned project is re-submitted | Email inbox | Makes the second review impossible to miss | ❌ |
+| The queue opens **30 days before** the anniversary instead of **29** (needs the answer to items 15–18) | Validation module | The specification and the code disagree by one day | ⚠️ |
+| **Returns a project for revision** with remarks, or **validates** it — two decisions, nothing else | Validation module | Already implemented, including the server-side check | ✅ |
+| Validating a project **hands it to the Head Engineer automatically** | Validation module → Project | Today it simply changes status; nothing tells the head engineer | ⚠️ |
+| Works on the current year only; earlier years stay read-only history | Validation module, year selector | Keeps the yearly cycle from being reopened by accident | ✅ |
+
+### 8.5 All roles (system-wide)
+
+| Adjustment | Why | Status |
+|---|---|---|
+| Every action is written to the activity log | Already working — 6,700+ entries recorded | ✅ |
+| Role restrictions are also enforced **at the database level**, not only in the interface | The database policies for staff-level access are still missing, so today the interface is the only guard | ⚠️ |
+| Records are never hard-deleted by accident: archive first, permanent deletion only by the Head Engineer with a confirmation | Already implemented | ✅ |
+| Each role still sees only its own modules in the menu | Already implemented | ✅ |
+
+---
+
+## 9. Known gaps — do not report these as new bugs
 
 1. **Inspector assignment does not exist yet** (step 7). Until it is built, inspectors see all inspections.
 2. **Email notifications are not built yet.** The only email the system sends today is the password-reset email.
@@ -174,7 +249,7 @@ Rule to confirm: **if all rated categories are "Good", the Findings column stays
 
 ---
 
-## 9. Checklist — please answer these
+## 10. Checklist — please answer these
 
 ### A. The flow
 1. Is the order *Encode → Validate → (Return → Update → Validate) → Assign → Inspect → Record → Schedule → Maintenance* correct? ☐ Yes ☐ No
@@ -217,7 +292,7 @@ Rule to confirm: **if all rated categories are "Good", the Findings column stays
 
 ---
 
-## 10. How to send your answers back
+## 11. How to send your answers back
 
 Reply with the item numbers only, for example:
 

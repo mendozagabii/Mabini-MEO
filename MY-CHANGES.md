@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Per-role change list for the workflow review sheet
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (modified)
+- **What & why:** Owner asked, in addition to the workflow explanation, for the list of what will be adjusted for each role. Added section 8 to docs/WORKFLOW-REVIEW.md with four per-role tables (Head Engineer, Encoder, Inspector, Validator) plus a system-wide table: each row states the adjustment, where the user will see it, why it changes and its status (in place / needs a decision / to be built), with a one-line net effect per role. Later sections renumbered to 9-11 and the cross-references updated. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Workflow review sheet for the project team
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-REVIEW.md` (new)
