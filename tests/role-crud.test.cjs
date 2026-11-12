@@ -313,7 +313,7 @@ test('maintenance actions are icon-only, edit is gated by status, and unfinished
   }
 });
 
-test('inspection create and edit require eleven calendar months after project completion', async () => {
+test('inspection create and edit are dated no earlier than 29 days before the anniversary', async () => {
   const old={listRoads:data.listRoads,listInspections:data.listInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveInspection:data.saveInspection,saveRoad:data.saveRoad};
   try {
     role='inspector'; data.listRoads=async()=>[{id:'p',actualCompletionDate:'2025-03-31'}];
@@ -324,12 +324,13 @@ test('inspection create and edit require eleven calendar months after project co
     const conditionRatings=Object.fromEntries(labels.map(label=>[label,label==='Concrete'?'Fair':'N/A']));
     const body={id:'i',localRoadId:'p',inspectionType:'Monitoring and Maintenance Inspection',conditionRatings,conditionRemarks:{Concrete:'Crack'},conditionAttachments:{Concrete:[{stored:true}]}};
     for (const method of ['POST','PUT']) {
-      const invalid = await routes.inspections[method](request({...body,date:'2026-02-27'}));
+      const invalid = await routes.inspections[method](request({...body,date:'2026-03-01'}));
       assert.equal(invalid.status,400); assert.equal(invalid.body.message,'Please fill out valid date.');
-      assert.equal((await routes.inspections[method](request({...body,date:'2026-02-28'}))).status,200);
+      // 31 March 2026 anniversary − 29 days = 2 March 2026, exact days rather than +11 months.
+      assert.equal((await routes.inspections[method](request({...body,date:'2026-03-02'}))).status,200);
     }
     data.listRoads=async()=>[{id:'p'}];
-    assert.equal((await routes.inspections.PUT(request({...body,date:'2026-02-28'}))).status,400);
+    assert.equal((await routes.inspections.PUT(request({...body,date:'2026-03-02'}))).status,400);
   } finally {Object.assign(data,old);}
 });
 

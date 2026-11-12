@@ -7,7 +7,7 @@ import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
 import { latestByProject, isPendingInspection, findingsSummary } from '@/lib/inspection-selection';
-import { hasFourDigitYear, addCalendarMonths, formatSavedProjectCurrency } from '@/lib/project-form-validation';
+import { hasFourDigitYear, anniversaryMinusDays, INSPECTION_DAYS_BEFORE, formatSavedProjectCurrency } from '@/lib/project-form-validation';
 import { attachmentError } from '@/lib/attachment-validation';
 
 interface Inspection {
@@ -215,6 +215,19 @@ export interface ConditionAttachment {
   size?: number;
 }
 
+/**
+ * @mine — earliest date an inspection may carry: 29 days before the anniversary of
+ * the completion date, for the follow-up year when known and otherwise the first
+ * anniversary (WORKFLOW-DECISIONS Q16/Q18). Mirrors the server check in
+ * src/app/api/inspections/route.ts so the form and the API agree.
+ */
+function earliestInspectionDate(completionDate?: string, annualYear?: number | string): string | null {
+  if (!completionDate) return null;
+  const requested = Number(annualYear);
+  const year = Number.isInteger(requested) && requested > 0 ? requested : Number(completionDate.slice(0, 4)) + 1;
+  return anniversaryMinusDays(completionDate, year, INSPECTION_DAYS_BEFORE);
+}
+
 export function InspectionModule({ inspections, localRoadList, onAddInspection, onEditInspection, onDeleteInspection, currentUser, userRole = '' }: InspectionModuleProps) {
   // @mine — Admin accounts are displayed as Head Engineer.
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
@@ -263,6 +276,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     inspectionType: '',
     conditionRating: 'Good',
     remarks: '',
+    // @mine — the follow-up year decides which anniversary bounds the date field.
+    annualFollowUpYear: undefined as number | undefined,
   });
 
   useEffect(() => {
@@ -444,6 +459,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       targetCompletionDate: road?.targetCompletionDate || inspection.targetCompletionDate || '',
       noOfExtensions: road?.noOfExtensions || inspection.noOfExtensions || '',
       actualCompletionDate: road?.actualCompletionDate || inspection.actualCompletionDate || '',
+      // @mine — the edited record's own follow-up year bounds the inspection date.
+      annualFollowUpYear: inspection.annualFollowUpYear,
       roadNetworkId: road?.roadNetworkId || inspection.roadNetworkId || '',
       roadName: road?.roadName || road?.name || inspection.roadName || inspection.localRoadName,
       components: road?.components || inspection.components || '',
@@ -466,7 +483,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     const validationMessages = [];
     if (!localRoad) validationMessages.push('Select a Project / Program / Activity Name.');
     if (!hasFourDigitYear(formData.date)) validationMessages.push(formData.date ? 'Please fill out valid date.' : 'Enter the inspection date.');
-    const minimumInspectionDate = addCalendarMonths(localRoad?.actualCompletionDate || '', 11);
+    const minimumInspectionDate = earliestInspectionDate(localRoad?.actualCompletionDate, formData.annualFollowUpYear);
     if (!minimumInspectionDate) validationMessages.push('The project completion date could not be verified.');
     else if (formData.date && formData.date < minimumInspectionDate) validationMessages.push('Please fill out valid date.');
     if (!formData.inspectionType) validationMessages.push('Select an inspection type.');
@@ -542,6 +559,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
         inspectionType: '',
         conditionRating: 'Good',
         remarks: '',
+        annualFollowUpYear: undefined,
       });
       setShowForm(false);
     }
@@ -833,7 +851,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         <div className="p-3 bg-[#f3f4f6]">
                           <input
                             type="date"
-                            min={addCalendarMonths(formData.actualCompletionDate, 11) || '2000-01-01'}
+                            min={earliestInspectionDate(formData.actualCompletionDate, formData.annualFollowUpYear) || '2000-01-01'}
                             max="9999-12-31"
                             onInvalid={e => e.currentTarget.setCustomValidity(e.currentTarget.validity.valueMissing ? 'Please fill out this field.' : 'Please fill out valid date.')}
                             onInput={e => e.currentTarget.setCustomValidity('')}

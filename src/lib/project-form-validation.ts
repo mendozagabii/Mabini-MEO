@@ -47,3 +47,27 @@ export function addCalendarDays(value: string, days: number): string | null {
   const result = date.toISOString().slice(0, 10);
   return hasFourDigitYear(result) ? result : null;
 }
+
+/**
+ * @mine — the two annual offsets, decided 2026-11-12 (WORKFLOW-DECISIONS Q15/Q16):
+ * the validation window opens 30 days before the anniversary of the completion
+ * date and an inspection may be dated from 29 days before it — every year,
+ * including the first.
+ */
+export const VALIDATION_DAYS_BEFORE = 30;
+export const INSPECTION_DAYS_BEFORE = 29;
+
+/**
+ * @mine — the anniversary of a completion date in a given year, moved back by
+ * N days. Month-end completions clamp (29 February becomes 28 February in a
+ * common year) instead of rolling into the next month.
+ */
+export function anniversaryMinusDays(value: string, year: number, days: number): string | null {
+  if (!hasFourDigitYear(value) || !Number.isInteger(year)) return null;
+  const [, month, day] = value.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const anniversary = new Date(Date.UTC(year, month - 1, Math.min(day, lastDay)));
+  anniversary.setUTCDate(anniversary.getUTCDate() - days);
+  const result = anniversary.toISOString().slice(0, 10);
+  return hasFourDigitYear(result) ? result : null;
+}

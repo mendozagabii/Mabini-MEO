@@ -21,6 +21,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ROLE_FROM_DB, ROLE_TO_DB } from '@/lib/supabase';
 import { attachmentError, attachmentMime, matchesAttachmentSignature } from '@/lib/attachment-validation';
+// @mine — shared annual offsets (WORKFLOW-DECISIONS Q15/Q16).
+import { anniversaryMinusDays, VALIDATION_DAYS_BEFORE, INSPECTION_DAYS_BEFORE } from '@/lib/project-form-validation';
 
 export type StoredRecord = Record<string, unknown> & { id: string };
 
@@ -255,19 +257,13 @@ const ANNUAL_RESULT_FROM_DB: Record<string, string> = {
   approved: 'Validated', rejected: 'Return for Revision', pending: 'Pending',
 };
 
-function anniversaryDueDate(completionIso: string, year: number, daysBefore = 30): string | null {
-  const d = new Date(`${completionIso.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  const due = new Date(Date.UTC(year, d.getUTCMonth(), d.getUTCDate()));
-  due.setUTCDate(due.getUTCDate() - daysBefore);
-  return due.toISOString().slice(0, 10);
-}
-
 /**
  * @mine — Port of the old SQLite syncAnnualFollowUps(): for each completed,
- * non-archived project, make sure a pending annual_validation_entries row and
- * a scheduled annual follow-up inspection exist for every due year
- * (inspection: anniversary − 30 days; first validation: anniversary − 29 days).
+ * non-archived project, make sure a pending annual_validation_entries row exists
+ * from the day its validation window opens (anniversary − 30 days) and a
+ * scheduled annual follow-up inspection exists from its own date
+ * (anniversary − 29 days). Both offsets are the same every year, including the
+ * first (WORKFLOW-DECISIONS Q15/Q16/Q18).
  * Best-effort; writes go through `admin`
  * when provided so read-only roles still see generated rows.
  */
@@ -288,10 +284,12 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     if (!completed) continue;
     const completionYear = Number(completed.slice(0, 4));
     if (!Number.isInteger(completionYear)) continue;
-    const dueYears: Array<{ year: number; dueDate: string }> = [];
+    const dueYears: Array<{ year: number; validationDue: string; inspectionDue: string }> = [];
     for (let year = completionYear + 1; year <= currentYear + 1; year += 1) {
-      const dueDate = anniversaryDueDate(completed, year);
-      if (dueDate && dueDate <= today) dueYears.push({ year, dueDate });
+      const validationDue = anniversaryMinusDays(completed, year, VALIDATION_DAYS_BEFORE);
+      const inspectionDue = anniversaryMinusDays(completed, year, INSPECTION_DAYS_BEFORE);
+      // The project enters the yearly cycle as soon as its validation window opens.
+      if (validationDue && inspectionDue && validationDue <= today) dueYears.push({ year, validationDue, inspectionDue });
     }
     if (!dueYears.length) continue;
 
@@ -303,22 +301,22 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     const haveEntries = new Set((entries ?? []).map((e: Joined) => e.year));
     const haveFollowUps = new Set((followUps ?? []).map((e: Joined) => e.annual_follow_up_year));
 
-    for (const { year, dueDate } of dueYears) {
-      const validationDueDate = year === completionYear + 1 ? anniversaryDueDate(completed, year, 29) : dueDate;
-      if (validationDueDate && validationDueDate <= today && !haveEntries.has(year)) {
+    for (const { year, validationDue, inspectionDue } of dueYears) {
+      if (!haveEntries.has(year)) {
         const { error: insertError } = await writer.from('annual_validation_entries')
-          .upsert({ project_id: project.id, year, due_date: validationDueDate, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
+          .upsert({ project_id: project.id, year, due_date: validationDue, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
         if (insertError) throw insertError;
       }
-      if (!haveFollowUps.has(year)) {
+      // The inspection itself only appears once its own date is reached.
+      if (!haveFollowUps.has(year) && inspectionDue <= today) {
         await writer.from('inspections')
           .insert({
             project_id: project.id,
-            inspection_date: dueDate,
+            inspection_date: inspectionDue,
             inspection_type: 'follow_up',
             annual_follow_up_year: year,
             validation_status: 'pending',
-            remarks: `Annual follow-up inspection due by ${dueDate}.`,
+            remarks: `Annual follow-up inspection due by ${inspectionDue}.`,
           })
           .then(undefined, () => undefined);
       }

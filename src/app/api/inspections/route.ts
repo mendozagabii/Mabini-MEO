@@ -1,12 +1,26 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { validateAssessment, findingsSummary } from '@/lib/inspection-selection';
-import { hasFourDigitYear, addCalendarMonths, addCalendarDays } from '@/lib/project-form-validation';
+import { hasFourDigitYear, addCalendarDays, anniversaryMinusDays, INSPECTION_DAYS_BEFORE } from '@/lib/project-form-validation';
 import { NextResponse } from 'next/server';
 import { requireAuth, requireRole, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads, listMaintenance, listArchivedMaintenance,
   permanentlyDeleteInspection, restoreInspection, saveInspection, saveRoad, type StoredRecord,
 } from '@/lib/supabase-data';
+
+/**
+ * @mine — the earliest date an inspection may carry: 29 days before the anniversary
+ * of the completion date of the year it belongs to, falling back to the first
+ * anniversary (WORKFLOW-DECISIONS Q16/Q18). Replaces "completion date + 11 months",
+ * which drifted between 28 and 31 days depending on the month.
+ */
+function earliestInspectionDate(road: StoredRecord, payload: StoredRecord, existing?: StoredRecord): string | null {
+  const completed = String(road.actualCompletionDate || '');
+  if (!hasFourDigitYear(completed)) return null;
+  const requested = Number(existing?.annualFollowUpYear || payload.annualFollowUpYear);
+  const year = Number.isInteger(requested) && requested > 0 ? requested : Number(completed.slice(0, 4)) + 1;
+  return anniversaryMinusDays(completed, year, INSPECTION_DAYS_BEFORE);
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,7 +78,7 @@ export async function POST(request: Request) {
   payload.remarks = findingsSummary(ratings, remarks);
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
-  const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
+  const minimum = earliestInspectionDate(road, payload);
   if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
   if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   try {
@@ -100,7 +114,7 @@ export async function PUT(request: Request) {
   if (!existing) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
-  const minimum = addCalendarMonths(String(road.actualCompletionDate || ''), 11);
+  const minimum = earliestInspectionDate(road, payload, existing);
   if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
   if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   try {

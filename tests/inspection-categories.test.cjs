@@ -286,15 +286,16 @@ test('inspection overview follows history changes and pending annual cards keep 
   }
 });
 
-test('inspection dates outside the eleven-month minimum show the requested native message', async () => {
+test('inspection dates earlier than 29 days before the anniversary show the requested native message', async () => {
   const {container,root}=renderModule([pendingInspection]);
   await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[pendingInspection],localRoadList:[{id:'road-1',name:'Poblacion Road',actualCompletionDate:'2025-03-31'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:'Staff - Inspector'})));
   openPendingForm(container);
   const input=[...container.querySelectorAll('input[type=date]')].find(el=>!el.readOnly && el.required);
-  assert.ok(input); assert.equal(input.min,'2026-02-28');
-  input.value='2026-02-27'; await act(async()=>input.checkValidity());
+  // 31 March 2026 anniversary − 29 days = 2 March 2026 (was +11 months = 28 February).
+  assert.ok(input); assert.equal(input.min,'2026-03-02');
+  input.value='2026-03-01'; await act(async()=>input.checkValidity());
   assert.equal(input.validationMessage,'Please fill out valid date.');
-  input.value='2026-02-28'; await act(async()=>input.dispatchEvent(new window.Event('input',{bubbles:true})));
+  input.value='2026-03-02'; await act(async()=>input.dispatchEvent(new window.Event('input',{bubbles:true})));
   assert.equal(input.validity.valid,true);
   act(()=>root.unmount()); container.remove();
 });
