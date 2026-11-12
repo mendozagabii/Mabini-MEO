@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Record the finished state in the session handoff
+- **Type:** Docs
+- **Files:** `docs/SESSION-HANDOFF.md` (modified)
+- **What & why:** A new session must not apply the column drop, flip the purge switch or set mailbox variables on its own, and it must know that vercel.json cannot carry comments and that the remaining Next advisories need their own task.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Patch the dependency advisories, and fix the vercel.json that blocked two deployments
 - **Type:** Config
 - **Files:** `.env.example` (modified), `MY-CHANGES.md` (modified), `docs/EMAIL-TEMPLATES.md` (modified), `next.config.js` (modified), `package-lock.json` (modified), `package.json` (modified), `src/app/App.tsx` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/api/local-road/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/lib/local-database.ts` (modified), `src/lib/project-form-validation.ts` (modified), `src/lib/project-validation-workflow.ts` (modified), `src/lib/supabase-data.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-purpose.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/project-form.test.cjs` (modified), `tests/project-upload.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified), `docs/SECURITY-NOTES.md` (new), `docs/WORKFLOW-DECISIONS.md` (new), `docs/WORKFLOW-REVIEW.md` (new), `src/app/api/local-road/inspector-assignment/` (new), `src/app/api/local-road/inspectors/` (new), `src/app/api/local-road/retired-fields-export/` (new), `src/app/api/retention/` (new), `src/lib/notifications.ts` (new), `src/lib/retention.ts` (new), `src/lib/retired-fields.ts` (new), `supabase/migrations/20261114_project_inspector_assignment.sql` (new), `supabase/migrations/20261115_project_locations.sql` (new), `supabase/migrations/20261116_drop_retired_project_fields.sql` (new), `tests/inspector-assignment.test.cjs` (new), `tests/notifications.test.cjs` (new), `tests/retention.test.cjs` (new), `tests/retired-fields.test.cjs` (new), `tests/workflow-emails.test.cjs` (new), `vercel.json` (new)

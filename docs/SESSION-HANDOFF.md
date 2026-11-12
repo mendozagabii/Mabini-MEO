@@ -4,6 +4,29 @@
 
 # ⚠️ READ THIS FIRST — session handoff
 
+> **2026-11-12 — the plan is finished on `arena/0da75355-mabini-meo` (PR #18, open):**
+> Steps 1–8 built; step 9 built except the column drop. Tasks 11–16 built.
+>
+> **What a new session must know before touching anything:**
+> 1. **`20261116_drop_retired_project_fields.sql` is written and NOT applied** (it drops
+>    `projects.completion_percentage`, `projects.adjusted_project_cost` and
+>    `contractors.pcab_license_no`, after rebuilding `v_project_overview`). The CSV the office
+>    asked for is already kept: `exports/retired-project-fields-2026-11-12.csv` in the
+>    workspace (outside git), and Head Engineer → Project Management → *Retired fields (CSV)*
+>    produces it again. **Apply only on an explicit go-ahead.**
+> 2. **The 30-day purge deletes nothing yet.** `supabase/migrations/20261115_project_locations.sql`,
+>    `20261114_project_inspector_assignment.sql` are applied; the purge needs `RETENTION_LIVE=1`
+>    **and** `CRON_SECRET` in Vercel. Report-only is the current state; nothing was due on
+>    2026-11-12.
+> 3. **The six workflow emails are built and silent** until `SMTP_HOST`, `SMTP_PORT`,
+>    `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` exist in Vercel. `src/lib/notifications.ts`.
+> 4. **`vercel.json` must stay plain JSON** — a `"//"` comment key fails Vercel's schema and
+>    errors the deployment (it did, twice, on 2026-11-12). The cron entry is fine.
+> 5. **Dependencies were patched** on 2026-11-12 (`next` 14.2.35, `postcss` 8.5.32, `sharp`
+>    0.35.5, `react-router` 7.18.5). The remaining `npm audit` findings on `next` have **no
+>    14.x fix**; see `docs/SECURITY-NOTES.md` — that upgrade is its own task, not a stray commit.
+> 6. `20261110_staff_archive_permissions.sql` is **still unapplied** (0 `Staff:%` policies).
+
 > **2026-11-11 follow-up — inspection condition assessment (owner-approved):**
 > The owner asked for remarks and attachments underneath **each** category of *Local Road
 > Condition Assessment* (add/edit inspection and the inspection details view), plus four new
