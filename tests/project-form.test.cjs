@@ -711,3 +711,43 @@ test('a validated project replaces the encoder edit control with a Validated bad
   assert.ok(container.querySelector('[aria-label="Edit Poblacion Road"]'));
   await reset();
 });
+
+test('task 11: the Head Engineer project table carries the five columns and an inspector dropdown', async () => {
+  const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, { get: () => Dummy });
+  const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea': ui, './ui/dialog': ui, './ui/select': ui, './ConfirmActionDialog': ui, './PrintDocument': ui,
+    '@/lib/activity-log-client': { recordClientActivity: async () => {} },
+    '@/lib/project-validation-workflow': loadTs('src/lib/project-validation-workflow.ts'),
+    '@/lib/project-form-validation': validation,
+  });
+  const item = { id: 'p', name: 'Road', projectName: 'Poblacion Road', location: 'Anilao East', barangay: 'Anilao East',
+    contractedAmount: '1250000', actualCompletionDate: '2025-03-31', dateBuilt: '2020-01-01', condition: 'Good',
+    annualValidationEntries: [{ year: 2026, dueDate: '2026-03-01', result: 'Pending', remarks: '' }] };
+  const props = { data: [item], inspectors: [{ id: 'i1', name: 'Juan Dela Cruz' }], onAssignInspector() {}, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} };
+
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Head Engineer' })));
+  for (const header of ['Project Name', 'Location', 'Contract Amount', 'Completion Date', 'Inspector']) {
+    assert.match(container.textContent, new RegExp(header), header);
+  }
+  assert.match(container.textContent, /Php 1,250,000\.00/);
+  assert.match(container.textContent, /2025-03-31/);
+  const select = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
+  assert.ok(select);
+  assert.match(select.textContent, /Not assigned/);
+  assert.match(select.textContent, /Juan Dela Cruz/);
+  assert.equal(container.querySelector('[aria-label="Delete Poblacion Road"]') !== null, true);
+
+  // task 13: both project lists filter by completion date instead of location
+  for (const userRole of ['Head Engineer', 'Staff - Encoder']) {
+    await reset();
+    await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole })));
+    assert.ok(container.querySelector('input[aria-label="Filter by project completion date"]'), userRole);
+  }
+  // the validator keeps the existing list, which has no completion-date filter
+  await reset();
+  await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Staff - Validator', validationMode: true })));
+  assert.equal(container.querySelector('input[aria-label="Filter by project completion date"]'), null);
+  await reset();
+});

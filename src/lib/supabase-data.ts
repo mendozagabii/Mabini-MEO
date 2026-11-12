@@ -52,6 +52,8 @@ function mapProject(p: Joined): StoredRecord {
     projectCategory: p.project_categories?.name ?? p.category_other ?? '',
     location: p.barangays?.name ?? '',
     barangay: p.barangays?.name ?? '',
+    // @mine — the single inspector assigned by the Head Engineer (WORKFLOW-DECISIONS Q3).
+    inspectorId: p.inspector_id ?? '',
     dateBuilt: str(road.date_built),
     condition: cap(road.current_condition) || 'Good',
     lastInspection: str(road.last_inspection_date) || undefined,
@@ -940,6 +942,29 @@ export async function listUsers(admin: SupabaseClient): Promise<AppUser[]> {
   if (error) throw error;
   return (data ?? []).map(mapProfile);
 }
+/** @mine — the inspectors a Head Engineer may assign (WORKFLOW-DECISIONS Q2/Q3). */
+export async function listInspectorOptions(admin: SupabaseClient): Promise<Array<{ id: string; name: string }>> {
+  const { data, error } = await admin.from('profiles').select('id, username, role')
+    .is('archived_at', null).eq('role', ROLE_TO_DB['Staff - Inspector']).order('username');
+  if (error) throw error;
+  return (data ?? []).map((row: Joined) => ({ id: String(row.id), name: String(row.username ?? row.id) }));
+}
+
+/** @mine — assign, reassign or clear the single inspector of a project. */
+export async function setProjectInspector(db: SupabaseClient, projectId: string, inspectorId: string | null): Promise<void> {
+  const { error } = await db.from('projects').update({ inspector_id: inspectorId }).eq('id', projectId);
+  if (error) throw error;
+}
+
+/** @mine — an assignable inspector must exist, be active and hold the Inspector role. */
+export async function findInspectorProfile(admin: SupabaseClient, inspectorId: string): Promise<{ id: string; name: string } | null> {
+  const { data, error } = await admin.from('profiles').select('id, username, role')
+    .eq('id', inspectorId).is('archived_at', null).maybeSingle();
+  if (error) throw error;
+  if (!data || data.role !== ROLE_TO_DB['Staff - Inspector']) return null;
+  return { id: String(data.id), name: String(data.username ?? data.id) };
+}
+
 export async function listArchivedUsers(admin: SupabaseClient): Promise<AppUser[]> {
   const { data, error } = await admin.from('profiles').select('*').not('archived_at', 'is', null).order('archived_at', { ascending: false });
   if (error) throw error;

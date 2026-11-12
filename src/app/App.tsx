@@ -154,6 +154,8 @@ export default function App() {
   const [editingLocalRoad, setEditingLocalRoad] = useState<LocalRoad | null>(null);
 
   const [localRoadData, setLocalRoadData] = useState<LocalRoad[]>([]);
+  // @mine — task 11: the inspectors the Head Engineer can assign.
+  const [inspectors, setInspectors] = useState<Array<{ id: string; name: string }>>([]);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<Maintenance[]>([]);
   const [scheduledInspectionIds, setScheduledInspectionIds] = useState<string[]>([]);
@@ -218,6 +220,21 @@ export default function App() {
     };
   }, []);
 
+  // @mine — task 11: the assignment dropdown needs the registered inspectors.
+  useEffect(() => {
+    if (!isLoggedIn || userRole !== 'Head Engineer') return;
+    let active = true;
+    (async () => {
+      try {
+        const response = await fetch('/api/local-road/inspectors');
+        if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+        const payload = await response.json();
+        if (active && Array.isArray(payload.data)) setInspectors(payload.data);
+      } catch (error) { console.error('Failed to load inspectors.', error); }
+    })();
+    return () => { active = false; };
+  }, [isLoggedIn, userRole]);
+
   useEffect(() => {
     if (!isLoggedIn) return;
     let active = true;
@@ -248,6 +265,7 @@ export default function App() {
       ]);
       if (active && current === generation) setLoading(false);
     };
+
     setLoading(true);
     void refreshRecords();
     const onChange = () => { void refreshRecords(); };
@@ -456,6 +474,24 @@ export default function App() {
         console.error('Failed to delete local road record.', error);
         window.alert(error instanceof Error ? error.message : 'Unable to delete this road.');
       });
+  };
+
+  const handleAssignInspector = async (projectId: string, inspectorId: string) => {
+    try {
+      const response = await fetch('/api/local-road/inspector-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, inspectorId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.message || 'Unable to assign this inspector.');
+      const saved = payload.data as LocalRoad;
+      setLocalRoadData((previous) => previous.map((item) => (item.id === projectId ? saved : item)));
+      window.dispatchEvent(new Event('local-road-records-changed'));
+    } catch (error) {
+      console.error('Failed to assign the inspector.', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to assign this inspector.');
+    }
   };
 
   const handleSaveValidation = async (
@@ -691,6 +727,8 @@ export default function App() {
                   onDelete={handleDeleteLocalRoad}
                   currentUser={userName}
                   userRole={userRole}
+                  inspectors={inspectors}
+                  onAssignInspector={handleAssignInspector}
                 />
               )}
               {activeTab === 'inspection-management' && hasAccess('inspection-management') && (

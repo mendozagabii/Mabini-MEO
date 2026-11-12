@@ -86,7 +86,7 @@ test('Head Engineer cannot create or edit even with valid-looking payloads', asy
 test('Head Engineer deleting an inspection does not call the project-edit path', async () => {
   role = 'head_engineer'; calls = [];
   const originalList = data.listRoads;
-  data.listRoads = async () => [{ id: 'road' }];
+  data.listRoads = async () => [{ id: 'road', inspectorId: 'test' }];
   data.saveRoad = async () => { calls.push('project-edit'); };
   try {
     assert.equal((await routes.inspections.DELETE(request({}, 'id=x'))).status, 200);
@@ -181,7 +181,7 @@ test('maintenance scheduling checks newest completed inspection and rejects alre
   const old = { listRoads: data.listRoads, listInspections: data.listInspections, listMaintenance: data.listMaintenance, listArchivedMaintenance: data.listArchivedMaintenance, saveMaintenance: data.saveMaintenance };
   try {
     role = 'encoder';
-    data.listRoads = async () => [{id:'p'}];
+    data.listRoads = async () => [{id:'p',inspectorId:'test'}];
     data.listInspections = async () => [{id:'i', localRoadId:'p', date:'2026-01-01', conditionRatings: {Concrete:'Fair'}}];
     data.listMaintenance = async () => [];
     data.listArchivedMaintenance = async () => [];
@@ -208,7 +208,7 @@ test('inspector can record a pending follow-up through the role-checked server c
   const old = { listRoads:data.listRoads, listInspections:data.listInspections, saveInspection:data.saveInspection, saveRoad:data.saveRoad };
   try {
     role = 'inspector';
-    data.listRoads = async () => [{id:'p',actualCompletionDate:'2026-01-01'}];
+    data.listRoads = async () => [{id:'p',actualCompletionDate:'2026-01-01',inspectorId:'test'}];
     data.listInspections = async () => [{id:'i', localRoadId:'p', date:'2026-12-15',annualFollowUpYear:2027}];
     let usedDb, sent;
     data.saveInspection = async (db, payload) => {usedDb=db; sent=payload; return {...payload};};
@@ -225,7 +225,7 @@ test('maintenance editing keeps remarks separate from activities', async () => {
   try {
     role = 'encoder';
     data.listMaintenance = async () => [{id:'m', localRoadId:'p', status:'In Progress', inspectionId:'i', remarks:'Old'}];
-    data.listRoads = async () => [{id:'p'}];
+    data.listRoads = async () => [{id:'p',inspectorId:'test'}];
     data.listInspections = async () => [{id:'i',localRoadId:'p',date:'2025-12-01'}];
     let saved;
     data.saveMaintenance = async (_db, payload) => (saved=payload);
@@ -248,7 +248,7 @@ test('maintenance completion date rejects years before 2000 and invalid dates on
   role = 'encoder';
   const old = {listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
   try {
-    data.listRoads = async () => [{id:'p'}];
+    data.listRoads = async () => [{id:'p',inspectorId:'test'}];
     data.listInspections = async () => [{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}];
     data.listArchivedInspections = async () => []; data.listArchivedMaintenance = async () => [];
     data.listMaintenance = async () => [{id:'m',localRoadId:'p',status:'In Progress'}];
@@ -267,7 +267,7 @@ test('maintenance completion date rejects years before 2000 and invalid dates on
 test('maintenance scheduling accepts any single fair, bad or poor component and rejects a linked schedule', async () => {
   const old = {listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
   try {
-    role='encoder'; data.listRoads=async()=>[{id:'p'}]; data.listArchivedInspections=async()=>[]; data.listMaintenance=async()=>[]; data.listArchivedMaintenance=async()=>[];
+    role='encoder'; data.listRoads=async()=>[{id:'p',inspectorId:'test'}]; data.listArchivedInspections=async()=>[]; data.listMaintenance=async()=>[]; data.listArchivedMaintenance=async()=>[];
     data.saveMaintenance=async(_db,payload)=>({...payload,id:'m'});
     const body={localRoadId:'p',inspectionId:'i',type:'Corrective Type',scheduledDate:'2026-01-08',cost:0,description:'Repair',remarks:'Required'};
     for (const rating of ['Fair','Bad','Poor']) {
@@ -285,7 +285,7 @@ test('maintenance scheduling accepts any single fair, bad or poor component and 
 test('maintenance schedule permits empty details, locks edits until start or continue, and requires details before completion', async () => {
   const old={listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
   try {
-    role='encoder'; data.listRoads=async()=>[{id:'p'}]; data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}];
+    role='encoder'; data.listRoads=async()=>[{id:'p',inspectorId:'test'}]; data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}];
     data.listArchivedInspections=async()=>[]; data.listArchivedMaintenance=async()=>[];
     let current={id:'m',localRoadId:'p',status:'Scheduled',type:'Corrective Type',scheduledDate:'',dateStarted:'',description:'',remarks:''};
     data.listMaintenance=async()=>[current]; data.saveMaintenance=async(_db,payload)=>{current={...payload,id:'m'};return current};
@@ -316,7 +316,7 @@ test('maintenance actions are icon-only, edit is gated by status, and unfinished
 test('inspection create and edit are dated no earlier than 29 days before the anniversary', async () => {
   const old={listRoads:data.listRoads,listInspections:data.listInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveInspection:data.saveInspection,saveRoad:data.saveRoad};
   try {
-    role='inspector'; data.listRoads=async()=>[{id:'p',actualCompletionDate:'2025-03-31'}];
+    role='inspector'; data.listRoads=async()=>[{id:'p',actualCompletionDate:'2025-03-31',inspectorId:'test'}];
     data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2026-02-28'}];
     data.listMaintenance=async()=>[]; data.listArchivedMaintenance=async()=>[];
     data.saveInspection=async(_db,payload)=>payload; data.saveRoad=async(_db,road)=>road;
@@ -329,7 +329,7 @@ test('inspection create and edit are dated no earlier than 29 days before the an
       // 31 March 2026 anniversary − 29 days = 2 March 2026, exact days rather than +11 months.
       assert.equal((await routes.inspections[method](request({...body,date:'2026-03-02'}))).status,200);
     }
-    data.listRoads=async()=>[{id:'p'}];
+    data.listRoads=async()=>[{id:'p',inspectorId:'test'}];
     assert.equal((await routes.inspections.PUT(request({...body,date:'2026-03-02'}))).status,400);
   } finally {Object.assign(data,old);}
 });
@@ -337,7 +337,7 @@ test('inspection create and edit are dated no earlier than 29 days before the an
 test('maintenance dates use linked inspection plus one day, including archived links, while unlinked records are exempt', async () => {
   const old={listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
   try {
-    role='encoder'; data.listRoads=async()=>[{id:'p'}];
+    role='encoder'; data.listRoads=async()=>[{id:'p',inspectorId:'test'}];
     const inspection={id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Fair'}};
     data.listInspections=async()=>[inspection]; data.listArchivedInspections=async()=>[]; data.listMaintenance=async()=>[]; data.listArchivedMaintenance=async()=>[];
     data.saveMaintenance=async(_db,payload)=>({...payload,id:'m'});
@@ -363,7 +363,7 @@ test('maintenance dates use linked inspection plus one day, including archived l
 test('inspection date edits cannot invalidate dates on linked maintenance, including archived records', async () => {
   const old={listRoads:data.listRoads,listInspections:data.listInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveInspection:data.saveInspection,saveRoad:data.saveRoad};
   try {
-    role='inspector'; data.listRoads=async()=>[{id:'p',actualCompletionDate:'2024-01-01'}];
+    role='inspector'; data.listRoads=async()=>[{id:'p',actualCompletionDate:'2024-01-01',inspectorId:'test'}];
     data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2025-01-01'}];
     data.listMaintenance=async()=>[]; data.listArchivedMaintenance=async()=>[{inspectionId:'i',dateStarted:'2025-01-08',scheduledDate:'2025-03-01'}];
     data.saveInspection=async(_db,payload)=>payload; data.saveRoad=async(_db,road)=>road;

@@ -51,11 +51,30 @@ export async function GET(request: Request) {
   if (!auth) return unauthorized();
   try {
     const [data, archived] = await Promise.all([listInspections(auth.db, auth.admin), listArchivedInspections(auth.db)]);
+    // @mine — step 5 (WORKFLOW-DECISIONS Q8/Q9): an inspector only sees the projects
+    // assigned to them; every other role keeps the full list.
+    if (auth.profile.roleDb === 'inspector') {
+      const roads = await listRoads(auth.db);
+      const mine = new Set(roads.filter((road) => road.inspectorId === auth.userId).map((road) => road.id));
+      return withRefresh(NextResponse.json({
+        data: data.filter((inspection) => mine.has(String(inspection.localRoadId))),
+        archived: archived.filter((inspection) => mine.has(String(inspection.localRoadId))),
+      }), auth);
+    }
     return withRefresh(NextResponse.json({ data, archived }), auth);
   } catch (error) {
     console.error('Failed to list inspections.', error);
     return NextResponse.json({ message: 'Unable to load inspections.' }, { status: 500 });
   }
+}
+
+/**
+ * @mine — step 5 (Q8/Q9): an inspector may only record work on a project that is
+ * assigned to them. Returns true when the caller is an inspector who is not the
+ * project's inspector.
+ */
+function notAssignedToInspector(auth: { profile: { roleDb: string }; userId: string }, road: StoredRecord): boolean {
+  return auth.profile.roleDb === 'inspector' && String(road.inspectorId || '') !== auth.userId;
 }
 
 export async function POST(request: Request) {
@@ -78,6 +97,9 @@ export async function POST(request: Request) {
   payload.remarks = findingsSummary(ratings, remarks);
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+  if (notAssignedToInspector(auth, road)) {
+    return NextResponse.json({ message: 'This project is not assigned to you.' }, { status: 403 });
+  }
   const minimum = earliestInspectionDate(road, payload);
   if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
   if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
@@ -114,6 +136,9 @@ export async function PUT(request: Request) {
   if (!existing) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
+  if (notAssignedToInspector(auth, road)) {
+    return NextResponse.json({ message: 'This project is not assigned to you.' }, { status: 403 });
+  }
   const minimum = earliestInspectionDate(road, payload, existing);
   if (!minimum) return NextResponse.json({ message: 'The project completion date could not be verified.' }, { status: 400 });
   if (payload.date < minimum) return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });

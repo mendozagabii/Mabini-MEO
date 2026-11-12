@@ -1,7 +1,7 @@
 # WBLRMS — Decisions from the workflow review
 
 **Date:** 2026-11-12 (rev. 2) · **Branch:** `arena/0da75355-mabini-meo` · **Source:** answers to `docs/WORKFLOW-REVIEW.md` §10, then to follow-up questions B1–B7
-**Status:** 27 of 27 items decided · **steps 1–3 built** · tasks 15 and 16 built · next: step 4
+**Status:** 27 of 27 items decided · **steps 1–5 built** · tasks 11, 13, 15, 16 built · next: step 6 (emails)
 
 ---
 
@@ -103,8 +103,8 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 | **1** ✅ | **The two dates** (Q15, Q16, Q18): first-year validation 29 → 30; earliest inspection date becomes exactly 29 days before the anniversary instead of completion + 11 months | none | done (`3c31d07`) |
 | **2** ✅ | **Re-submit change check** (Q5): a returned project cannot be re-submitted unchanged | none | done (`c7fb4ee`) |
 | **3** ✅ | **Validation lock** (Q4): locked after validation, released when the next yearly validation is created | none | done (`c7fb4ee`) |
-| **4** | **Assign inspector** (Q2, Q3, Q7): one inspector per project, Head Engineer only, activity log entry, button on validated projects | one nullable column on the projects table | step 3 |
-| **5** | **Inspector scope** (Q8, Q9): listing filtered to the assigned project | none | step 4 |
+| **4** ✅ | **Assign inspector** (Q2, Q3, Q7): one inspector per project, Head Engineer only, activity log entry, dropdown in the Head Engineer table | `projects.inspector_id` (migration applied) | done |
+| **5** ✅ | **Inspector scope** (Q8, Q9): listing filtered to the assigned project, recording refused for any other | none | done |
 | **6** | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | step 4 for email 5; mailbox credentials set in the hosting environment |
 | **7** | **Print both views** (Q24): whole overview, and one year | none | — |
 | **8** | **30-day purge** (Q26): scheduled job, report-only mode first, then live | none (deletes data, not schema) | explicit go-ahead before the live run |
@@ -123,9 +123,9 @@ Recorded as tasks 11–16 so they do not renumber the ten-step plan above.
 
 | # | Requirement (as stated) | Screens touched | Depends on |
 |---|---|---|---|
-| **11** | Head Engineer's Project Management: replace the cards with a **table like Validation Management**. Columns: **Project Name · Location (the barangay under road information) · Contract Amount · Completion Date · Inspector** (a dropdown of registered inspectors in every row — this *is* the assignment action). Rows are clickable and open the project details. | Head Engineer project list | **Step 4** (assignment) — the dropdown and the assignment are the same feature |
+| **11** ✅ | Head Engineer's Project Management: **table like Validation Management** with **Project Name · Location · Contract Amount · Completion Date · Inspector** dropdown per row, clickable rows. | Head Engineer project list | done |
 | **12** | Project form **Location**: the encoder may enter **up to 5 locations**, with an **Add** button, and each accepts a long string (e.g. *"Sitio Dao, Anilao East, Mabini, Batangas"*). Viewing and printing show **one box with one line per location**; the **road name shows the same lines in one box**; **road network ID and road name each get their own row** in add, view, edit and print. | Project form, project view, project print | none |
-| **13** | Project Management (Head Engineer **and** Encoder): replace the **location filter** with a **date filter**, the same one used in Maintenance Management. | Head Engineer + Encoder project lists | none |
+| **13** ✅ | Project Management (Head Engineer **and** Encoder): **location filter replaced by a completion-date filter**, as in Maintenance Management. | Head Engineer + Encoder project lists | done |
 | **14** | Maintenance **overview table interface** made to match the Inspection overview. In both overviews put a **print button in the header, on the right** — Inspection beside *Findings*, Maintenance beside *Remarks*. **Printing is Head Engineer only.** | Inspection overview, Maintenance overview | Step 7 (print both views) |
 | **15** ✅ | The **Location shown in lists is the Barangay** under road information: project list, maintenance list, and the validation table. | those three lists | done (`c7fb4ee`) |
 | **16** ✅ | Validation Management: the **name in the table must be the Project Name** (not the road or location name). | Validation table | done (`c7fb4ee`) |
