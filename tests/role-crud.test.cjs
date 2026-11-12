@@ -368,3 +368,18 @@ test('inspection date edits cannot invalidate dates on linked maintenance, inclu
     assert.equal((await routes.inspections.PUT(request({...body,date:'2025-01-01'}))).status,200);
   } finally {Object.assign(data,old);}
 });
+
+test('maintenance cards show the linked inspection date in both positions until completed', () => {
+  const Component = loadTs('src/app/components/MaintenanceModule.tsx', componentMocks).MaintenanceModule;
+  const linked = {id:'i',localRoadId:'p',date:'2026-02-11'};
+  for (const status of ['Scheduled','In Progress','Deferred','Completed']) {
+    for (const archived of [false,true]) {
+      const record = {...maintenance, status, inspectionId:'i', scheduledDate:'2026-03-01', completedDate:'2026-04-01'};
+      const html = renderToStaticMarkup(React.createElement(Component, {maintenanceRecords:[record],localRoadList:[project],inspections:archived?[]:[linked],scheduledArchivedInspections:archived?[linked]:[],onAddMaintenance:noop,onEditMaintenance:noop,onDeleteMaintenance:noop,onUpdateStatus:noop,userRole:'Staff - Encoder',currentUser:'User'}));
+      if (status === 'Completed') { assert.match(html,/Completed: 2026-04-01/); assert.equal((html.match(/2026-04-01/g)||[]).length,2); assert.doesNotMatch(html,/Inspection: 2026-02-11/); }
+      else { assert.match(html,/Inspection: 2026-02-11/); assert.equal((html.match(/2026-02-11/g)||[]).length,2); assert.doesNotMatch(html,/2026-04-01/); }
+    }
+  }
+  const html = renderToStaticMarkup(React.createElement(Component,{maintenanceRecords:[maintenance],localRoadList:[project],inspections:[],onAddMaintenance:noop,onEditMaintenance:noop,onDeleteMaintenance:noop,onUpdateStatus:noop,userRole:'Staff - Encoder',currentUser:'User'}));
+  assert.doesNotMatch(html,/Inspection: /);
+});

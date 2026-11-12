@@ -718,6 +718,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {visibleRecords.map(({ record, referenceId }) => {
             const road = localRoadList.find((item) => item.id === record.localRoadId);
+            const inspectionDate = record.inspectionId ? [...inspections, ...scheduledArchivedInspections].find(item => item.id === record.inspectionId && item.localRoadId === record.localRoadId)?.date : undefined;
             return (
               <article key={record.id} className="group flex h-[200px] flex-col rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(96,165,250,0.22),0_10px_25px_rgba(30,64,175,0.12)]">
                 <div
@@ -736,7 +737,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 <div className="flex items-center justify-between gap-3 text-sm leading-5 text-slate-700">
                   <span className="truncate">{referenceId}</span>
                   <span className="shrink-0 text-right">
-                    {record.status === 'Completed' ? (record.completedDate || '') : ''}
+                    {record.status === 'Completed' ? (record.completedDate || '') : (inspectionDate || '')}
                   </span>
                 </div>
 
@@ -755,8 +756,8 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
                   <span className="flex items-center gap-1.5 text-sm text-slate-500">
-                    {record.status === 'Completed' && <><Calendar className="h-4 w-4 text-slate-400" />
-                    {record.completedDate ? `Completed: ${record.completedDate}` : ''}</>}
+                    {(record.status === 'Completed' ? record.completedDate : inspectionDate) && <><Calendar className="h-4 w-4 text-slate-400" />
+                    {record.status === 'Completed' ? `Completed: ${record.completedDate}` : `Inspection: ${inspectionDate}`}</>}
                   </span>
                   <div className="flex shrink-0 items-center gap-2">
                     {!isAdminReadDeleteOnly && (
