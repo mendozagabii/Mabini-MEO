@@ -1,7 +1,7 @@
 # WBLRMS — Decisions from the workflow review
 
 **Date:** 2026-11-12 (rev. 2) · **Branch:** `arena/0da75355-mabini-meo` · **Source:** answers to `docs/WORKFLOW-REVIEW.md` §10, then to follow-up questions B1–B7
-**Status:** 26 of 27 items decided · **one item open (B6, §3)** · **no code written yet**
+**Status:** 27 of 27 items decided · **steps 1–3 built** · tasks 15 and 16 built · next: step 4
 
 ---
 
@@ -100,9 +100,9 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 
 | Step | Work | Database | Blocked by |
 |---|---|---|---|
-| **1** | **The two dates** (Q15, Q16, Q18): first-year validation 29 → 30; earliest inspection date becomes exactly 29 days before the anniversary instead of completion + 11 months | none | — |
-| **2** | **Re-submit change check** (Q5): a returned project cannot be re-submitted unchanged | none | — |
-| **3** | **Validation lock** (Q4): locked after validation, released when the next yearly validation is created | none | — |
+| **1** ✅ | **The two dates** (Q15, Q16, Q18): first-year validation 29 → 30; earliest inspection date becomes exactly 29 days before the anniversary instead of completion + 11 months | none | done (`3c31d07`) |
+| **2** ✅ | **Re-submit change check** (Q5): a returned project cannot be re-submitted unchanged | none | done (`c7fb4ee`) |
+| **3** ✅ | **Validation lock** (Q4): locked after validation, released when the next yearly validation is created | none | done (`c7fb4ee`) |
 | **4** | **Assign inspector** (Q2, Q3, Q7): one inspector per project, Head Engineer only, activity log entry, button on validated projects | one nullable column on the projects table | step 3 |
 | **5** | **Inspector scope** (Q8, Q9): listing filtered to the assigned project | none | step 4 |
 | **6** | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | step 4 for email 5; mailbox credentials set in the hosting environment |
@@ -127,8 +127,8 @@ Recorded as tasks 11–16 so they do not renumber the ten-step plan above.
 | **12** | Project form **Location**: the encoder may enter **up to 5 locations**, with an **Add** button, and each accepts a long string (e.g. *"Sitio Dao, Anilao East, Mabini, Batangas"*). Viewing and printing show **one box with one line per location**; the **road name shows the same lines in one box**; **road network ID and road name each get their own row** in add, view, edit and print. | Project form, project view, project print | none |
 | **13** | Project Management (Head Engineer **and** Encoder): replace the **location filter** with a **date filter**, the same one used in Maintenance Management. | Head Engineer + Encoder project lists | none |
 | **14** | Maintenance **overview table interface** made to match the Inspection overview. In both overviews put a **print button in the header, on the right** — Inspection beside *Findings*, Maintenance beside *Remarks*. **Printing is Head Engineer only.** | Inspection overview, Maintenance overview | Step 7 (print both views) |
-| **15** | The **Location shown in lists is the Barangay** under road information: project list, maintenance list, and the validation table. | those three lists | none |
-| **16** | Validation Management: the **name in the table must be the Project Name** (not the road or location name). | Validation table | none |
+| **15** ✅ | The **Location shown in lists is the Barangay** under road information: project list, maintenance list, and the validation table. | those three lists | done (`c7fb4ee`) |
+| **16** ✅ | Validation Management: the **name in the table must be the Project Name** (not the road or location name). | Validation table | done (`c7fb4ee`) |
 
 ### Design note — Location and Barangay are currently the same value
 

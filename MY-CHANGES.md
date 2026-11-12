@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Mark steps 1-3 and tasks 15-16 as built
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** Brought the plan table in docs/WORKFLOW-DECISIONS.md up to date: steps 1, 2 and 3 are marked done with their commit references (3c31d07, c7fb4ee) and tasks 15 and 16 likewise, and the header now states that all 27 items are decided with step 4 next. Documentation only.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] A validated project is locked, a returned project must change, and the lists show project name and barangay
 - **Type:** Feature
 - **Files:** `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/project-validation-workflow.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified)
