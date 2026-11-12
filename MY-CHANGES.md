@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Record the workflow review decisions and the seven open questions
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (modified), `docs/WORKFLOW-DECISIONS.md` (new)
+- **What & why:** Owner answered the 27-item checklist, stating that unanswered items stand as proposed. Added docs/WORKFLOW-DECISIONS.md: the reading rule, a 27-row decision table with answer, source (stated vs default), build consequence and status; seven blocking clarifications, each naming the conflict with the current code and a recommendation — maintenance without an inspection (B1), one vs several inspectors per project (B2), the lock after validation that would break the yearly update (B3), what the Findings column shows for older records saved before remarks were mandatory (B4), the contradiction between printable per-year reports and 30-day deletion (B5), the irreversible column drop (B6) and the scope of five locations per project (B7); the eleven defaults applied so a wrong one is easy to spot; an exact delta table against today's code — including that the earliest inspection date is currently completion plus 11 months rather than 29 days; and the implied build order. Also pointed section 10 of docs/WORKFLOW-REVIEW.md at the new file. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Rewrite the workflow review sheet in plain language with a dependency map
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-REVIEW.md` (modified)

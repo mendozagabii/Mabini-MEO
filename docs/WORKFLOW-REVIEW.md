@@ -398,6 +398,8 @@ We recommend the third, but it is the office's call. **Q24 and Q26 must be answe
 
 ## 10. The 27 questions
 
+> **Answers were collected on 2026-11-12.** The recorded decisions — and the seven items still open — are in `docs/WORKFLOW-DECISIONS.md`. Keep this section for reference; do not answer it again.
+
 Write **Yes / No / Not sure** and one line of explanation. The bracket after each question shows the other questions it affects, so you can see what your answer settles.
 
 ### A. The flow
