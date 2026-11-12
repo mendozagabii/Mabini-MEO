@@ -426,14 +426,14 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                       <SelectContent>
                         {eligibleProjects.map(item => (
                           <SelectItem key={item.id} value={item.id}>
-                            {item.projectName || item.name} ({item.projectCategory || item.type})
+                            {item.projectName || item.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {eligibleProjects.length === 0 && (
                       <p className="mt-2 text-xs text-slate-500">
-                        No projects are currently available. A project needs a Fair, Poor, or Bad component rating in its latest completed inspection, and that inspection must not already be scheduled.
+                        No projects are currently available.
                       </p>
                     )}
                     {projectError && (
@@ -784,10 +784,9 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                         )}
                       </>
                     )}
-                    {/* @mine — encoder can archive maintenance beside Edit. */}
-                    <button type="button" onClick={(event) => { event.stopPropagation(); handleDelete(record); }} aria-label={`Delete maintenance record for ${record.localRoadName}`} title="Delete" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                    {['Admin', 'Head Engineer'].includes(userRole) && <button type="button" onClick={(event) => { event.stopPropagation(); handleDelete(record); }} aria-label={`Delete maintenance record for ${record.localRoadName}`} title="Delete" className="rounded-md p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </article>

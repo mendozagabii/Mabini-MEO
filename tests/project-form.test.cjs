@@ -621,7 +621,7 @@ test('maintenance project dropdown shows any below-good component and removes sc
     './ui/textarea':{AutoGrowTextarea: props=>React.createElement('textarea',props)}, './ui/dialog':ui, './ui/select':select,
     './ConfirmActionDialog':ui, './PrintDocument':ui, '@/lib/activity-log-client':{recordClientActivity:async()=>{}},
   });
-  const roads = ['Fair','Bad','Poor','Good','Pending'].map(name => ({id:name, name:name+' Road', projectName:name+' Road'}));
+  const roads = ['Fair','Bad','Poor','Good','Pending'].map(name => ({id:name, name:name+' Road', projectName:name+' Road', projectCategory:'Local Road'}));
   const inspections = roads.map(({id}) => ({id:'i'+id,localRoadId:id,date:'2026-01-01',conditionRatings:{Concrete:'Good',Drainage:id==='Pending'?'Fair':id},...(id==='Pending'?{isScheduledAnnualFollowUp:true}:{})}));
   const props = {maintenanceRecords:[],scheduledInspectionIds:[],localRoadList:roads,inspections,userRole:'Staff - Encoder',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}};
   await reset();
@@ -629,6 +629,7 @@ test('maintenance project dropdown shows any below-good component and removes sc
   await act(async () => [...container.querySelectorAll('button')].find(b=>b.textContent.includes('Schedule Maintenance')).click());
   const options = () => [...document.querySelectorAll('[data-option]')].map(e=>e.getAttribute('data-option')).filter(value=>roads.some(road=>road.id===value));
   assert.deepEqual(options(),['Fair','Bad','Poor']);
+  assert.deepEqual([...document.querySelectorAll('[data-option]')].filter(e=>roads.some(road=>road.id===e.getAttribute('data-option'))).map(e=>e.textContent.trim()),['Fair Road','Bad Road','Poor Road']);
   await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{id:'m',inspectionId:'iFair',localRoadId:'Fair',localRoadName:'Fair Road',scheduledDate:'2026-01-01',status:'Scheduled',cost:0,type:'Routine',description:'Repair'}]})));
   assert.deepEqual(options(),['Bad','Poor']);
   await act(async () => root.render(React.createElement(MaintenanceModule, {...props,scheduledInspectionIds:['iBad','iPoor']})));

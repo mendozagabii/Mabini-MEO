@@ -148,13 +148,11 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   // @mine — enforce the module action on the server, not just in the UI.
-  const { auth, denied } = await requireRole(request, ['head_engineer', 'encoder']);
+  const { auth, denied } = await requireRole(request, ['head_engineer']);
   if (denied) return denied;
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return NextResponse.json({ message: 'A road ID is required.' }, { status: 400 });
   const permanent = new URL(request.url).searchParams.get('permanent') === 'true';
-  // @mine — staff may archive, but permanent deletion remains a Head Engineer action.
-  if (permanent && auth.profile.roleDb !== 'head_engineer') return forbidden();
   try {
     const changed = permanent ? await permanentlyDeleteRoad(auth.db, id) : await archiveRoad(auth.db, id);
     if (!changed) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });

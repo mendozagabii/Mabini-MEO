@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { eligibleMaintenanceInspections } from '@/lib/inspection-selection';
 import { hasFourDigitYear, addCalendarDays } from '@/lib/project-form-validation';
-import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
+import { requireAuth, requireRole, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveMaintenance, listArchivedMaintenance, listMaintenance, listRoads, listInspections, listArchivedInspections,
   permanentlyDeleteMaintenance, restoreMaintenance, saveMaintenance, type StoredRecord,
@@ -129,15 +129,13 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   // @mine — enforce the module action on the server, not just in the UI.
-  const { auth, denied } = await requireRole(request, ['head_engineer', 'encoder']);
+  const { auth, denied } = await requireRole(request, ['head_engineer']);
   if (denied) return denied;
   const payload = (await request.json().catch(() => null)) as { id?: unknown } | null;
   if (!payload || typeof payload.id !== 'string' || !payload.id) {
     return NextResponse.json({ message: 'A valid maintenance record ID is required.' }, { status: 400 });
   }
   const permanent = new URL(request.url).searchParams.get('permanent') === 'true';
-  // @mine — staff may archive, but permanent deletion remains a Head Engineer action.
-  if (permanent && auth.profile.roleDb !== 'head_engineer') return forbidden();
   try {
     const changed = permanent ? await permanentlyDeleteMaintenance(auth.db, payload.id) : await archiveMaintenance(auth.db, payload.id);
     if (!changed) return NextResponse.json({ message: 'Maintenance record not found.' }, { status: 404 });

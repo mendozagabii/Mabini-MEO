@@ -1399,8 +1399,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                           ? <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
                           : <Pencil className="h-4 w-4" aria-hidden="true" />}
                       </button>}
-                      {/* @mine — inspectors and Head Engineers may archive inspections. */}
-                      <button
+                      {['Admin', 'Head Engineer'].includes(userRole) && <button
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -1411,7 +1410,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         className="rounded-md p-2 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
+                      </button>}
                     </div>
                   </footer>
                 </article>
