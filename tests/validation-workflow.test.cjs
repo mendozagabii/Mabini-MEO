@@ -17,13 +17,19 @@ const workflow = load('src/lib/project-validation-workflow.ts');
 const at = day => new Date(day + 'T12:00:00Z');
 const base = { actualCompletionDate: '2025-06-01', validationResult: 'Validated' };
 const entry = (year, result = 'Pending', remarks = '') => ({ year, result, remarks, dueDate: `${year}-05-02` });
-test('first validation opens 30 days before the first anniversary, not the completion date', () => {
+test('first validation opens 29 days before the first anniversary, not the completion date', () => {
   const project = { actualCompletionDate: '2026-11-11', annualValidationEntries: [entry(2027)] };
-  for (const day of ['2026-10-12', '2026-11-11', '2027-10-11']) assert.equal(workflow.validationTask(project, at(day)), null, day);
-  assert.equal(workflow.validationTask(project, at('2027-10-12')).year, 2027);
+  for (const day of ['2026-10-12', '2026-11-11', '2027-10-12']) assert.equal(workflow.validationTask(project, at(day)), null, day);
+  assert.equal(workflow.validationTask(project, at('2027-10-13')).year, 2027);
+  const example = { actualCompletionDate: '2025-11-11', annualValidationEntries: [entry(2026)] };
+  assert.equal(workflow.validationTask(example, at('2026-10-12')), null);
+  assert.equal(workflow.validationTask(example, at('2026-10-13')).year, 2026);
+  const later = { actualCompletionDate: '2025-11-11', annualValidationEntries: [entry(2026, 'Validated'), entry(2027)] };
+  assert.equal(workflow.validationTask(later, at('2027-10-11')), null);
+  assert.equal(workflow.validationTask(later, at('2027-10-12')).year, 2027);
   const january = { actualCompletionDate: '2026-01-01', annualValidationEntries: [entry(2027)] };
-  assert.equal(workflow.validationTask(january, at('2026-12-01')), null);
-  assert.equal(workflow.validationTask(january, at('2026-12-02')).year, 2027);
+  assert.equal(workflow.validationTask(january, at('2026-12-02')), null);
+  assert.equal(workflow.validationTask(january, at('2026-12-03')).year, 2027);
   assert.equal(workflow.validationTask({ ...project, actualCompletionDate: '2025-02-30' }, at('2027-10-12')), null);
   assert.equal(workflow.validationTask({ ...project, actualCompletionDate: undefined }, at('2027-10-12')), null);
   assert.equal(workflow.validationTask({ ...project, annualValidationEntries: [] }, at('2027-10-12')), null);
@@ -101,7 +107,8 @@ test('only annual returns are requeued, and never before the first anniversary w
   const annual = { ...base, annualValidationEntries: [entry(2026, 'Pending', 'Fix drainage')] };
   assert.equal(workflow.validationTask(annual, at('2026-05-01')), null);
   assert.equal(workflow.latestValidation(annual).result, 'Pending');
-  assert.equal(workflow.validationTask(annual, at('2026-05-02')).year, 2026);
+  assert.equal(workflow.validationTask(annual, at('2026-05-02')), null);
+  assert.equal(workflow.validationTask(annual, at('2026-05-03')).year, 2026);
 });
 
 test('requeue conditionally updates only the returned annual decision', async () => {
@@ -174,13 +181,13 @@ test('an encoder edit requeues every outstanding returned decision', async () =>
 });
 
 // @mine — exercise the real annual entry generator without contacting Supabase.
-test('first anniversary entry is generated only on its 30-day opening date, across year boundaries', async () => {
+test('first anniversary entry is generated only on its 29-day opening date, across year boundaries', async () => {
   const dm = load('src/lib/supabase-data.ts', { '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
   const RealDate = global.Date;
   for (const [completion, day, expected] of [
     ['2026-11-11', '2026-10-12', null], ['2026-11-11', '2027-10-11', null],
-    ['2026-11-11', '2027-10-12', [2027, '2027-10-12']],
-    ['2026-01-01', '2026-12-01', null], ['2026-01-01', '2026-12-02', [2027, '2026-12-02']],
+    ['2026-11-11', '2027-10-12', null], ['2026-11-11', '2027-10-13', [2027, '2027-10-13']],
+    ['2026-01-01', '2026-12-02', null], ['2026-01-01', '2026-12-03', [2027, '2026-12-03']],
   ]) {
     let writes = [];
     class MockDate extends RealDate { constructor(...args) { super(...(args.length ? args : [`${day}T12:00:00Z`])); } static now() { return new RealDate(`${day}T12:00:00Z`).getTime(); } }
@@ -193,6 +200,7 @@ test('first anniversary entry is generated only on its 30-day opening date, acro
     } };
     try { global.Date = MockDate; await dm.ensureAnnualFollowUps(db); } finally { global.Date = RealDate; }
     const entryWrite = writes.find(w => w.table === 'annual_validation_entries');
+    if (completion === '2026-11-11' && day === '2027-10-12') assert.ok(writes.some(w => w.table === 'inspections' && w.value.inspection_date === '2027-10-12'));
     if (!expected) assert.equal(entryWrite, undefined, `${completion} on ${day}`);
     else { assert.ok(entryWrite); assert.equal(entryWrite.value.year, expected[0]); assert.equal(entryWrite.value.due_date, expected[1]); }
   }

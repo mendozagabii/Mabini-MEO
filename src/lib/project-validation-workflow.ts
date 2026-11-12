@@ -1,4 +1,4 @@
-// @mine — annual validation opens 30 days before each anniversary of actual completion.
+// @mine — first annual validation opens 29 days before the first anniversary; later windows open 30 days before their anniversaries.
 export type ValidationResult = 'Validated' | 'Return for Revision';
 export type AnnualValidation = { year: number; dueDate: string; result: 'Pending' | ValidationResult; remarks: string; validatedAt?: string };
 export type ValidationProject = { actualCompletionDate?: string; validationResult?: ValidationResult; validationRemarks?: string; validationValidatedAt?: string; annualValidationEntries?: AnnualValidation[] };
@@ -21,7 +21,7 @@ export function validationTask(project: ValidationProject, now = new Date()): { 
   if (!completion || !Number.isFinite(completion.getTime()) || completion.toISOString().slice(0, 10) !== raw) return null;
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const firstDue = new Date(Date.UTC(completion.getUTCFullYear() + 1, completion.getUTCMonth(), completion.getUTCDate()));
-  firstDue.setUTCDate(firstDue.getUTCDate() - 30);
+  firstDue.setUTCDate(firstDue.getUTCDate() - 29);
   if (today < firstDue.getTime()) return null;
 
   // A returned annual decision remains actionable after a date change once the
@@ -34,7 +34,7 @@ export function validationTask(project: ValidationProject, now = new Date()): { 
     .filter(item => item.result !== 'Validated' && item.year > completion.getUTCFullYear())
     .map(item => {
       const due = new Date(Date.UTC(item.year, completion.getUTCMonth(), completion.getUTCDate()));
-      due.setUTCDate(due.getUTCDate() - 30);
+      due.setUTCDate(due.getUTCDate() - (item.year === completion.getUTCFullYear() + 1 ? 29 : 30));
       return { ...item, dueDate: due.toISOString().slice(0, 10) };
     })
     .filter(item => item.dueDate <= new Date(today).toISOString().slice(0, 10))

@@ -314,10 +314,13 @@ export function syncAnnualFollowUps(today = new Date()): void {
           roadChanged = true;
         }
 
-        if (!validationEntries.some((entry) => entry.year === year)) {
+        const validationDueDate = new Date(anniversaryDate);
+        validationDueDate.setUTCDate(validationDueDate.getUTCDate() - (year === completionDate.getUTCFullYear() + 1 ? 29 : 30));
+        const validationDueDateText = formatDateOnly(validationDueDate);
+        if (validationDueDateText <= todayText && !validationEntries.some((entry) => entry.year === year)) {
           validationEntries.push({
             year,
-            dueDate: dueDateText,
+            dueDate: validationDueDateText,
             result: 'Pending',
             remarks: '',
           });

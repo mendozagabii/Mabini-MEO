@@ -54,17 +54,19 @@ for (const [moduleName, method, allowed] of [
     }
   });
 }
-for (const [moduleName, staff, called] of [['local-road', 'encoder', 'project'], ['maintenance', 'encoder', 'maintenance'], ['inspections', 'inspector', 'inspection']]) {
-  test(`${moduleName} deletion archives for permitted roles and rejects others`, async () => {
-    for (const candidate of ['head_engineer', 'encoder', 'inspector', 'validator']) {
-      role = candidate; calls = [];
-      const result = await routes[moduleName].DELETE(request({ id: 'x' }, 'id=x'));
-      assert.equal(result.status, candidate === 'head_engineer' || candidate === staff ? 200 : 403);
-      assert.deepEqual(calls, candidate === 'head_engineer' || candidate === staff ? [called] : []);
-    }
-    role = staff; calls = [];
-    assert.equal((await routes[moduleName].DELETE(request({ id: 'x' }, 'id=x&permanent=true'))).status, 403);
-    assert.deepEqual(calls, []);
+for (const [moduleName, called, permanentFn] of [['local-road', 'project', 'permanentlyDeleteRoad'], ['maintenance', 'maintenance', 'permanentlyDeleteMaintenance'], ['inspections', 'inspection', 'permanentlyDeleteInspection']]) {
+  test(`${moduleName} archiving and permanent deletion are restricted to Head Engineer`, async () => {
+    data[permanentFn] = async () => (calls.push('permanent'), true);
+    try {
+      for (const candidate of [null, 'head_engineer', 'encoder', 'inspector', 'validator']) {
+        for (const permanent of [false, true]) {
+          role = candidate; calls = [];
+          const result = await routes[moduleName].DELETE(request({ id: 'x' }, `id=x${permanent ? '&permanent=true' : ''}`));
+          assert.equal(result.status, !candidate ? 401 : candidate === 'head_engineer' ? 200 : 403, `${candidate} permanent=${permanent}`);
+          assert.deepEqual(calls, candidate === 'head_engineer' ? [permanent ? 'permanent' : called] : []);
+        }
+      }
+    } finally { delete data[permanentFn]; }
   });
 }
 test('Head Engineer cannot create or edit even with valid-looking payloads', async () => {
@@ -127,14 +129,15 @@ const cases = [
   ['InspectionModule', { inspections: [inspection], localRoadList: [project], onAddInspection: noop, onEditInspection: noop, onDeleteInspection: noop }, 'Staff - Inspector', /Add Inspection/, /Edit inspection/, /Delete inspection/],
 ];
 for (const [name, props, staff, addPattern, editPattern, deletePattern] of cases) {
-  test(`${name} renders staff CRUD and head engineer read/delete controls`, () => {
+  test(`${name} renders staff add/edit and head engineer read/delete controls`, () => {
     const Component = loadTs(`src/app/components/${name}.tsx`, componentMocks)[name];
     const render = (userRole) => renderToStaticMarkup(React.createElement(Component, { ...props, userRole, currentUser: 'User' }));
     const staffHtml = render(staff), headHtml = render('Head Engineer');
-    if (name === 'InspectionModule') assert.doesNotMatch(staffHtml, addPattern); else assert.match(staffHtml, addPattern); assert.match(staffHtml, editPattern); assert.match(staffHtml, deletePattern);
+    if (name === 'InspectionModule') assert.doesNotMatch(staffHtml, addPattern); else assert.match(staffHtml, addPattern); assert.match(staffHtml, editPattern); assert.doesNotMatch(staffHtml, deletePattern);
     assert.doesNotMatch(headHtml, addPattern); assert.doesNotMatch(headHtml, editPattern); assert.match(headHtml, deletePattern);
+    for (const role of ['Staff - Encoder', 'Staff - Inspector', 'Staff - Validator', '']) assert.doesNotMatch(render(role), deletePattern);
     // Buttons stay accessible while their visible content is only an icon.
-    for (const html of [staffHtml, headHtml]) {
+    for (const html of [headHtml, render('Admin')]) {
       const deleteButton = html.match(/<button\b[^>]*aria-label="Delete [^"]+"[^>]*>.*?<\/button>/)?.[0];
       assert.ok(deleteButton); assert.match(deleteButton, /hover:text-red-700/);
       assert.doesNotMatch(deleteButton, />\s*Delete\s*<\/button>/);

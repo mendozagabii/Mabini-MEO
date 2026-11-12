@@ -255,11 +255,11 @@ const ANNUAL_RESULT_FROM_DB: Record<string, string> = {
   approved: 'Validated', rejected: 'Return for Revision', pending: 'Pending',
 };
 
-function anniversaryDueDate(completionIso: string, year: number): string | null {
+function anniversaryDueDate(completionIso: string, year: number, daysBefore = 30): string | null {
   const d = new Date(`${completionIso.slice(0, 10)}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return null;
   const due = new Date(Date.UTC(year, d.getUTCMonth(), d.getUTCDate()));
-  due.setUTCDate(due.getUTCDate() - 30);
+  due.setUTCDate(due.getUTCDate() - daysBefore);
   return due.toISOString().slice(0, 10);
 }
 
@@ -267,7 +267,8 @@ function anniversaryDueDate(completionIso: string, year: number): string | null 
  * @mine — Port of the old SQLite syncAnnualFollowUps(): for each completed,
  * non-archived project, make sure a pending annual_validation_entries row and
  * a scheduled annual follow-up inspection exist for every due year
- * (anniversary − 30 days <= today). Best-effort; writes go through `admin`
+ * (inspection: anniversary − 30 days; first validation: anniversary − 29 days).
+ * Best-effort; writes go through `admin`
  * when provided so read-only roles still see generated rows.
  */
 export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: SupabaseClient): Promise<void> {
@@ -303,9 +304,10 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     const haveFollowUps = new Set((followUps ?? []).map((e: Joined) => e.annual_follow_up_year));
 
     for (const { year, dueDate } of dueYears) {
-      if (!haveEntries.has(year)) {
+      const validationDueDate = year === completionYear + 1 ? anniversaryDueDate(completed, year, 29) : dueDate;
+      if (validationDueDate && validationDueDate <= today && !haveEntries.has(year)) {
         const { error: insertError } = await writer.from('annual_validation_entries')
-          .upsert({ project_id: project.id, year, due_date: dueDate, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
+          .upsert({ project_id: project.id, year, due_date: validationDueDate, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
         if (insertError) throw insertError;
       }
       if (!haveFollowUps.has(year)) {

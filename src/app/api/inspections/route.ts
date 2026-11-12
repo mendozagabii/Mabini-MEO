@@ -2,7 +2,7 @@
 import { validateAssessment, findingsSummary } from '@/lib/inspection-selection';
 import { hasFourDigitYear, addCalendarMonths, addCalendarDays } from '@/lib/project-form-validation';
 import { NextResponse } from 'next/server';
-import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
+import { requireAuth, requireRole, unauthorized, withRefresh } from '@/lib/api';
 import {
   addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads, listMaintenance, listArchivedMaintenance,
   permanentlyDeleteInspection, restoreInspection, saveInspection, saveRoad, type StoredRecord,
@@ -127,14 +127,12 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   // @mine — enforce the module action on the server, not just in the UI.
-  const { auth, denied } = await requireRole(request, ['head_engineer', 'inspector']);
+  const { auth, denied } = await requireRole(request, ['head_engineer']);
   if (denied) return denied;
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
   if (!id) return NextResponse.json({ message: 'An inspection ID is required.' }, { status: 400 });
   const permanent = url.searchParams.get('permanent') === 'true';
-  // @mine — reject before reading, as listing may create due annual follow-ups.
-  if (permanent && auth.profile.roleDb !== 'head_engineer') return forbidden();
   const inspection = (await listInspections(auth.db)).find((item) => item.id === id);
   if (!inspection) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });
   try {
