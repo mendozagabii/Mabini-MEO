@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Correct the task range in the new-requirements section
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The heading of section 7 in docs/WORKFLOW-DECISIONS.md said the new UI requirements were recorded as tasks 11-18, but the table lists six items numbered 11-16. Corrected the range so the numbering matches the rows; no other content changed.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Record the new UI requirements as tasks 11-18
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)

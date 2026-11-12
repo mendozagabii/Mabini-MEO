@@ -119,7 +119,7 @@ Steps 1–3 need no database change and no further answer, so they can start as 
 
 ## 7. New UI requirements received 2026-11-12
 
-Recorded as tasks 11–18 so they do not renumber the ten-step plan above.
+Recorded as tasks 11–16 so they do not renumber the ten-step plan above.
 
 | # | Requirement (as stated) | Screens touched | Depends on |
 |---|---|---|---|
