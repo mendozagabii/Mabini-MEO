@@ -18,7 +18,6 @@
 //   tracked in public.attachments; reads return 1-hour signed URLs as dataUrl.
 //   @mine (Phase 2): annual validation entries, annual follow-up generation,
 //   Storage attachments, and AI run persistence were added on 2026-11-09.
-import { maintenanceStartDate, effectiveMaintenanceStatus } from '@/lib/maintenance-schedule';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ROLE_FROM_DB, ROLE_TO_DB } from '@/lib/supabase';
 import { attachmentError, attachmentMime, matchesAttachmentSignature } from '@/lib/attachment-validation';
@@ -836,27 +835,23 @@ const MAINT_TYPE_TO_DB: Record<string, string> = {
 const MAINT_TYPE_FROM_DB: Record<string, string> = Object.fromEntries(Object.entries(MAINT_TYPE_TO_DB).map(([a, b]) => [b, a]));
 
 function mapMaintenance(m: Joined): StoredRecord {
-  const inspectionDate = str(m.inspections?.inspection_date);
-  const linkedStart = maintenanceStartDate(inspectionDate);
-  const status = MAINT_STATUS_FROM_DB[m.status] ?? 'Scheduled';
   return {
     id: m.id,
     localRoadId: m.project_id,
     inspectionId: m.inspection_id ?? undefined,
-    inspectionDate: inspectionDate || undefined,
     localRoadName: m.projects?.project_name ?? '',
     type: MAINT_TYPE_FROM_DB[m.maintenance_type] ?? cap(m.maintenance_type),
-    scheduledDate: linkedStart || str(m.scheduled_date),
+    scheduledDate: str(m.scheduled_date),
     completedDate: str(m.completed_date) || undefined,
     cost: m.cost == null ? 0 : Number(m.cost),
-    status: linkedStart ? effectiveMaintenanceStatus(status, inspectionDate) : status,
+    status: MAINT_STATUS_FROM_DB[m.status] ?? 'Scheduled',
     description: m.activities ?? '',
     remarks: m.remarks ?? '',
     archivedAt: m.archived_at ?? undefined,
   };
 }
 
-const MAINT_SELECT = '*, projects!maintenance_records_project_id_fkey(project_name), inspections!maintenance_records_inspection_id_fkey(inspection_date)';
+const MAINT_SELECT = '*, projects!maintenance_records_project_id_fkey(project_name)';
 async function listMaintenanceWhere(db: SupabaseClient, archived: boolean): Promise<StoredRecord[]> {
   let q = db.from('maintenance_records').select(MAINT_SELECT).order('scheduled_date', { ascending: false });
   q = archived ? q.not('archived_at', 'is', null) : q.is('archived_at', null);

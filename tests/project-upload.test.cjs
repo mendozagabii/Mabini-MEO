@@ -49,7 +49,6 @@ function mockDb(options = {}) {
   return db;
 }
 const dataModule = load('src/lib/supabase-data.ts', {
-  '@/lib/maintenance-schedule': load('src/lib/maintenance-schedule.ts'),
   '@/lib/attachment-validation': attachment,
   '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} },
 });

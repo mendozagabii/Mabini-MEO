@@ -11,7 +11,7 @@ function load(file, mocks = {}) {
   m._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, filename);
   return m.exports;
 }
-const data = load('src/lib/supabase-data.ts', { '@/lib/maintenance-schedule': load('src/lib/maintenance-schedule.ts'), '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
+const data = load('src/lib/supabase-data.ts', { '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
 function mockDb(type) {
   let saved;
   const original = { id: 'i', project_id: 'p', inspection_date: '2026-01-01', inspection_type: type, annual_follow_up_year: type === 'follow_up' ? 2026 : null, validation_status: 'pending', inspection_items: [{component:'concrete',rating:'n/a'}] };
