@@ -330,7 +330,7 @@ test('inspection create and edit require eleven calendar months after project co
   } finally {Object.assign(data,old);}
 });
 
-test('maintenance dates use linked inspection plus seven days, including archived links, while unlinked records are exempt', async () => {
+test('maintenance dates use linked inspection plus one day, including archived links, while unlinked records are exempt', async () => {
   const old={listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
   try {
     role='encoder'; data.listRoads=async()=>[{id:'p'}];
@@ -339,15 +339,15 @@ test('maintenance dates use linked inspection plus seven days, including archive
     data.saveMaintenance=async(_db,payload)=>({...payload,id:'m'});
     const body={localRoadId:'p',inspectionId:'i',type:'Corrective Maintenance',description:'Repair',remarks:'Needed',cost:0};
     for (const field of ['dateStarted','scheduledDate']) {
-      const invalid = await routes.maintenance.POST(request({...body,[field]:'2026-01-07'}));
+      const invalid = await routes.maintenance.POST(request({...body,[field]:'2026-01-01'}));
       assert.equal(invalid.status,400); assert.equal(invalid.body.message,'Please fill out valid date.');
-      assert.equal((await routes.maintenance.POST(request({...body,[field]:'2026-01-08'}))).status,200);
+      assert.equal((await routes.maintenance.POST(request({...body,[field]:'2026-01-02'}))).status,200);
     }
     data.listMaintenance=async()=>[{id:'m',localRoadId:'p',status:'In Progress',inspectionId:'i'}];
     data.listInspections=async()=>[]; data.listArchivedInspections=async()=>[inspection];
-    const edit={...body,id:'m',dateStarted:'2026-01-08',scheduledDate:'2026-01-08'};
-    assert.equal((await routes.maintenance.PATCH(request({...edit,dateStarted:'2026-01-07'}))).status,400);
-    assert.equal((await routes.maintenance.PATCH(request({...edit,scheduledDate:'2026-01-07'}))).status,400);
+    const edit={...body,id:'m',dateStarted:'2026-01-02',scheduledDate:'2026-01-02'};
+    assert.equal((await routes.maintenance.PATCH(request({...edit,dateStarted:'2026-01-01'}))).status,400);
+    assert.equal((await routes.maintenance.PATCH(request({...edit,scheduledDate:'2026-01-01'}))).status,400);
     assert.equal((await routes.maintenance.PATCH(request(edit))).status,200);
     data.listArchivedInspections=async()=>[];
     assert.equal((await routes.maintenance.PATCH(request(edit))).status,409);
@@ -366,8 +366,8 @@ test('inspection date edits cannot invalidate dates on linked maintenance, inclu
     const labels=loadTs('src/lib/inspection-selection.ts',{}).assessmentComponents;
     const conditionRatings=Object.fromEntries(labels.map(label=>[label,label==='Concrete'?'Fair':'N/A']));
     const body={id:'i',localRoadId:'p',inspectionType:'Monitoring and Maintenance Inspection',conditionRatings,conditionRemarks:{Concrete:'Crack'},conditionAttachments:{Concrete:[{stored:true}]}};
-    assert.equal((await routes.inspections.PUT(request({...body,date:'2025-01-02'}))).status,409);
-    assert.equal((await routes.inspections.PUT(request({...body,date:'2025-01-01'}))).status,200);
+    assert.equal((await routes.inspections.PUT(request({...body,date:'2025-01-08'}))).status,409);
+    assert.equal((await routes.inspections.PUT(request({...body,date:'2025-01-07'}))).status,200);
   } finally {Object.assign(data,old);}
 });
 

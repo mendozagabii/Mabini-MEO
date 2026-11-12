@@ -131,7 +131,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
   const editingRecord = editingRecordId ? maintenanceRecords.find(record => record.id === editingRecordId) : undefined;
   const linkedInspectionId = editingRecord ? editingRecord.inspectionId : eligibleInspections.find(item => item.localRoadId === formData.localRoadId)?.id;
   const linkedInspection = [...inspections, ...scheduledArchivedInspections].find(item => item.id === linkedInspectionId && item.localRoadId === formData.localRoadId);
-  const minimumMaintenanceDate = linkedInspection ? addCalendarDays(linkedInspection.date, 7) : null;
+  const minimumMaintenanceDate = linkedInspection ? addCalendarDays(linkedInspection.date, 1) : null;
   const inspectionUnavailable = !!editingRecord?.inspectionId && !minimumMaintenanceDate;
   const openMaintenanceDetails = (record: Maintenance, referenceId: string) => {
     setSelectedMaintenance({ record, referenceId });

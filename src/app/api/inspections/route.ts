@@ -109,7 +109,7 @@ export async function PUT(request: Request) {
     // server client so the inspector can record/update these permitted entries.
     if (existing.localRoadId !== road.id) return NextResponse.json({ message: 'The project of an inspection cannot be changed.' }, { status: 400 });
     if (existing.date !== payload.date) {
-      const minMaintenance = addCalendarDays(payload.date as string, 7);
+      const minMaintenance = addCalendarDays(payload.date as string, 1);
       const [active, archived] = await Promise.all([listMaintenance(auth.admin), listArchivedMaintenance(auth.admin)]);
       if (!minMaintenance || [...active, ...archived].some(item => item.inspectionId === existing.id && [item.dateStarted, item.scheduledDate].some(date => typeof date === 'string' && date && date < minMaintenance))) {
         return NextResponse.json({ message: 'This inspection date conflicts with linked maintenance dates.' }, { status: 409 });
