@@ -259,3 +259,21 @@ test('maintenance completion date rejects years before 2000 and invalid dates on
     assert.equal((await routes.maintenance.PATCH(request({...body,id:'m',scheduledDate:'2000-01-01'}))).status,200);
   } finally {Object.assign(data,old);}
 });
+
+test('maintenance scheduling accepts any single fair, bad or poor component and rejects a linked schedule', async () => {
+  const old = {listRoads:data.listRoads,listInspections:data.listInspections,listArchivedInspections:data.listArchivedInspections,listMaintenance:data.listMaintenance,listArchivedMaintenance:data.listArchivedMaintenance,saveMaintenance:data.saveMaintenance};
+  try {
+    role='encoder'; data.listRoads=async()=>[{id:'p'}]; data.listArchivedInspections=async()=>[]; data.listMaintenance=async()=>[]; data.listArchivedMaintenance=async()=>[];
+    data.saveMaintenance=async(_db,payload)=>({...payload,id:'m'});
+    const body={localRoadId:'p',inspectionId:'i',type:'Corrective Type',scheduledDate:'2026-01-01',cost:0,description:'Repair',remarks:'Required'};
+    for (const rating of ['Fair','Bad','Poor']) {
+      data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Good',Drainage:rating}}];
+      assert.equal((await routes.maintenance.POST(request(body))).status,200,rating);
+      data.listMaintenance=async()=>[{id:'m',inspectionId:'i'}];
+      assert.equal((await routes.maintenance.POST(request(body))).status,409,rating);
+      data.listMaintenance=async()=>[];
+    }
+    data.listInspections=async()=>[{id:'i',localRoadId:'p',date:'2026-01-01',conditionRatings:{Concrete:'Good',Drainage:'N/A'}}];
+    assert.equal((await routes.maintenance.POST(request(body))).status,409);
+  } finally {Object.assign(data,old);}
+});

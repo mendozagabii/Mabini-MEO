@@ -607,3 +607,26 @@ test('maintenance completion date field enforces the 2000 lower bound in the bro
   input.value='1999-12-31'; assert.equal(input.validity.rangeUnderflow,true);
   input.value='2000-01-01'; assert.equal(input.validity.valid,true);
 });
+
+test('maintenance project dropdown shows any below-good component and removes scheduled projects', async () => {
+  const Dummy = ({children}) => React.createElement(React.Fragment, null, children);
+  const ui = new Proxy({}, {get: () => Dummy});
+  const select = {Select: Dummy, SelectTrigger: Dummy, SelectValue: () => null, SelectContent: Dummy, SelectItem: ({children, value}) => React.createElement('span', {'data-option':value}, children)};
+  const {MaintenanceModule} = loadTs('src/app/components/MaintenanceModule.tsx', {
+    '@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'), '@/lib/project-form-validation':validation,
+    './ui/textarea':{AutoGrowTextarea: props=>React.createElement('textarea',props)}, './ui/dialog':ui, './ui/select':select,
+    './ConfirmActionDialog':ui, './PrintDocument':ui, '@/lib/activity-log-client':{recordClientActivity:async()=>{}},
+  });
+  const roads = ['Fair','Bad','Poor','Good','Pending'].map(name => ({id:name, name:name+' Road', projectName:name+' Road'}));
+  const inspections = roads.map(({id}) => ({id:'i'+id,localRoadId:id,date:'2026-01-01',conditionRatings:{Concrete:'Good',Drainage:id==='Pending'?'Fair':id},...(id==='Pending'?{isScheduledAnnualFollowUp:true}:{})}));
+  const props = {maintenanceRecords:[],scheduledInspectionIds:[],localRoadList:roads,inspections,userRole:'Staff - Encoder',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}};
+  await reset();
+  await act(async () => root.render(React.createElement(MaintenanceModule, props)));
+  await act(async () => [...container.querySelectorAll('button')].find(b=>b.textContent.includes('Schedule Maintenance')).click());
+  const options = () => [...document.querySelectorAll('[data-option]')].map(e=>e.getAttribute('data-option')).filter(value=>roads.some(road=>road.id===value));
+  assert.deepEqual(options(),['Fair','Bad','Poor']);
+  await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{id:'m',inspectionId:'iFair',localRoadId:'Fair',localRoadName:'Fair Road',scheduledDate:'2026-01-01',status:'Scheduled',cost:0,type:'Routine',description:'Repair'}]})));
+  assert.deepEqual(options(),['Bad','Poor']);
+  await act(async () => root.render(React.createElement(MaintenanceModule, {...props,scheduledInspectionIds:['iBad','iPoor']})));
+  assert.deepEqual(options(),['Fair']);
+});

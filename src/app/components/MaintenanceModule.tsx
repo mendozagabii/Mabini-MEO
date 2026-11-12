@@ -429,7 +429,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                     </Select>
                     {eligibleProjects.length === 0 && (
                       <p className="mt-2 text-xs text-slate-500">
-                        No projects have a Fair, Poor, or Bad rating in their latest completed inspection.
+                        No projects are currently available. A project needs a Fair, Poor, or Bad component rating in its latest completed inspection, and that inspection must not already be scheduled.
                       </p>
                     )}
                     {projectError && (
