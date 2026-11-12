@@ -66,7 +66,7 @@ function assignmentRoute(state) {
   const auth = { profile: { roleDb: state.roleDb, username: 'Head' }, db: 'user', admin: 'admin', userId: 'u' };
   return load('src/app/api/local-road/inspector-assignment/route.ts', {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
-    '@/lib/api': {
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': {
       requireRole: async (_request, roles) => (roles.includes(state.roleDb) ? { auth } : { denied: res(403) }),
       withRefresh: response => response,
     },
@@ -127,7 +127,7 @@ test('the inspector list is readable by the Head Engineer only', async () => {
   const state = { roleDb: 'head_engineer' };
   const route = load('src/app/api/local-road/inspectors/route.ts', {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
-    '@/lib/api': {
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': {
       requireAuth: async () => ({ profile: { roleDb: state.roleDb, username: 'Head' }, db: 'user', admin: 'admin', userId: 'u' }),
       forbidden: () => res(403), unauthorized: () => res(401), withRefresh: response => response,
     },
@@ -152,7 +152,7 @@ function inspectionRoutes(state) {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
     '@/lib/inspection-selection': load('src/lib/inspection-selection.ts'),
     '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
-    '@/lib/api': {
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': {
       requireAuth: async () => auth(),
       requireRole: async (_request, roles) => (roles.includes(state.roleDb) ? { auth: auth() } : { denied: res(403) }),
       forbidden: () => res(403), unauthorized: () => res(401), withRefresh: response => response,

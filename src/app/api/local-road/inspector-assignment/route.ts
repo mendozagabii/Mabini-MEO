@@ -2,6 +2,8 @@
 // WORKFLOW-DECISIONS Q2/Q3/Q7, item 4 of the plan. An empty inspectorId clears it.
 import { NextResponse } from 'next/server';
 import { requireRole, withRefresh } from '@/lib/api';
+// @mine — step 6: email 5, Head Engineer → the assigned inspector.
+import { notifyWorkflow } from '@/lib/notifications';
 import {
   addActivityLog, findInspectorProfile, listRoads, setProjectInspector,
 } from '@/lib/supabase-data';
@@ -35,6 +37,15 @@ export async function POST(request: Request) {
       action: inspector ? 'Inspector Assigned' : 'Inspector Unassigned',
       details: `${inspector ? `Assigned ${inspector.name}` : 'Cleared the inspector'} on project ${String(project.projectName || project.name || projectId)}`,
     });
+
+    // Email 5 — only when someone was actually assigned; clearing sends nothing.
+    if (inspector) {
+      await notifyWorkflow(auth.admin, {
+        kind: 'inspector-assigned',
+        projectName: String(project.projectName || project.name || ''),
+        inspectorId: inspector.id,
+      });
+    }
 
     const updated = (await listRoads(auth.db, auth.admin)).find((record) => record.id === projectId);
     if (!updated) return NextResponse.json({ message: 'The assignment was saved, but the project could not be reloaded. Please refresh.' }, { status: 500 });

@@ -1,7 +1,7 @@
 # WBLRMS — Decisions from the workflow review
 
 **Date:** 2026-11-12 (rev. 2) · **Branch:** `arena/0da75355-mabini-meo` · **Source:** answers to `docs/WORKFLOW-REVIEW.md` §10, then to follow-up questions B1–B7
-**Status:** 27 of 27 items decided · **steps 1–5 and 7 built** · tasks 11–16 built · next: step 6 (emails), then step 8 (purge) and step 9 (field removal)
+**Status:** 27 of 27 items decided · **steps 1–7 built, plus tasks 11–16** · step 6 sends nothing until the office sets the mailbox in the hosting environment · next: step 8 (purge) and step 9 (field removal)
 
 ---
 
@@ -105,11 +105,11 @@ Each step is a separate commit and a separate review. Steps can be merged in thi
 | **3** ✅ | **Validation lock** (Q4): locked after validation, released when the next yearly validation is created | none | done (`c7fb4ee`) |
 | **4** ✅ | **Assign inspector** (Q2, Q3, Q7): one inspector per project, Head Engineer only, activity log entry, dropdown in the Head Engineer table | `projects.inspector_id` (migration applied) | done |
 | **5** ✅ | **Inspector scope** (Q8, Q9): listing filtered to the assigned project, recording refused for any other | none | done |
-| **6** | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | step 4 for email 5; mailbox credentials set in the hosting environment |
+| **6** ✅ | **Email subsystem + six emails** (Q10–Q14): transport, the six templates, the shared header/footer | none | built (`COMMIT`); **sends only once the mailbox is set** — `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` in the hosting environment |
 | **7** ✅ | **Print both views** (Q24): whole overview, and one year | none | done |
 | **8** | **30-day purge** (Q26): scheduled job, report-only mode first, then live | none (deletes data, not schema) | explicit go-ahead before the live run |
 | **9** | **Field removal** (Q25) | hide first, drop later | §3 |
-| **10** | **Five locations** (Q27): list of covered barangays, max 5, filter matches any | new `project_locations` table + backfill from the current single barangay | — |
+| **10** ✅ | **Five locations** (Q27): free-text coverage lines, max 5, one line per location in the view and the print | `project_locations` table + backfill (migration applied) | done (`3ec5890`) |
 
 Steps 1–3 need no database change and no further answer, so they can start as soon as the plan is approved. Step 10 is last because it touches the project form, the project list and the filter at once.
 

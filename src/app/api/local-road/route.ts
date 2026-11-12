@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 import { hasFourDigitYear, projectLocationsError } from '@/lib/project-form-validation';
 import { isValidationLocked, validationTask, type ValidationProject } from '@/lib/project-validation-workflow';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
+// @mine — step 6: the six workflow emails. Never throws; off until the mailbox is set.
+import { notifyWorkflow } from '@/lib/notifications';
 import {
   addActivityLog, archiveRoad, listArchivedRoads, listRoads,
   permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, requeueReturnedValidation, saveRoad, type StoredRecord,
@@ -77,6 +79,8 @@ export async function POST(request: Request) {
   try {
     const saved = await saveRoad(auth.db, { ...payload, id: '' }, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Project Created', details: `Created project ${String(saved.projectName || saved.name || saved.id)}` });
+    // Email 1 — Encoder → Validator: the project has entered the queue.
+    await notifyWorkflow(auth.admin, { kind: 'for-validation', projectName: String(saved.projectName || saved.name || '') });
     return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
   } catch (error) {
     console.error('Failed to create project.', error);
@@ -153,6 +157,11 @@ export async function PATCH(request: Request) {
       // @mine — only anniversary entries are actionable; legacy initial decisions remain untouched.
       await saveAnnualValidation(auth.db, payload.id, task.year, result, remarks, auth.userId);
       await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Validation Saved', details: `Saved ${task.year} annual validation for project ${String(current.projectName || current.name || payload.id)}` });
+      // Email 2 (Validator → Encoder) or email 4 (Validator → Head Engineer), never both.
+      await notifyWorkflow(auth.admin, {
+        kind: result === 'Validated' ? 'validated' : 'for-revision',
+        projectName: String(current.projectName || current.name || ''),
+      });
       let updated: StoredRecord | undefined;
       try { updated = (await listRoads(auth.db, auth.admin)).find((road) => road.id === payload.id); }
       catch (error) { console.error('Validation saved but refresh failed.', error); }
@@ -184,6 +193,10 @@ export async function PATCH(request: Request) {
       if (requeueFailed) saved.attachmentWarning = 'The project was saved, but its validation status could not be confirmed. Please refresh and contact the validator.';
     }
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Project Updated', details: `Updated project ${String(saved.projectName || saved.name || saved.id)}` });
+    // Email 3 — Encoder → Validator: a returned project came back with changes.
+    if (returned.length && !saved.attachmentWarning) {
+      await notifyWorkflow(auth.admin, { kind: 'information-updated', projectName: String(saved.projectName || saved.name || '') });
+    }
     return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
   } catch (error) {
     console.error('Failed to update project.', error);
