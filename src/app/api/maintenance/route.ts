@@ -1,8 +1,9 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
 import { NextResponse } from 'next/server';
+import { latestByProject, maintenanceEligible, isPendingInspection } from '@/lib/inspection-selection';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 import {
-  addActivityLog, archiveMaintenance, listArchivedMaintenance, listMaintenance, listRoads,
+  addActivityLog, archiveMaintenance, listArchivedMaintenance, listMaintenance, listRoads, listInspections,
   permanentlyDeleteMaintenance, restoreMaintenance, saveMaintenance, type StoredRecord,
 } from '@/lib/supabase-data';
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   if (!auth) return unauthorized();
   try {
     const [data, archived] = await Promise.all([listMaintenance(auth.db), listArchivedMaintenance(auth.db)]);
-    return withRefresh(NextResponse.json({ data, archived }), auth);
+    return withRefresh(NextResponse.json({ data, archived, scheduledInspectionIds: [...data, ...archived].map(record => record.inspectionId).filter(Boolean) }), auth);
   } catch (error) {
     console.error('Failed to list maintenance records.', error);
     return NextResponse.json({ message: 'Unable to load maintenance records.' }, { status: 500 });
@@ -29,6 +30,14 @@ export async function POST(request: Request) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.localRoadId !== 'string' || !payload.localRoadId) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
   }
+  if (typeof payload.inspectionId !== 'string' || !payload.inspectionId) return NextResponse.json({ message: 'Select a project with an eligible inspection.' }, { status: 400 });
+  try {
+    const [inspections, active, archived] = await Promise.all([listInspections(auth.db), listMaintenance(auth.db), listArchivedMaintenance(auth.db)]);
+    const latest = latestByProject(inspections.filter(item => !isPendingInspection(item as any)) as any[]).find(item => item.localRoadId === payload.localRoadId);
+    if (!latest || latest.id !== payload.inspectionId || !maintenanceEligible(latest) || [...active, ...archived].some(item => item.inspectionId === payload.inspectionId)) {
+      return NextResponse.json({ message: 'This inspection is no longer available for scheduling. Refresh and try again.' }, { status: 409 });
+    }
+  } catch (error) { console.error('Failed to check inspection eligibility.', error); return NextResponse.json({ message: 'Unable to check inspection eligibility.' }, { status: 500 }); }
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
   try {
@@ -71,6 +80,7 @@ export async function PATCH(request: Request) {
     if (typeof payload.localRoadId !== 'string' || typeof payload.type !== 'string' || typeof payload.scheduledDate !== 'string' || typeof payload.description !== 'string' || !Number.isFinite(Number(payload.cost))) {
       return NextResponse.json({ message: 'Valid maintenance details are required.' }, { status: 400 });
     }
+    if (payload.localRoadId !== record.localRoadId) return NextResponse.json({ message: 'The project of an existing maintenance record cannot be changed.' }, { status: 400 });
     const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
     if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
     const updated = await saveMaintenance(auth.db, {

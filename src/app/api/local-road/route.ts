@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'A road record is required.' }, { status: 400 });
   }
   if (['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
-    return NextResponse.json({ message: 'Project dates must be valid dates from 2000 onward with four-digit years.' }, { status: 400 });
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
   // @mine — validation belongs to the Validator, not project creation.
   if (['validationResult', 'validationRemarks', 'annualValidationYear'].some((key) => key in payload)) return forbidden();
@@ -71,7 +71,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: 'A road ID is required.' }, { status: 400 });
   }
   if (auth.profile.roleDb === 'encoder' && ['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
-    return NextResponse.json({ message: 'Project dates must be valid dates from 2000 onward with four-digit years.' }, { status: 400 });
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
   if (auth.profile.roleDb === 'encoder' && ['validationResult', 'validationRemarks', 'annualValidationYear'].some((key) => key in payload)) return forbidden();
   try {

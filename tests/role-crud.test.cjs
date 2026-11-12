@@ -173,3 +173,22 @@ test('project and inspection APIs reject dates before 2000, invalid dates, and f
     assert.equal((await routes.inspections.PUT(request({ id: 'i', localRoadId: 'p', date }))).status, 400);
   }
 });
+
+test('maintenance scheduling checks newest completed inspection and rejects already scheduled links', async () => {
+  const old = { listRoads: data.listRoads, listInspections: data.listInspections, listMaintenance: data.listMaintenance, listArchivedMaintenance: data.listArchivedMaintenance, saveMaintenance: data.saveMaintenance };
+  try {
+    role = 'encoder';
+    data.listRoads = async () => [{id:'p'}];
+    data.listInspections = async () => [{id:'i', localRoadId:'p', date:'2026-01-01', conditionRatings: {Concrete:'Fair'}}];
+    data.listMaintenance = async () => [];
+    data.listArchivedMaintenance = async () => [];
+    data.saveMaintenance = async (_db, payload) => ({...payload, id:'m'});
+    const body = {localRoadId:'p', inspectionId:'i', type:'Corrective Type', scheduledDate:'2026-01-01', cost:0, description:'Repair'};
+    assert.equal((await routes.maintenance.POST(request(body))).status, 200);
+    data.listArchivedMaintenance = async () => [{id:'m', inspectionId:'i'}];
+    assert.equal((await routes.maintenance.POST(request(body))).status, 409);
+    data.listArchivedMaintenance = async () => [];
+    data.listInspections = async () => [{id:'i', localRoadId:'p', date:'2026-01-01', conditionRatings:{Concrete:'Good'}}];
+    assert.equal((await routes.maintenance.POST(request(body))).status, 409);
+  } finally { Object.assign(data, old); }
+});

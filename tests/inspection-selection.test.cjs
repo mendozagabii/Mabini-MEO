@@ -32,3 +32,18 @@ test('maintenance eligibility requires a completed result and any component belo
   assert.equal(maintenanceEligible({...base, isScheduledAnnualFollowUp:true, conditionRatings:{A:'Fair'}}), false);
   assert.equal(maintenanceEligible({...base, conditionRating:7}), true);
 });
+
+test('required components have remarks and files except N/A; findings summarize only applicable remarks', () => {
+  const {assessmentComponents, findingsSummary, validateAssessment} = load('src/lib/inspection-selection.ts');
+  const ratings = Object.fromEntries(assessmentComponents.map(label => [label, 'N/A']));
+  const remarks = {Concrete:' Cracks   near\n the bridge ', Asphalt:'not applicable'};
+  const files = {Concrete:[{name:'photo.jpg'}]};
+  assert.equal(validateAssessment(ratings, remarks, files), false);
+  ratings.Concrete = 'Fair';
+  assert.equal(validateAssessment(ratings, remarks, files), true);
+  assert.equal(findingsSummary(ratings, remarks), 'Concrete: Cracks near the bridge');
+  assert.equal(validateAssessment(ratings, {}, files), false);
+  assert.equal(validateAssessment(ratings, remarks, {}), false);
+  const long = findingsSummary(ratings, {Concrete:'x'.repeat(300)});
+  assert.ok(long.length < 180);
+});

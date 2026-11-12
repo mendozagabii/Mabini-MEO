@@ -245,3 +245,16 @@ test('Inspector can filter inspection records by a valid date and clear it', () 
   assert.match(container.textContent, /1 record listed/);
   act(() => root.unmount()); container.remove();
 });
+
+test('pending inspection starts with an empty date and generates findings instead of accepting typed findings', () => {
+  const { container, root } = renderModule([pendingInspection]);
+  openPendingForm(container);
+  const date = [...container.querySelectorAll('input[type=date]')].find(input => !input.disabled && !input.readOnly && input.required);
+  assert.ok(date);
+  assert.equal(date.value, '');
+  assert.equal(date.min, '2000-01-01');
+  assert.ok(container.querySelector('[aria-label="Inspection findings summary"]'));
+  assert.equal(container.querySelector('textarea[placeholder="Enter inspection findings..."]'), null);
+  assert.doesNotMatch(container.textContent, /Remarks and attachments under each category are optional/);
+  act(() => root.unmount()); container.remove();
+});

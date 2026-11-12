@@ -39,3 +39,19 @@ export function maintenanceEligible(inspection: InspectionSummary): boolean {
   const score = Number(inspection.conditionRating);
   return score > 0 && score < 8;
 }
+
+export const assessmentComponents = ['Concrete', 'Asphalt', 'Gravel', 'Earth', 'Shoulder', 'Side Drain', 'Sidewalk', 'Drainage', 'Solar Lights', 'Slope Protection', 'Retaining Wall'];
+export function findingsSummary(ratings: Record<string, string>, remarks: Record<string, string>): string {
+  return assessmentComponents.filter(label => ratings[label] !== 'N/A' && remarks[label]?.trim())
+    .map(label => {
+      const text = remarks[label].trim().replace(/\s+/g, ' ');
+      return `${label}: ${text.length > 160 ? `${text.slice(0, 157)}...` : text}`;
+    }).join('; ');
+}
+export function validateAssessment(ratings: Record<string, string>, remarks: Record<string, string>, attachments: Record<string, unknown[]>): boolean {
+  const allowed = ['Good', 'Fair', 'Poor', 'Bad', 'N/A'];
+  return assessmentComponents.every(label => allowed.includes(ratings[label])) &&
+    assessmentComponents.some(label => ratings[label] !== 'N/A') &&
+    assessmentComponents.every(label => ratings[label] === 'N/A' ||
+      (typeof remarks[label] === 'string' && !!remarks[label].trim() && Array.isArray(attachments[label]) && attachments[label].length > 0));
+}

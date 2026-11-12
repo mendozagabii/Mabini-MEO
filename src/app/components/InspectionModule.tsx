@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
-import { latestByProject, isPendingInspection } from '@/lib/inspection-selection';
+import { latestByProject, isPendingInspection, findingsSummary } from '@/lib/inspection-selection';
 import { hasFourDigitYear } from '@/lib/project-form-validation';
 import { attachmentError } from '@/lib/attachment-validation';
 
@@ -223,6 +223,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [filterDate, setFilterDate] = useState('');
+  const filterDateRef = useRef<HTMLInputElement>(null);
   const isInspector = userRole === 'Staff - Inspector';
   const [selectedInspection, setSelectedInspection] = useState<{ inspection: Inspection; referenceId: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Inspection | null>(null);
@@ -450,7 +451,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       roadName: road?.roadName || road?.name || inspection.roadName || inspection.localRoadName,
       components: road?.components || inspection.components || '',
       description: road?.description || inspection.description || '',
-      date: inspection.date,
+      date: isPendingInspectionRecord(inspection) ? '' : inspection.date,
       inspectionType: inspection.inspectionType === 'Monitoring and Maintenance Inspection' ? inspection.inspectionType : '',
       conditionRating: String(inspection.conditionRating),
       remarks: inspection.remarks || '',
@@ -467,12 +468,18 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
     const missingConditionRatings = conditionAssessmentLabels.filter((label) => !conditionRatings[label]);
     const validationMessages = [];
     if (!localRoad) validationMessages.push('Select a Project / Program / Activity Name.');
-    if (!hasFourDigitYear(formData.date)) validationMessages.push('Enter a valid inspection date from 2000 onward with a four-digit year.');
+    if (!hasFourDigitYear(formData.date)) validationMessages.push(formData.date ? 'Please fill out valid date.' : 'Enter the inspection date.');
     if (!formData.inspectionType) validationMessages.push('Select an inspection type.');
     if (missingConditionRatings.length > 0) {
       validationMessages.push('Select a condition rating for every category. Choose N/A when it does not apply.');
     }
-    if (!formData.remarks.trim()) validationMessages.push('Enter the inspection findings.');
+    const applicable = conditionAssessmentLabels.filter(label => conditionRatings[label] && conditionRatings[label] !== 'N/A');
+    const missingRemarks = applicable.filter(label => !conditionRemarks[label]?.trim());
+    const missingAttachments = applicable.filter(label => !(conditionAttachments[label]?.length));
+    if (!missingConditionRatings.length && !applicable.length) validationMessages.push('Select at least one applicable component to generate inspection findings.');
+    if (missingRemarks.length) validationMessages.push(`Remarks are required for: ${missingRemarks.join(', ')}.`);
+    if (missingAttachments.length) validationMessages.push(`Attachments are required for: ${missingAttachments.join(', ')}.`);
+    if (uploadingCategory) validationMessages.push('Wait for the attachment upload to finish.');
     if (validationMessages.length > 0) {
       setValidationNotice(validationMessages.join(' '));
       if (!localRoad) returnToSection(projectSectionRef, 'project', '[aria-label="Project / Program / Activity Name"]');
@@ -493,6 +500,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       const inspectionData = {
         ...formData,
         attachment: editingInspection?.attachment,
+        remarks: findingsSummary(conditionRatings, conditionRemarks),
         conditionRating: averageRating,
         conditionRatings,
         conditionRemarks: categoryRemarks,
@@ -590,7 +598,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       },
       {
         title: 'Inspection Findings',
-        fields: [{ label: 'Findings', value: inspection.remarks }],
+        fields: [{ label: 'Findings', value: findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks }],
       },
       {
         title: 'Prepared by',
@@ -666,7 +674,13 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                 ))}
               </nav>
 
-              <form onSubmit={handleSubmit} className="form-modal-fields flex min-h-0 flex-1 flex-col overflow-hidden">
+              <form onSubmit={handleSubmit} onInvalidCapture={event => {
+                const input = event.target as HTMLInputElement;
+                if (input.type === 'date' && (input.validity.rangeUnderflow || input.validity.rangeOverflow || input.validity.badInput)) input.setCustomValidity('Please fill out valid date.');
+              }} onInputCapture={event => {
+                const input = event.target as HTMLInputElement;
+                if (input.type === 'date') input.setCustomValidity('');
+              }} className="form-modal-fields flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div
                   ref={formScrollRef}
                   onScroll={updateActiveFormTab}
@@ -913,7 +927,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                                     htmlFor={`category-remark-${row.key}`}
                                     className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
                                   >
-                                    {row.label} — Remarks <span className="font-normal normal-case text-slate-500">(optional)</span>
+                                    {row.label} — Remarks {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
                                   </label>
                                   <AutoGrowTextarea
                                     id={`category-remark-${row.key}`}
@@ -926,7 +940,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                                 </div>
                                 <div>
                                   <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                    {row.label} — Attachments <span className="font-normal normal-case text-slate-500">(optional)</span>
+                                    {row.label} — Attachments {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
                                   </span>
                                   <div className="flex flex-wrap items-center gap-2">
                                     <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 hover:bg-gray-50">
@@ -981,10 +995,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     </table>
                   </div>
 
-                  <div className="mt-3 text-xs text-gray-600">
-                    <span className="font-medium">N/A: Not applicable – type/element not present.</span>
-                    <span className="ml-2">Remarks and attachments under each category are optional; files are limited to PDF, JPG, or PNG and 10 MB each.</span>
-                  </div>
                   {categoryNotice && (
                     <div role="alert" className="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">
                       {categoryNotice}
@@ -994,13 +1004,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
                 <div className="border-b pb-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Inspection Findings*</h3>
-                  <AutoGrowTextarea
-                    value={formData.remarks}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900 resize-y"
-                    placeholder="Enter inspection findings..."
-                    required
-                  />
+                  <div aria-label="Inspection findings summary" className="w-full whitespace-pre-wrap rounded-lg border border-gray-300 bg-slate-50 px-3 py-2 text-gray-900">
+                    {findingsSummary(conditionRatings, conditionRemarks) || 'The summary will appear as component remarks are entered.'}
+                  </div>
                 </div>
 
                 <div className="border-b pb-6 text-gray-900">
@@ -1111,7 +1117,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     </div>
                     <p className="mb-2 mt-4 block text-sm font-medium text-gray-700">Observation Notes</p>
                     <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700">
-                      {inspection.remarks || 'No inspection notes provided.'}
+                      {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No inspection notes provided.'}
                     </p>
                   </section>
                   {(road?.projectDescription || road?.description || inspection.projectDescription || inspection.roadNetworkId || road?.roadNetworkId) && (
@@ -1291,11 +1297,12 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
               <label className="flex items-center gap-2">
                 <Calendar aria-hidden="true" className="h-4 w-4 text-blue-600" />
                 <span className="sr-only">Filter inspections by date</span>
-                <input type="date" aria-label="Filter by inspection date" min="1000-01-01" max="9999-12-31" value={filterDate}
-                  onChange={event => setFilterDate(event.target.validity.valid ? event.target.value : '')}
+                <input type="date" aria-label="Filter by inspection date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
+                  onChange={event => { if (event.target.value && event.target.validity.valid) setFilterDate(event.target.value); }}
+                  onBlur={event => { if (!event.target.value) setFilterDate(''); }}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
               </label>
-              {filterDate && <button type="button" onClick={() => setFilterDate('')} className="text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
+              {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
             </div>
           ) : (
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1" role="group" aria-label="Filter inspections by status">
@@ -1368,7 +1375,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                           ? `Inspection due by ${inspection.date}. Edit this entry to record the annual inspection.`
                           : isPendingInspection
                           ? 'The project was validated. Edit this entry to record inspection findings.'
-                          : inspection.remarks || 'No observation notes recorded.'}
+                          : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || 'No observation notes recorded.'}
                       </p>
                     </div>
                   <footer className="mt-4 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">

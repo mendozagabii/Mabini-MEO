@@ -622,7 +622,7 @@ function mapInspection(i: Joined): StoredRecord {
   const conditionRemarks: Record<string, string> = {};
   for (const item of items) {
     const label = COMPONENT_FROM_DB[item.component] ?? item.component;
-    conditionRatings[label] = cap(item.rating);
+    conditionRatings[label] = str(item.rating).toLowerCase() === 'n/a' ? 'N/A' : cap(item.rating);
     const remark = str(item.remarks);
     if (remark) conditionRemarks[label] = remark;
   }
@@ -705,7 +705,7 @@ export const listArchivedInspections = (db: SupabaseClient) => listInspectionsWh
 
 export async function saveInspection(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
   const idValue = str(rec.id);
-  const lookup = idValue ? await db.from('inspections').select('id, inspection_type').eq('id', idValue).maybeSingle() : null;
+  const lookup = idValue ? await db.from('inspections').select('id, inspection_type, remarks').eq('id', idValue).maybeSingle() : null;
   if (lookup?.error) throw lookup.error;
   const existing = lookup?.data ?? null;
   // The original enum continues to identify annual follow-ups. The user-facing
@@ -718,7 +718,7 @@ export async function saveInspection(db: SupabaseClient, rec: StoredRecord, proj
     ...(newPurpose ? { inspection_purpose: newPurpose } : {}),
     inspector_id: userId,
     overall_score: rec.conditionRating == null || rec.conditionRating === '' ? null : Number(rec.conditionRating),
-    remarks: str(rec.remarks) || null,
+    remarks: existing?.remarks ?? (str(rec.remarks) || null),
     validation_status: VALIDATION_TO_DB[str(rec.validationStatus)] ?? 'pending',
     annual_follow_up_year: rec.annualFollowUpYear ? Number(rec.annualFollowUpYear) : null,
   };
@@ -846,6 +846,7 @@ function mapMaintenance(m: Joined): StoredRecord {
   return {
     id: m.id,
     localRoadId: m.project_id,
+    inspectionId: m.inspection_id ?? undefined,
     localRoadName: m.projects?.project_name ?? '',
     type: MAINT_TYPE_FROM_DB[m.maintenance_type] ?? cap(m.maintenance_type),
     scheduledDate: str(m.scheduled_date),
@@ -871,6 +872,7 @@ export const listArchivedMaintenance = (db: SupabaseClient) => listMaintenanceWh
 export async function saveMaintenance(db: SupabaseClient, rec: StoredRecord, projectId: string, userId: string): Promise<StoredRecord> {
   const payload = {
     project_id: projectId,
+    ...(rec.inspectionId !== undefined ? { inspection_id: str(rec.inspectionId) || null } : {}),
     maintenance_type: MAINT_TYPE_TO_DB[str(rec.type)] ?? 'routine',
     activities: str(rec.description) || null,
     scheduled_date: str(rec.scheduledDate) || new Date().toISOString().slice(0, 10),

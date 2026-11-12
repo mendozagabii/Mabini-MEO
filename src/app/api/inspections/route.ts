@@ -1,4 +1,5 @@
 // @mine — rewritten for Supabase (was SQLite). See src/lib/supabase-data.ts.
+import { validateAssessment, findingsSummary } from '@/lib/inspection-selection';
 import { hasFourDigitYear } from '@/lib/project-form-validation';
 import { NextResponse } from 'next/server';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
@@ -52,8 +53,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'A valid road ID is required.' }, { status: 400 });
   }
   if (typeof payload.date !== 'string' || !hasFourDigitYear(payload.date)) {
-    return NextResponse.json({ message: 'Inspection date must be a valid date from 2000 onward with a four-digit year.' }, { status: 400 });
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
+  const ratings = (payload.conditionRatings || {}) as Record<string, string>;
+  const remarks = (payload.conditionRemarks || {}) as Record<string, string>;
+  const attachments = (payload.conditionAttachments || {}) as Record<string, unknown[]>;
+  if (payload.inspectionType !== 'Monitoring and Maintenance Inspection' || !validateAssessment(ratings, remarks, attachments)) {
+    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for applicable components.' }, { status: 400 });
+  }
+  payload.remarks = findingsSummary(ratings, remarks);
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
   if (!road) return NextResponse.json({ message: 'Road not found.' }, { status: 404 });
   try {
@@ -76,8 +84,15 @@ export async function PUT(request: Request) {
     return NextResponse.json({ message: 'A valid inspection and road ID are required.' }, { status: 400 });
   }
   if (typeof payload.date !== 'string' || !hasFourDigitYear(payload.date)) {
-    return NextResponse.json({ message: 'Inspection date must be a valid date from 2000 onward with a four-digit year.' }, { status: 400 });
+    return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
+  const ratings = (payload.conditionRatings || {}) as Record<string, string>;
+  const remarks = (payload.conditionRemarks || {}) as Record<string, string>;
+  const attachments = (payload.conditionAttachments || {}) as Record<string, unknown[]>;
+  if (payload.inspectionType !== 'Monitoring and Maintenance Inspection' || !validateAssessment(ratings, remarks, attachments)) {
+    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for applicable components.' }, { status: 400 });
+  }
+  payload.remarks = findingsSummary(ratings, remarks);
   const existing = (await listInspections(auth.db)).find((item) => item.id === payload.id);
   if (!existing) return NextResponse.json({ message: 'Inspection not found.' }, { status: 404 });
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);

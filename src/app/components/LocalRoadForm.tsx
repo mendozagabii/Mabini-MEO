@@ -194,7 +194,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     const invalidField = invalidDate || invalidCurrency;
     if (invalidField) {
       const input = e.currentTarget.querySelector<HTMLInputElement>(`[data-field="${invalidField[0]}"]`);
-      input?.setCustomValidity(invalidDate ? 'Enter a valid date from 2000 onward with a four-digit year.' : 'Enter a valid amount.');
+      input?.setCustomValidity(invalidDate ? 'Please fill out valid date.' : 'Enter a valid amount.');
       input?.reportValidity();
       return;
     }
@@ -376,7 +376,8 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           onSubmit={handleSubmit}
           onInvalidCapture={(event) => {
             const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-            if (field.validity.valueMissing) field.setCustomValidity('Please fill out this field.');
+            if (field instanceof HTMLInputElement && field.type === 'date' && (field.validity.rangeUnderflow || field.validity.rangeOverflow || field.validity.badInput)) field.setCustomValidity('Please fill out valid date.');
+            else if (field.validity.valueMissing) field.setCustomValidity('Please fill out this field.');
           }}
           onInputCapture={(event) => {
             const field = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;

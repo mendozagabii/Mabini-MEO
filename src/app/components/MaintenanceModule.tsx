@@ -11,6 +11,7 @@ import { recordClientActivity } from '@/lib/activity-log-client';
 
 interface Maintenance {
   id: string;
+  inspectionId?: string;
   localRoadId: string;
   localRoadName: string;
   type: string;
@@ -24,8 +25,9 @@ interface Maintenance {
 interface MaintenanceModuleProps {
   maintenanceRecords: Maintenance[];
   localRoadList: any[];
+  scheduledInspectionIds?: string[];
   inspections: any[];
-  onAddMaintenance: (maintenance: Omit<Maintenance, 'id'>) => void;
+  onAddMaintenance: (maintenance: Omit<Maintenance, 'id'>) => Promise<boolean> | void;
   onEditMaintenance: (maintenance: Maintenance) => void;
   onDeleteMaintenance: (id: string) => void;
   onUpdateStatus: (id: string, status: Maintenance['status'], completedDate?: string) => void;
@@ -38,10 +40,11 @@ const maintenanceFormTabs = [
   { id: 'activity', label: 'Maintenance Info' },
 ] as const;
 
-export function MaintenanceModule({ maintenanceRecords, localRoadList, inspections, onAddMaintenance, onEditMaintenance, onDeleteMaintenance, onUpdateStatus, currentUser, userRole = '' }: MaintenanceModuleProps) {
+export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds = [], localRoadList, inspections, onAddMaintenance, onEditMaintenance, onDeleteMaintenance, onUpdateStatus, currentUser, userRole = '' }: MaintenanceModuleProps) {
   // @mine — Admin accounts are displayed as Head Engineer.
   const isAdminReadDeleteOnly = ['Admin', 'Head Engineer'].includes(userRole);
   const [showForm, setShowForm] = useState(false);
+  const submittingRef = useRef(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -66,7 +69,8 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
   // Only the latest completed assessment determines current eligibility; a pending
   // annual follow-up does not erase the most recent recorded results.
   const completedInspections = inspections.filter((inspection) => !isPendingInspection(inspection));
-  const eligibleRoadIds = new Set(latestByProject(completedInspections).filter(maintenanceEligible).map(inspection => inspection.localRoadId));
+  const eligibleInspections = latestByProject(completedInspections).filter(inspection => maintenanceEligible(inspection) && !scheduledInspectionIds.includes(inspection.id) && !maintenanceRecords.some(record => record.inspectionId === inspection.id));
+  const eligibleRoadIds = new Set(eligibleInspections.map(inspection => inspection.localRoadId));
   const eligibleProjects = localRoadList.filter((item) =>
     eligibleRoadIds.has(item.id) ||
     (editingRecordId !== null && maintenanceRecords.some((record) =>
@@ -259,7 +263,7 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
     setShowForm(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.localRoadId) {
       setProjectError('Please select a project before submitting the maintenance activity.');
@@ -279,7 +283,10 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
 
     const localRoad = localRoadList.find(item => item.id === formData.localRoadId);
     if (localRoad) {
+      const inspection = eligibleInspections.find(item => item.localRoadId === localRoad.id);
+      if (!editingRecordId && !inspection) { setProjectError('This inspection is no longer available for scheduling. Refresh and try again.'); return; }
       const recordDetails = {
+        ...(editingRecordId ? {} : { inspectionId: inspection?.id }),
         localRoadId: formData.localRoadId,
         localRoadName: localRoad.name,
         type: formData.maintenanceType || formData.type,
@@ -292,7 +299,12 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
         if (!existingRecord) return;
         onEditMaintenance({ ...existingRecord, ...recordDetails });
       } else {
-        onAddMaintenance({ ...recordDetails, status: 'Scheduled' });
+        if (submittingRef.current) return;
+        submittingRef.current = true;
+        try {
+          const saved = await onAddMaintenance({ ...recordDetails, status: 'Scheduled' });
+          if (saved === false) return;
+        } finally { submittingRef.current = false; }
       }
       resetForm();
       setShowForm(false);
@@ -402,7 +414,7 @@ export function MaintenanceModule({ maintenanceRecords, localRoadList, inspectio
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Project / Program / Activity Name</label>
-                    <Select value={formData.localRoadId} onValueChange={handleProjectSelection} required>
+                    <Select value={formData.localRoadId} onValueChange={handleProjectSelection} disabled={editingRecordId !== null} required>
                       <SelectTrigger aria-label="Select project">
                         <SelectValue placeholder="Select project" />
                       </SelectTrigger>

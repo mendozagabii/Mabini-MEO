@@ -14,7 +14,7 @@ function load(file, mocks = {}) {
 const data = load('src/lib/supabase-data.ts', { '@/lib/attachment-validation': load('src/lib/attachment-validation.ts'), '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} } });
 function mockDb(type) {
   let saved;
-  const original = { id: 'i', project_id: 'p', inspection_date: '2026-01-01', inspection_type: type, annual_follow_up_year: type === 'follow_up' ? 2026 : null, validation_status: 'pending', inspection_items: [] };
+  const original = { id: 'i', project_id: 'p', inspection_date: '2026-01-01', inspection_type: type, annual_follow_up_year: type === 'follow_up' ? 2026 : null, validation_status: 'pending', inspection_items: [{component:'concrete',rating:'n/a'}] };
   return { get saved() { return saved; }, from(table) {
     let op = 'select';
     const q = { select() { return q; }, eq() { return q; }, in() { return q; }, is() { return q; }, not() { return q; }, order() { return q; }, update(value) { op = 'update'; saved = value; return q; },
@@ -31,6 +31,7 @@ test('inspection purpose is saved and round-trips without changing legacy or ann
     assert.equal(db.saved.inspection_type, kind);
     assert.equal(db.saved.inspection_purpose, 'Monitoring and Maintenance Inspection');
     assert.equal(updated.inspectionType, 'Monitoring and Maintenance Inspection');
+    assert.equal(updated.conditionRatings.Concrete, 'N/A');
     if (kind === 'follow_up') assert.equal(updated.annualFollowUpYear, 2026);
   }
 });
