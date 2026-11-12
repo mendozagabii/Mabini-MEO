@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Rewrite the workflow review sheet in plain language with a dependency map
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (modified)
+- **What & why:** Owner asked for the sheet to be easier to understand and to show which items relate to one another. Rewrote docs/WORKFLOW-REVIEW.md as version 2.0: plain sentences and a reading guide with a section-to-reader table; status shown as words (DONE / DECIDE / TO BUILD) instead of symbols; every role now opens with a Now/After line; the flow merged into one section with the diagram followed by the 12-step table; new section 8 groups the 27 questions into six clusters (assignment, the chained dates, evidence volume, the emails as the flow, the print-versus-archive conflict, and the standalone cleanup items), with a dependency diagram per cluster, an explicit conflict between Q24 and Q26, a shortest-path table of what unblocks what, and cross-references on each question. Some earlier points were refined: assigning and seeing-only-assigned are one job, and the in-system bell is an alternative to email rather than an addition. Question numbering 1-27 kept unchanged. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Per-role change list for the workflow review sheet
 - **Type:** Docs
 - **Files:** `docs/WORKFLOW-REVIEW.md` (modified)
