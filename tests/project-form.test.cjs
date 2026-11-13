@@ -576,6 +576,7 @@ test('maintenance overview and history use the same live records for encoder and
     assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
     await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
     const table = container.querySelector('table');
+    assert.equal(table.querySelector('col').style.width,'33%'); assert.ok(table.className.includes('table-fixed'));
     assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Maintenance Date','Status','Remarks']);
     // task 14: the print controls sit in the header, beside Remarks, for the Head Engineer only
     if (role === 'Head Engineer') {
@@ -741,6 +742,7 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   for (const header of ['Project Name', 'Location', 'Contract Amount', 'Completion Date', 'Inspector']) {
     assert.match(container.textContent, new RegExp(header), header);
   }
+  assert.deepEqual([...container.querySelectorAll('colgroup col')].map(col=>col.style.width), ['300px','160px','165px','155px','200px','48px']);
   assert.match(container.textContent, /Php 1,250,000\.00/);
   assert.match(container.textContent, /2025-03-31/);
   const select = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
@@ -953,7 +955,7 @@ test('returned validation status shows the year in the badge and a bold header',
   const {LocalRoadList}=loadTs('src/app/components/LocalRoadList.tsx',{'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}},'@/lib/project-validation-workflow':loadTs('src/lib/project-validation-workflow.ts'),'@/lib/project-form-validation':validation});
   const item={id:'p',name:'Road',actualCompletionDate:'2020-01-01',annualValidationEntries:[{year:2021,dueDate:'2020-12-01',result:'Return for Revision',remarks:'Fix details'}]};
   await reset();await act(async()=>root.render(React.createElement(LocalRoadList,{data:[item],validationMode:true,userRole:'Staff - Validator',currentUser:'User',onAdd(){},onEdit(){},onDelete(){}})));
-  const header=[...container.querySelectorAll('th')].find(th=>th.textContent==='Validation Status');assert.ok(header.className.includes('font-semibold'));
+  const header=[...container.querySelectorAll('th')].find(th=>th.textContent==='Validation Status');assert.ok(header.className.includes('font-bold'));
   const table=container.querySelector('table');assert.equal(table.querySelectorAll('col')[1].style.width,'290px');assert.ok(table.className.includes('min-w-[1100px]'));
   const cell=container.querySelector('tbody tr').cells[1];assert.equal(cell.children.length,1);assert.equal(cell.children[0].textContent.trim(),'Return for Revision · Annual 2021');assert.ok(cell.children[0].className.includes('rounded-full'));
   await reset();

@@ -720,7 +720,8 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       </div>
       {maintenanceView === 'overview' ? (
         <div role="tabpanel" aria-label="Maintenance Overview" className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full border-separate border-spacing-0 text-left">
+          <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-left">
+            <colgroup><col style={{width: '33%'}} /><col style={{width: '16%'}} /><col style={{width: '14%'}} /><col />{canPrintOverview && <col style={{width: 210}} />}</colgroup>
             <thead className="border-b border-gray-200 bg-gray-50"><tr>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Maintenance Date</th>
@@ -733,7 +734,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 const road = localRoadList.find(item => item.id === record.localRoadId);
                 const name = road?.projectName || road?.name || record.localRoadName;
                 return <tr key={record.id} tabIndex={0} aria-label={`View maintenance details for ${name}`} onClick={() => openMaintenanceDetails(record, referenceId)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openMaintenanceDetails(record, referenceId); } }} className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50">
-                  <td className="px-6 py-4 font-medium text-blue-700">{name}</td>
+                  <td className="break-words px-6 py-4 font-medium text-blue-700">{name}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{(record.status === 'Completed' ? record.completedDate : record.dateStarted) || ''}</td>
                   <td className="px-6 py-4"><span className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[record.status]}`}>{record.status}</span></td>
                   <td colSpan={canPrintOverview ? 2 : 1} className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{record.remarks || ''}</td>

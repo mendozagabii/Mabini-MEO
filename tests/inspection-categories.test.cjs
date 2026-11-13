@@ -281,7 +281,7 @@ test('inspection overview follows history changes and pending annual cards keep 
     assert.match(container.textContent,/Pending/);
     const tabs=()=>[...container.querySelectorAll('[role=tab]')];
     await act(async()=>tabs().find(el=>el.textContent.includes('Overview')).click());
-    let table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Inspection Date','Contracted Amount','Findings']);
+    let table=container.querySelector('table'); assert.equal(table.querySelector('col').style.width,'30%'); assert.ok(table.className.includes('table-fixed')); assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Inspection Date','Contracted Amount','Findings']);
     // task 14: only the Head Engineer gets the overview print controls, in the header
     if (role === 'Head Engineer') {
       assert.equal(table.querySelectorAll('th').length, 5);
