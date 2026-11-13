@@ -587,6 +587,7 @@ test('maintenance overview and history use the same live records for encoder and
       assert.equal(container.querySelector('button[aria-label="Print maintenance overview"]'), null);
     }
     assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Road','','Scheduled','Initial remark']);
+    assert.equal(table.querySelector('tbody tr td:last-child').colSpan, role === 'Head Engineer' ? 2 : 1);
     assert.match(table.textContent,/Road/); assert.match(table.textContent,/Scheduled/); assert.match(table.textContent,/Initial remark/);
     for (const status of ['Scheduled','In Progress','Deferred','Completed']) {
       await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{...record,status,dateStarted:'2026-02-02',completedDate:'2026-03-03',remarks:'Updated remark'}]})));
@@ -953,6 +954,7 @@ test('returned validation status shows the year in the badge and a bold header',
   const item={id:'p',name:'Road',actualCompletionDate:'2020-01-01',annualValidationEntries:[{year:2021,dueDate:'2020-12-01',result:'Return for Revision',remarks:'Fix details'}]};
   await reset();await act(async()=>root.render(React.createElement(LocalRoadList,{data:[item],validationMode:true,userRole:'Staff - Validator',currentUser:'User',onAdd(){},onEdit(){},onDelete(){}})));
   const header=[...container.querySelectorAll('th')].find(th=>th.textContent==='Validation Status');assert.ok(header.className.includes('font-semibold'));
+  const table=container.querySelector('table');assert.equal(table.querySelectorAll('col')[1].style.width,'290px');assert.ok(table.className.includes('min-w-[1100px]'));
   const cell=container.querySelector('tbody tr').cells[1];assert.equal(cell.children.length,1);assert.equal(cell.children[0].textContent.trim(),'Return for Revision · Annual 2021');assert.ok(cell.children[0].className.includes('rounded-full'));
   await reset();
 });

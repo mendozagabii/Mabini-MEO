@@ -292,6 +292,7 @@ test('inspection overview follows history changes and pending annual cards keep 
       assert.equal(container.querySelector('button[aria-label="Print inspection overview"]'), null);
     }
     assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','','','']);
+    assert.equal(table.querySelector('tbody tr td:last-child').colSpan,role === 'Head Engineer' ? 2 : 1);
     await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[{...pending,isScheduledAnnualFollowUp:false,conditionRating:6,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracks'}}],localRoadList:[{id:'road-1',name:'Poblacion Road',contractedAmount:'1234567.5'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:role})));
     table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','2027-01-01','Php 1,234,567.50','Cracks.']);
     await act(async()=>tabs().find(el=>el.textContent.includes('Inspection History')).click()); assert.match(container.textContent,/Cracks/);

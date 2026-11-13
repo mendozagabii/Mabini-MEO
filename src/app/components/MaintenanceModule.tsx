@@ -736,7 +736,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                   <td className="px-6 py-4 font-medium text-blue-700">{name}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{(record.status === 'Completed' ? record.completedDate : record.dateStarted) || ''}</td>
                   <td className="px-6 py-4"><span className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[record.status]}`}>{record.status}</span></td>
-                  <td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{record.remarks || ''}</td>
+                  <td colSpan={canPrintOverview ? 2 : 1} className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{record.remarks || ''}</td>
                 </tr>;
               })}
               {visibleRecords.length === 0 && <tr><td colSpan={canPrintOverview ? 5 : 4} className="px-6 py-10 text-center text-slate-500">No maintenance records match your search or filters.</td></tr>}

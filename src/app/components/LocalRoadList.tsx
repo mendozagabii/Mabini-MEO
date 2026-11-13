@@ -600,8 +600,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
 
         {validationMode ? (
           <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0">
-              <colgroup><col style={{width: 240}} /><col /><col style={{width: 160}} /><col /><col /><col /></colgroup>
+            <table className="w-full min-w-[1100px] table-fixed border-separate border-spacing-0">
+              <colgroup><col style={{width: 240}} /><col style={{width: 290}} /><col style={{width: 160}} /><col style={{width: 130}} /><col style={{width: 120}} /><col style={{width: 160}} /></colgroup>
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Project Name</th>
