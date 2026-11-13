@@ -132,14 +132,14 @@ test('step 9: the retired fields are gone from the detail view for every role', 
   }
 });
 
-test('step 9: the CSV export is offered to the Head Engineer only', async () => {
+test('retired-field export button is absent from normal project management', async () => {
   const { LocalRoadList } = load('src/app/components/LocalRoadList.tsx', listMocks());
   const render = async (userRole) => {
     await act(async () => root.render(null));
     await act(async () => root.render(React.createElement(LocalRoadList, { data: [project], currentUser: 'User', userRole, onAdd() {}, onEdit() {}, onDelete() {} })));
   };
   await render('Head Engineer');
-  assert.ok(container.querySelector('[aria-label="Download the retired project fields as CSV"]'));
+  assert.equal(container.querySelector('[aria-label="Download the retired project fields as CSV"]'), null);
   for (const userRole of ['Admin', 'Staff - Encoder', 'Staff - Validator', 'Staff - Inspector']) {
     await render(userRole);
     assert.equal(container.querySelector('[aria-label="Download the retired project fields as CSV"]'), null, userRole);

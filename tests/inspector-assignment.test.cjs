@@ -218,3 +218,14 @@ test('an inspector cannot record an inspection on a project that is not theirs',
   state.roads = [{ id: 'b', actualCompletionDate: '2020-01-01', inspectorId: 'me' }];
   assert.equal((await route.POST(request(body))).status, 200);
 });
+
+test('dropdown includes all active inspector accounts and excludes inactive accounts', async () => {
+  const data = load('src/lib/supabase-data.ts', baseMocks);
+  const options = await data.listInspectorOptions(profileDb([
+    { id: 'i1', username: 'First', role: 'inspector', status: 'active', archived_at: null },
+    { id: 'i2', username: 'Second', role: 'inspector', status: 'active', archived_at: null },
+    { id: 'i3', username: 'Inactive', role: 'inspector', status: 'inactive', archived_at: null },
+  ]));
+  assert.equal(options.length, 2);
+  assert.deepEqual(options.map(item => item.id).sort(), ['i1', 'i2']);
+});

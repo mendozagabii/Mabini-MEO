@@ -19,6 +19,7 @@ interface ProjectAttachment {
 
 interface LocalRoad {
   id: string;
+  annualValidationEntries?: Array<{ year: number; dueDate: string; result: 'Pending' | 'Validated' | 'Return for Revision'; remarks: string; validatedAt?: string }>;
   name: string;
   type: string;
   location: string;
@@ -212,6 +213,16 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       return;
     }
 
+    const returned = item?.annualValidationEntries?.some(entry => entry.result === 'Return for Revision');
+    const normalizeForm = (value: ProjectFormData) => JSON.stringify({ ...value,
+      locations: value.locations.map(line => line.trim()).filter(Boolean),
+      appropriation: value.appropriation.replace(/,/g, ''), contractedAmount: value.contractedAmount.replace(/,/g, ''),
+      attachments: value.attachments.map(file => file.name),
+    }, (_key, value) => typeof value === 'string' ? value.trim() : value);
+    if (returned && normalizeForm(formData) === normalizeForm(getInitialFormData(item))) {
+      setAttachmentNotice('Change at least one project detail before returning this project to the validator.');
+      return;
+    }
     if (submittingRef.current) return;
     submittingRef.current = true;
     setAttachmentNotice('');
@@ -414,7 +425,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Project Information */}
           <section ref={projectSectionRef} className="scroll-mt-4 border-b pb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -587,7 +598,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Road Information */}
           <section ref={roadSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Road Information</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -662,7 +673,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Contractor Information */}
           <section ref={contractorSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Contractor Information</h3>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Contractor Name *
@@ -709,7 +720,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Financial Information */}
           <section ref={financialSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Information</h3>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Source of Funds *
@@ -765,7 +776,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Completion and Turnover Information */}
           <section ref={turnoverSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Completion and Turnover Information</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -802,7 +813,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Attachment * {formData.attachments.length > 0 && `(${formData.attachments.length} file${formData.attachments.length > 1 ? 's' : ''} selected)`}
               </label>
-              
+
               {item?.attachments?.filter(attachment => attachment.category === 'Turnover Certificate').map((attachment, index) => (
                 <p key={`${attachment.storagePath || attachment.name}-${index}`} className="mb-2 text-sm text-gray-600">Existing attachment: {attachment.name}</p>
               ))}
@@ -832,7 +843,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   + Add More Files
                 </button>
               )}
-              
+
               <input
                 ref={attachmentsInputRef}
                 type="file"

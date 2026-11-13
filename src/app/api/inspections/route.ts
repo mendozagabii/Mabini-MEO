@@ -108,14 +108,23 @@ export async function POST(request: Request) {
   try {
     const inspection = await saveInspection(auth.db, { ...payload, id: '' }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Created', details: `Created inspection ${inspection.id}` });
-    await refreshRoadCondition(auth, road.id);
+    // The database trigger synchronizes condition. A secondary read must not prevent
+    // notification after the inspection has already been committed.
+    try { await refreshRoadCondition(auth, road.id); }
+    catch (error) { console.error('Inspection saved; condition refresh failed.', error); }
     // Email 6 — the Head Engineer schedules the repair next, the encoder is told it is done.
-    await notifyWorkflow(auth.admin, {
+    const notification = await notifyWorkflow(auth.admin, {
       kind: 'inspection-recorded',
       projectName: String(road.projectName || road.name || ''),
       note: actionNote(auth.profile),
     });
-    return withRefresh(NextResponse.json({ success: true, data: inspection }), auth);
+    const notificationWarning = notification.sent === 0
+      ? `Inspection saved, but its email was not sent (${notification.skipped || 'delivery failed'}). Please contact the Head Engineer; do not resubmit the inspection.`
+      : notification.sent < notification.recipients.length
+        ? 'Inspection saved, but email delivery failed for some recipients. Please contact the Head Engineer.' : undefined;
+    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username,
+      action: 'Inspection Email Delivery', details: `Inspection ${inspection.id}: sent ${notification.sent} of ${notification.recipients.length}; ${notification.skipped || (notificationWarning ? 'delivery incomplete' : 'delivered')}.` });
+    return withRefresh(NextResponse.json({ success: true, data: inspection, notificationWarning }), auth);
   } catch (error) {
     console.error('Failed to create inspection.', error);
     return NextResponse.json({ message: 'Unable to create this inspection. Your role may not permit it.' }, { status: 500 });

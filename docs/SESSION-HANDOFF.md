@@ -278,3 +278,12 @@ Redoing any of these will conflict with what is already live.
 - Reminder logs now use paginated filtered history, not the newest 500 UI rows.
 - See WORKFLOW-DECISIONS.md for delivery/concurrency limitations. SMTP remains deferred; PR merge and destructive drop remain on hold.
 - Changes are saved locally; deployment has not been performed by this verification pass.
+
+### User-reported preview regression batch
+- Removed retired-fields CSV button; export endpoint/backup and drop migration retained, no schema changes.
+- Project GET filters both current/archived records for Inspector on the server, with private no-store responses. Login/logout clear records; workspace loading gate and retry state prevent stale initial content.
+- Returned forms reject unchanged initial values. Server compares canonical fields, numeric amounts and all location lines, ignoring derived completion-date aliases. App now preserves locations in save payload.
+- Inspector list refreshes on tab/focus, excludes inactive accounts and uses full name when available. Specific missing real accounts still require a live retest; not confirmed as a data issue.
+- New inspection save returns non-blocking notification warning and writes delivery outcome to activity log. Secondary condition-refresh failure cannot suppress notification. SMTP transport has finite connection/greeting/socket timeouts. Editing still does not notify.
+- Removed artificial three-second project-save delay. Existing form saving guards remain.
+- 153 tests and production build pass. SMTP inbox delivery and production latency are NOT verified. Owner retest required. No merge, purge test, or destructive migration.

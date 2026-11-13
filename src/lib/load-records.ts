@@ -1,6 +1,6 @@
 // @mine — a failed module refresh must not clear another module's records.
 export async function loadRecords(url: string, request: typeof fetch = fetch): Promise<unknown[]> {
-  const response = await request(url);
+  const response = await request(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`Request failed (${response.status}).`);
   const payload = await response.json();
   if (!Array.isArray(payload?.data)) throw new Error('Invalid record response.');

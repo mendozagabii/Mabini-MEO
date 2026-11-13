@@ -176,6 +176,7 @@ async function smtpSender(settings: MailSettings): Promise<MailSender> {
     port: settings.port,
     secure: settings.secure,
     auth: { user: settings.user, pass: settings.pass },
+    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
   });
   cachedSender = (mail) => transport.sendMail(mail);
   cachedKey = key;

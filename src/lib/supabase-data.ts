@@ -969,10 +969,10 @@ export async function listUsers(admin: SupabaseClient): Promise<AppUser[]> {
 }
 /** @mine — the inspectors a Head Engineer may assign (WORKFLOW-DECISIONS Q2/Q3). */
 export async function listInspectorOptions(admin: SupabaseClient): Promise<Array<{ id: string; name: string }>> {
-  const { data, error } = await admin.from('profiles').select('id, username, role')
+  const { data, error } = await admin.from('profiles').select('id, username, role, status, full_name')
     .is('archived_at', null).eq('role', ROLE_TO_DB['Staff - Inspector']).order('username');
   if (error) throw error;
-  return (data ?? []).map((row: Joined) => ({ id: String(row.id), name: String(row.username ?? row.id) }));
+  return (data ?? []).filter((row: Joined) => row.status !== 'inactive').map((row: Joined) => ({ id: String(row.id), name: String(row.full_name || row.username || row.id) }));
 }
 
 /** @mine — assign, reassign or clear the single inspector of a project. */
@@ -983,10 +983,10 @@ export async function setProjectInspector(db: SupabaseClient, projectId: string,
 
 /** @mine — an assignable inspector must exist, be active and hold the Inspector role. */
 export async function findInspectorProfile(admin: SupabaseClient, inspectorId: string): Promise<{ id: string; name: string } | null> {
-  const { data, error } = await admin.from('profiles').select('id, username, role')
+  const { data, error } = await admin.from('profiles').select('id, username, role, status, full_name')
     .eq('id', inspectorId).is('archived_at', null).maybeSingle();
   if (error) throw error;
-  if (!data || data.role !== ROLE_TO_DB['Staff - Inspector']) return null;
+  if (!data || data.status === 'inactive' || data.role !== ROLE_TO_DB['Staff - Inspector']) return null;
   return { id: String(data.id), name: String(data.username ?? data.id) };
 }
 

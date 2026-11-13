@@ -389,3 +389,16 @@ test('maintenance cards show the linked inspection date in both positions until 
   const html = renderToStaticMarkup(React.createElement(Component,{maintenanceRecords:[maintenance],localRoadList:[project],inspections:[],onAddMaintenance:noop,onEditMaintenance:noop,onDeleteMaintenance:noop,onUpdateStatus:noop,userRole:'Staff - Encoder',currentUser:'User'}));
   assert.doesNotMatch(html,/Inspection: /);
 });
+
+test('inspector project GET never includes another inspector project, including archived rows', async () => {
+  role = 'inspector';
+  const rows = [{ id: 'mine', inspectorId: 'test' }, { id: 'other', inspectorId: 'other' }, { id: 'none' }];
+  const route = loadTs('src/app/api/local-road/route.ts', {
+    ...mocks,
+    '@/lib/supabase-data': { ...data, listRoads: async () => rows, listArchivedRoads: async () => rows },
+  });
+  const result = await route.GET({});
+  assert.deepEqual(result.body.data.map(row => row.id), ['mine']);
+  assert.deepEqual(result.body.archived.map(row => row.id), ['mine']);
+  role = null;
+});

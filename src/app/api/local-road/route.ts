@@ -14,8 +14,8 @@ import {
 /** @mine — the project details compared when an encoder returns a revision (WORKFLOW-DECISIONS Q5). */
 const COMPARED_DETAIL_FIELDS = [
   'projectName', 'roadName', 'roadNetworkId', 'location', 'barangay', 'projectCategory', 'contractor',
-  'contractAmount', 'projectDescription', 'components', 'description', 'dateStarted', 'dateBuilt',
-  'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate', 'noOfExtensions',
+  'contractedAmount', 'contractorName', 'contractorAddress', 'contactInformation', 'projectDescription', 'components', 'description', 'dateStarted',
+  'targetCompletionDate', 'actualCompletionDate', 'turnoverDate', 'noOfExtensions',
   'sourceOfFunds', 'appropriation',
 ];
 
@@ -28,7 +28,21 @@ function projectDetailsChanged(payload: StoredRecord, current: StoredRecord): bo
   const text = (value: unknown) => String(value ?? '').trim();
   for (const key of COMPARED_DETAIL_FIELDS) {
     if (!(key in payload)) continue;
-    if (text(payload[key]) !== text(current[key])) return true;
+    const previous = key === 'dateStarted' ? (current.dateStarted || current.dateBuilt)
+      : key === 'roadName' ? (current.roadName || current.name)
+      : key === 'projectDescription' ? (current.projectDescription || current.description)
+      : key === 'projectCategory' ? (current.projectCategory || current.type)
+      : key === 'projectName' ? (current.projectName || current.name) : current[key];
+    const normalize = (value: unknown) => ['appropriation', 'contractedAmount'].includes(key)
+      ? String(Number(text(value).replace(/,/g, '') || '0')) : text(value);
+    if (normalize(payload[key]) !== normalize(previous)) return true;
+  }
+  if (Array.isArray(payload.locations)) {
+    const normalizeLocations = (value: unknown) => (Array.isArray(value) ? value : [])
+      .map(text).filter(Boolean).join('\n');
+    if (normalizeLocations(payload.locations) !== normalizeLocations(
+      Array.isArray(current.locations) && current.locations.length ? current.locations : [current.location],
+    )) return true;
   }
   const attachmentKey = (value: unknown) => (Array.isArray(value) ? value : [])
     .map((item) => text((item as StoredRecord)?.id || (item as StoredRecord)?.name || (item as StoredRecord)?.fileName))
@@ -44,7 +58,13 @@ export async function GET(request: Request) {
   if (!auth) return unauthorized();
   try {
     const [data, archived] = await Promise.all([listRoads(auth.db, auth.admin), listArchivedRoads(auth.db)]);
-    return withRefresh(NextResponse.json({ data, archived }), auth);
+    if (auth.profile.roleDb === 'inspector') {
+      return withRefresh(NextResponse.json({
+        data: data.filter(road => String(road.inspectorId || '') === auth.userId),
+        archived: archived.filter(road => String(road.inspectorId || '') === auth.userId),
+      }, { headers: { 'Cache-Control': 'private, no-store' } }), auth);
+    }
+    return withRefresh(NextResponse.json({ data, archived }, { headers: { 'Cache-Control': 'private, no-store' } }), auth);
   } catch (error) {
     console.error('Failed to list roads/projects.', error);
     return NextResponse.json({ message: 'Unable to load projects.' }, { status: 500 });
@@ -68,7 +88,7 @@ export async function POST(request: Request) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return NextResponse.json({ message: 'A road record is required.' }, { status: 400 });
   }
-  if (['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
+  if (['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
     return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
   // @mine — task 12: at most five coverage locations, each up to 500 characters.
@@ -102,7 +122,7 @@ export async function PATCH(request: Request) {
   if (!payload || typeof payload.id !== 'string' || !payload.id) {
     return NextResponse.json({ message: 'A road ID is required.' }, { status: 400 });
   }
-  if (auth.profile.roleDb === 'encoder' && ['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'completionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
+  if (auth.profile.roleDb === 'encoder' && ['dateStarted', 'dateBuilt', 'targetCompletionDate', 'actualCompletionDate', 'turnoverDate'].some(key => payload[key] && (typeof payload[key] !== 'string' || !hasFourDigitYear(payload[key] as string)))) {
     return NextResponse.json({ message: 'Please fill out valid date.' }, { status: 400 });
   }
   if (auth.profile.roleDb === 'encoder' && ['validationResult', 'validationRemarks', 'annualValidationYear'].some((key) => key in payload)) return forbidden();

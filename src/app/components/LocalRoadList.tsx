@@ -102,28 +102,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const [selectedValidationYear, setSelectedValidationYear] = useState<number | null>(null);
   const [printSections, setPrintSections] = useState<PrintSection[] | null>(null);
   const canPrint = ['Admin', 'Head Engineer', 'Staff - Encoder'].includes(userRole);
-  // @mine — step 9: PCAB License No., Completion Percentage and Actual Project Cost are
-  // gone from every screen and print; the office keeps them in the CSV export below.
-  const canExportRetiredFields = userRole === 'Head Engineer' && !validationMode;
-  const exportRetiredFields = async () => {
-    try {
-      const response = await fetch('/api/local-road/retired-fields-export');
-      if (!response.ok) throw new Error('The export could not be prepared.');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'retired-project-fields.csv';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('The retired fields export failed.', error);
-      window.alert('The export could not be downloaded. Please try again.');
-    }
-  };
-
   // @mine — task 12: the coverage lines read as one box with one line per location,
   // falling back to a legacy single value when a record predates the coverage table.
   const locationLines = (item: LocalRoad): string[] =>
@@ -544,18 +522,6 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             </p>
         </div>
         <div className="flex items-center gap-3">
-          {canExportRetiredFields && (
-            <button
-              type="button"
-              onClick={exportRetiredFields}
-              data-field="Retired Fields Export"
-              aria-label="Download the retired project fields as CSV"
-              className="flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
-            >
-              <Download className="w-4 h-4" />
-              Retired fields (CSV)
-            </button>
-          )}
           {!validationMode && !isAdminReadDeleteOnly && <button
             onClick={onAdd}
             className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 font-semibold text-white shadow-md transition hover:brightness-105"

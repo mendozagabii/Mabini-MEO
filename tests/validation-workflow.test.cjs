@@ -262,3 +262,13 @@ test('a returned project cannot go back to the validator unchanged', async () =>
 
   assert.equal((await route.PATCH({ json: async () => ({ id: 'p', projectName: 'Poblacion Road Extension' }) })).status, 200);
 });
+
+
+test('returned project ignores derived aliases and currency formatting but accepts real financial/location corrections', async () => {
+  const project = { id: 'p', name: 'Road', projectName: 'Road', dateBuilt: '2020-01-01', actualCompletionDate: '2020-12-01', location: 'A', locations: ['A'], contractedAmount: '1000.00', annualValidationEntries: [entry(2026, 'Return for Revision', 'Fix')] };
+  const route = loadProjectRoute(() => project);
+  const patch = body => route.PATCH({ json: async () => ({ id: 'p', ...body }) });
+  assert.equal((await patch({ dateStarted: '2020-01-01', completionDate: '2020-12-01', roadName: 'Road', contractedAmount: '1,000', locations: [' A '] })).status, 400);
+  assert.equal((await patch({ contractedAmount: '2000' })).status, 200);
+  assert.equal((await patch({ locations: ['A', 'B'] })).status, 200);
+});
