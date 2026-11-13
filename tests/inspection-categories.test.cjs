@@ -136,6 +136,7 @@ test('the inspection form shows a remark box and an attach control under each ca
   openPendingForm(container);
   assert.equal(container.querySelector('[aria-label="Required inspection attachment"]'), null);
   assert.match(container.textContent, /Monitoring and Maintenance Inspection/);
+  assert.doesNotMatch(container.textContent, /Automatically populated from the validated project\./);
   assert.doesNotMatch(container.textContent, /Acceptance Inspection/);
 
   const remarkBoxes = [...container.querySelectorAll('[data-category-remark]')];

@@ -753,7 +753,6 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         aria-required="true"
                         className="w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-gray-700"
                       />
-                      <p className="mt-1 text-xs text-gray-500">Automatically populated from the validated project.</p>
                     </div>
 
                     <div>

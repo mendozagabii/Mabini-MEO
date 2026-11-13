@@ -650,9 +650,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         status === 'Return for Revision' ? 'bg-amber-100 text-amber-800' :
                         'bg-gray-100 text-gray-700'
                       }`}>
-                        {status}
+                        {status}{task?.year ? ` · Annual ${task.year}` : ''}
                       </span>
-                      {task?.year && <span className="mt-1 block text-xs text-slate-500">Annual {task.year}</span>}
                     </td>
                     <td className="break-words px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">

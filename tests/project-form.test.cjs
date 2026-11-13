@@ -947,13 +947,13 @@ test('maintenance overview year and search filters constrain both table and prin
 });
 
 
-test('returned validation status shows the year on its own line and a bold header', async () => {
+test('returned validation status shows the year in the badge and a bold header', async () => {
   const Dummy=({children})=>React.createElement(React.Fragment,null,children);const ui=new Proxy({}, {get:()=>Dummy});
   const {LocalRoadList}=loadTs('src/app/components/LocalRoadList.tsx',{'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}},'@/lib/project-validation-workflow':loadTs('src/lib/project-validation-workflow.ts'),'@/lib/project-form-validation':validation});
   const item={id:'p',name:'Road',actualCompletionDate:'2020-01-01',annualValidationEntries:[{year:2021,dueDate:'2020-12-01',result:'Return for Revision',remarks:'Fix details'}]};
   await reset();await act(async()=>root.render(React.createElement(LocalRoadList,{data:[item],validationMode:true,userRole:'Staff - Validator',currentUser:'User',onAdd(){},onEdit(){},onDelete(){}})));
   const header=[...container.querySelectorAll('th')].find(th=>th.textContent==='Validation Status');assert.ok(header.className.includes('font-semibold'));
-  const cell=container.querySelector('tbody tr').cells[1];assert.equal(cell.children[0].textContent.trim(),'Return for Revision');assert.equal(cell.children[1].textContent.trim(),'Annual 2021');assert.ok(cell.children[1].className.includes('block'));
+  const cell=container.querySelector('tbody tr').cells[1];assert.equal(cell.children.length,1);assert.equal(cell.children[0].textContent.trim(),'Return for Revision · Annual 2021');assert.ok(cell.children[0].className.includes('rounded-full'));
   await reset();
 });
 
