@@ -110,7 +110,7 @@ export async function POST(request: Request) {
   const remarks = (payload.conditionRemarks || {}) as Record<string, string>;
   const attachments = (payload.conditionAttachments || {}) as Record<string, unknown[]>;
   if (payload.inspectionType !== 'Monitoring and Maintenance Inspection' || !validateAssessment(ratings, remarks, attachments)) {
-    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for applicable components.' }, { status: 400 });
+    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for Fair, Poor, and Bad components.' }, { status: 400 });
   }
   payload.remarks = findingsSummary(ratings, remarks);
   const road = (await listRoads(auth.db)).find((item) => item.id === payload.localRoadId);
@@ -152,7 +152,7 @@ export async function PUT(request: Request) {
   const remarks = (payload.conditionRemarks || {}) as Record<string, string>;
   const attachments = (payload.conditionAttachments || {}) as Record<string, unknown[]>;
   if (payload.inspectionType !== 'Monitoring and Maintenance Inspection' || !validateAssessment(ratings, remarks, attachments)) {
-    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for applicable components.' }, { status: 400 });
+    return NextResponse.json({ message: 'Select an inspection type and complete every assessment, including remarks and attachments for Fair, Poor, and Bad components.' }, { status: 400 });
   }
   payload.remarks = findingsSummary(ratings, remarks);
   const existing = (await listInspections(auth.db)).find((item) => item.id === payload.id);

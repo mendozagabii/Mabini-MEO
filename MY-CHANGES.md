@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-13 — [mine] Refine overview filtering and inspection requirements
+- **Type:** Modified
+- **Files:** `src/app/App.tsx` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/lib/inspection-selection.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Keep overview printing aligned with visible filtered rows, clarify pending inspections and Good assessments, and refine system filters and layouts.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-13 — [mine] Align list filters and overview controls
 - **Type:** Modified
 - **Files:** `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)

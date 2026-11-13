@@ -76,6 +76,6 @@ export function validateAssessment(ratings: Record<string, string>, remarks: Rec
   const allowed = ['Good', 'Fair', 'Poor', 'Bad', 'N/A'];
   return assessmentComponents.every(label => allowed.includes(ratings[label])) &&
     assessmentComponents.some(label => ratings[label] !== 'N/A') &&
-    assessmentComponents.every(label => ratings[label] === 'N/A' ||
+    assessmentComponents.every(label => ['N/A', 'Good'].includes(ratings[label]) ||
       (typeof remarks[label] === 'string' && !!remarks[label].trim() && Array.isArray(attachments[label]) && attachments[label].length > 0));
 }

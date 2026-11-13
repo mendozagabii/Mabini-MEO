@@ -83,7 +83,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       record.id === editingRecordId && record.localRoadId === item.id
     ))
   );
-  const visibleRecords = maintenanceRecords
+  const matchingRecords = maintenanceRecords
     .slice()
     .reverse()
     .map((record, index) => ({
@@ -103,6 +103,10 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
         .filter(Boolean).join(' ').toLowerCase();
       return matchesDate && searchable.includes(query);
     });
+  const visibleRecords = maintenanceView === 'overview' && overviewPrintYear !== 'all'
+    ? matchingRecords.filter(({record}) => ((record.status === 'Completed' ? record.completedDate : record.dateStarted) || '').slice(0, 4) === overviewPrintYear)
+    : matchingRecords;
+
   const [formData, setFormData] = useState({
     localRoadId: '',
     projectName: '',
@@ -328,8 +332,8 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
   // @mine — task 14: the overview is printable as a whole or for one year, Head Engineer only.
   const canPrintOverview = ['Admin', 'Head Engineer'].includes(userRole);
   const maintenanceDate = (record: Maintenance) => (record.status === 'Completed' ? record.completedDate : record.dateStarted) || '';
-  const overviewYears = Array.from(new Set(visibleRecords
-    .map(({ record }) => String(maintenanceDate(record)).slice(0, 4))
+  const overviewYears = Array.from(new Set(maintenanceRecords
+    .map(record => String(maintenanceDate(record)).slice(0, 4))
     .filter(year => /^\d{4}$/.test(year)))).sort();
   const printOverview = (year: string) => {
     const sections: PrintSection[] = visibleRecords
@@ -381,16 +385,16 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search..."
               aria-label="Search maintenance records"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
           <div className="flex w-full items-center gap-2 sm:w-auto">
-              <label className="relative flex-1 sm:flex-none">
-                <Calendar aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+              <label className="relative w-[190px] max-w-full shrink-0">
+                <Calendar aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input type="date" aria-label="Filter by maintenance completion date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
                   onChange={event => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterDate(event.currentTarget.value); }}
                   onBlur={event => { if (!event.currentTarget.value) setFilterDate(''); }}
-                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[240px]" />
+                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
               </label>
               {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
             </div>
@@ -702,14 +706,14 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       </Dialog>
 
       <div className="flex flex-wrap items-center justify-between gap-4 py-1">
-        <div role="tablist" aria-label="Maintenance views" className="flex flex-wrap gap-2">
+        <div role="tablist" aria-label="Maintenance views" className="flex flex-wrap items-end gap-2 border-b border-slate-200">
           <button type="button" role="tab" aria-selected={maintenanceView === 'history'} onClick={() => setMaintenanceView('history')}
-            className={`inline-flex items-center gap-3 rounded-xl px-4 py-2 text-2xl font-bold ${maintenanceView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
-            <ClipboardCheck className="h-6 w-6" aria-hidden="true" /> Maintenance History
+            className={`inline-flex items-center gap-2 rounded-t-2xl px-6 py-4 font-semibold transition-colors ${maintenanceView === 'history' ? 'border-b-2 border-blue-600 bg-white text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}>
+            <ClipboardCheck className="h-5 w-5" aria-hidden="true" /> Maintenance History
           </button>
           <button type="button" role="tab" aria-selected={maintenanceView === 'overview'} onClick={() => setMaintenanceView('overview')}
-            className={`inline-flex items-center gap-3 rounded-xl px-4 py-2 text-2xl font-bold ${maintenanceView === 'overview' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
-            <Table2 className="h-6 w-6" aria-hidden="true" /> Overview
+            className={`inline-flex items-center gap-2 rounded-t-2xl px-6 py-4 font-semibold transition-colors ${maintenanceView === 'overview' ? 'border-b-2 border-blue-600 bg-white text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}>
+            <Table2 className="h-5 w-5" aria-hidden="true" /> Overview
           </button>
         </div>
         <span className="text-sm text-slate-500">{visibleRecords.length} records listed</span>
@@ -731,7 +735,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                 return <tr key={record.id} tabIndex={0} aria-label={`View maintenance details for ${name}`} onClick={() => openMaintenanceDetails(record, referenceId)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openMaintenanceDetails(record, referenceId); } }} className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50">
                   <td className="px-6 py-4 font-medium text-blue-700">{name}</td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{(record.status === 'Completed' ? record.completedDate : record.dateStarted) || ''}</td>
-                  <td className="px-6 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[record.status]}`}>{record.status}</span></td>
+                  <td className="px-6 py-4"><span className={`inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[record.status]}`}>{record.status}</span></td>
                   <td className="whitespace-pre-wrap px-6 py-4 text-sm text-slate-600">{record.remarks || ''}</td>
                 </tr>;
               })}

@@ -325,8 +325,9 @@ test('task 14: the inspection overview prints every record, or a single year', a
   const print = () => container.querySelector('button[aria-label="Print inspection overview"]');
   await act(async () => print().click());
   let sections = printedDocuments.at(-1).sections;
-  // the pending follow-up has nothing recorded yet, so it is not printed
-  assert.deepEqual(sections.map(section => section.title).sort(), ['Anilao Road', 'Poblacion Road']);
+  // Printing includes all visible rows; pending findings stay blank.
+  assert.deepEqual(sections.map(section => section.title).sort(), ['Anilao Road', 'Bagalangit Road', 'Poblacion Road']);
+  assert.equal(sections.find(section => section.title === 'Bagalangit Road').fields[2].value, '');
   assert.deepEqual(sections[0].fields.map(field => field.label), ['Date of Inspection', 'Amount Contracted', 'Findings / Remarks']);
 
   const year = container.querySelector('select[aria-label="Print inspection overview year"]');
@@ -336,6 +337,7 @@ test('task 14: the inspection overview prints every record, or a single year', a
     Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(year, '2026');
     year.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
+  assert.deepEqual([...container.querySelectorAll('[aria-label="Inspection Overview"] tbody tr')].map(row => row.cells[0].textContent), ['Poblacion Road']);
   await act(async () => print().click());
   sections = printedDocuments.at(-1).sections;
   assert.deepEqual(sections.map(section => section.title), ['Poblacion Road']);
@@ -355,4 +357,20 @@ test('inspection search uses the visible history or overview fields', async () =
   await setSearch('Poblacion Road'); assert.match(container.textContent,/1 record listed/);
   await setSearch('Cracked pavement'); assert.match(container.textContent,/1 record listed/);
   act(()=>root.unmount()); container.remove();
+});
+
+test('pending inspection view and print do not expose stale results', async () => {
+  const inspection={...pendingInspection,conditionRating:9,conditionRatings:{Concrete:'Good'},conditionRemarks:{Concrete:'Stale note'},remarks:'Stale note',validationStatus:'Validated'};
+  const {container,root}=renderModule([inspection],'Head Engineer');
+  await act(async()=>container.querySelector('[aria-label^="View full inspection"]').click());
+  const dialog=container.querySelector('.inspection-detail-dialog');
+  const observation=[...dialog.querySelectorAll('p')].find(p=>p.textContent==='Observation Notes');
+  assert.equal(observation.nextElementSibling.textContent.trim(),'');
+  for(const label of ['Condition','Follow-up Status']) {
+    const el=[...dialog.querySelectorAll('span')].find(e=>e.textContent===label);
+    assert.equal(el.nextElementSibling.textContent,'Pending');
+  }
+  await act(async()=>[...dialog.querySelectorAll('button')].find(b=>b.textContent.includes('Print')).click());
+  assert.equal(printedDocuments.at(-1).sections.find(section=>section.title==='Inspection Findings').fields[0].value,'');
+  act(()=>root.unmount());container.remove();
 });

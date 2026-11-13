@@ -927,3 +927,21 @@ test('maintenance filters follow visible dates and fields in history and overvie
   await setInput(search,'Anilao East'); assert.match(container.textContent,/0 records listed/);
   await reset();
 });
+
+test('maintenance overview year and search filters constrain both table and print', async () => {
+  const printed=[]; const Dummy=({children})=>React.createElement(React.Fragment,null,children);const ui=new Proxy({}, {get:()=>Dummy});
+  const {MaintenanceModule}=loadTs('src/app/components/MaintenanceModule.tsx',{'@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),'@/lib/project-form-validation':validation,'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':{PrintDocument:props=>{printed.push(props);return null;}},'@/lib/activity-log-client':{recordClientActivity:async()=>{}}});
+  const records=[{id:'a',localRoadId:'a',localRoadName:'Alpha',dateStarted:'2025-01-01',status:'In Progress',remarks:'Alpha note'},{id:'b',localRoadId:'b',localRoadName:'Beta',dateStarted:'2026-01-01',status:'In Progress',remarks:'Beta note'}];
+  await reset();await act(async()=>root.render(React.createElement(MaintenanceModule,{maintenanceRecords:records,localRoadList:[],inspections:[],userRole:'Head Engineer',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}})));
+  await act(async()=>[...container.querySelectorAll('[role=tab]')].find(e=>e.textContent.includes('Overview')).click());
+  const year=container.querySelector('[aria-label="Print maintenance overview year"]');
+  await act(async()=>{year.value='2026';year.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  assert.deepEqual([...container.querySelectorAll('tbody tr')].map(row=>row.cells[0].textContent),['Beta']);
+  assert.ok(container.querySelector('tbody tr td:nth-child(3) span').className.includes('whitespace-nowrap'));
+  await act(async()=>container.querySelector('[aria-label="Print maintenance overview"]').click());
+  assert.deepEqual(printed.at(-1).sections.map(section=>section.title),['Beta']);
+  const search=container.querySelector('input[type=search]');
+  await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(search,'Alpha');search.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  assert.match(container.textContent,/0 records listed/);
+  await reset();
+});

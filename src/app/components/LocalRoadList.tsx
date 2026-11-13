@@ -549,14 +549,14 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               aria-label="Search by name or location"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
           {usesDateFilter ? (
             <div className="flex w-full items-center gap-2 sm:w-auto">
-              <label className="relative flex-1 sm:flex-none">
+              <label className="relative w-[190px] max-w-full shrink-0">
                 <span className="sr-only">Filter by project completion date</span>
-                <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+                <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input
                   type="date"
                   aria-label={validationMode ? 'Filter validation by date' : 'Filter by project completion date'}
@@ -565,7 +565,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                   max="9999-12-31"
                   onChange={(event) => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterCompletionDate(event.currentTarget.value); }}
                   onBlur={(event) => { if (!event.currentTarget.value) setFilterCompletionDate(''); }}
-                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[240px]"
+                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]"
                 />
               </label>
               {filterCompletionDate && (
@@ -600,7 +600,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
 
         {validationMode ? (
           <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full border-separate border-spacing-0">
+            <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0">
+              <colgroup><col style={{width: 240}} /><col /><col style={{width: 160}} /><col /><col /><col /></colgroup>
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Project Name</th>
@@ -637,7 +638,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     }}
                     className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400"
                   >
-                    <td className="whitespace-nowrap px-6 py-4">
+                    <td className="break-words px-6 py-4">
                       {/* @mine — task 16: the validation table names the project, not the road. */}
                       <span className="font-medium text-[#0ea5e9]">
                         {item.projectName || item.name || item.roadName || 'N/A'}
@@ -652,7 +653,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         {status}{task?.year ? ` · Annual ${task.year}` : ''}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4">
+                    <td className="break-words px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <MapPin className="h-4 w-4" />
                         <span>{item.barangay || 'N/A'}</span>
@@ -675,7 +676,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             {/* @mine — task 11: the Head Engineer sees a table and assigns an inspector per row. */}
             {showsAssignTable ? (
               <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full border-separate border-spacing-0">
+                <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0">
+                  <colgroup><col style={{width: 240}} /><col style={{width: 160}} /><col /><col /><col /><col style={{width: 48}} /></colgroup>
                   <thead className="border-b border-gray-200 bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Project Name</th>

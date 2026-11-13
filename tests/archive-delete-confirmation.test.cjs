@@ -98,6 +98,6 @@ test('activity date filter retains partial input and filters the displayed log d
   await setDate(''); assert.match(document.body.textContent,/Opened record/); // incomplete editing does not reset the selection
   await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Clear').click());
   assert.match(document.body.textContent,/Opened record/); assert.match(document.body.textContent,/Changed record/);
-  assert.equal(document.querySelector('[aria-label="Filter by user"]').value,'All Users');
+  assert.equal(document.querySelector('[aria-label="Filter by user"]').textContent,'All Users');
   testLogs=[];
 });

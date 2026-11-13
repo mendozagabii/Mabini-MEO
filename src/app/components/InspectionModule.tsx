@@ -350,8 +350,11 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
   const datedInspections = filterDate
     ? inspections.filter(inspection => !isPendingInspectionRecord(inspection) && inspection.date === filterDate)
     : inspections;
+  const yearInspections = inspectionView === 'overview' && overviewPrintYear !== 'all'
+    ? datedInspections.filter(inspection => !isPendingInspectionRecord(inspection) && inspection.date?.slice(0, 4) === overviewPrintYear)
+    : datedInspections;
   const originalOrder = new Map(inspections.slice().reverse().map((inspection, index) => [inspection.id, index]));
-  const filteredInspections = latestByProject(datedInspections)
+  const filteredInspections = latestByProject(yearInspections)
     .slice()
     .reverse()
     .map((inspection) => ({
@@ -370,6 +373,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
         .filter(Boolean).join(' ').toLowerCase();
       return matchesFilter && searchableText.includes(searchTerm.trim().toLowerCase());
     });
+
 
   const handleConditionRatingChange = (rowLabel: string, value: string) => {
     setConditionRatings(prev => ({ ...prev, [rowLabel]: value }));
@@ -494,8 +498,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       validationMessages.push('Select a condition rating for every category. Choose N/A when it does not apply.');
     }
     const applicable = conditionAssessmentLabels.filter(label => conditionRatings[label] && conditionRatings[label] !== 'N/A');
-    const missingRemarks = applicable.filter(label => !conditionRemarks[label]?.trim());
-    const missingAttachments = applicable.filter(label => !(conditionAttachments[label]?.length));
+    const missingRemarks = applicable.filter(label => conditionRatings[label] !== 'Good' && !conditionRemarks[label]?.trim());
+    const missingAttachments = applicable.filter(label => conditionRatings[label] !== 'Good' && !(conditionAttachments[label]?.length));
     if (!missingConditionRatings.length && !applicable.length) validationMessages.push('Select at least one applicable component to generate inspection findings.');
     if (missingRemarks.length) validationMessages.push(`Remarks are required for: ${missingRemarks.join(', ')}.`);
     if (missingAttachments.length) validationMessages.push(`Attachments are required for: ${missingAttachments.join(', ')}.`);
@@ -622,7 +626,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       },
       {
         title: 'Inspection Findings',
-        fields: [{ label: 'Findings', value: findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks }],
+        fields: [{ label: 'Findings', value: isPendingInspectionRecord(inspection) ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks }],
       },
       {
         title: 'Prepared by',
@@ -636,22 +640,21 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
   // @mine — task 14: the overview is printable as a whole or for one year, Head Engineer only.
   const canPrintOverview = ['Admin', 'Head Engineer'].includes(userRole);
-  const overviewYears = Array.from(new Set(filteredInspections
-    .filter(({ inspection }) => !isPendingInspectionRecord(inspection))
-    .map(({ inspection }) => String(inspection.annualFollowUpYear || (inspection.date || '').slice(0, 4)))
+  const overviewYears = Array.from(new Set(inspections
+    .filter(inspection => !isPendingInspectionRecord(inspection))
+    .map(inspection => (inspection.date || '').slice(0, 4))
     .filter(year => /^\d{4}$/.test(year)))).sort();
   const printOverview = (year: string) => {
     const sections: PrintSection[] = filteredInspections
-      .filter(({ inspection }) => !isPendingInspectionRecord(inspection))
-      .filter(({ inspection }) => year === 'all' || String(inspection.annualFollowUpYear || (inspection.date || '').slice(0, 4)) === year)
+      .filter(({ inspection }) => year === 'all' || (!isPendingInspectionRecord(inspection) && inspection.date?.slice(0, 4) === year))
       .map(({ inspection }) => {
         const road = localRoadList.find(item => item.id === inspection.localRoadId);
         return {
           title: road?.projectName || road?.name || inspection.projectName || inspection.localRoadName || 'Project',
           fields: [
-            { label: 'Date of Inspection', value: inspection.date || '', width: 'half' as const },
+            { label: 'Date of Inspection', value: isPendingInspectionRecord(inspection) ? '' : inspection.date || '', width: 'half' as const },
             { label: 'Amount Contracted', value: road?.contractedAmount ? `Php ${formatSavedProjectCurrency(String(road.contractedAmount))}` : '', width: 'half' as const },
-            { label: 'Findings / Remarks', value: findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || '', width: 'full' as const },
+            { label: 'Findings / Remarks', value: isPendingInspectionRecord(inspection) ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || '', width: 'full' as const },
           ],
         };
       });
@@ -980,7 +983,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                                     htmlFor={`category-remark-${row.key}`}
                                     className="mb-1 block text-sm font-semibold text-gray-700"
                                   >
-                                    Remarks {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
+                                    Remarks {conditionRatings[row.label] && !['N/A', 'Good'].includes(conditionRatings[row.label]) ? '*' : ''}
                                   </label>
                                   <AutoGrowTextarea
                                     id={`category-remark-${row.key}`}
@@ -993,7 +996,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                                 </div>
                                 <div>
                                   <span className="mb-1 block text-sm font-semibold text-gray-700">
-                                    Attachments {conditionRatings[row.label] && conditionRatings[row.label] !== 'N/A' ? '*' : ''}
+                                    Attachments {conditionRatings[row.label] && !['N/A', 'Good'].includes(conditionRatings[row.label]) ? '*' : ''}
                                   </span>
                                   <div className="flex flex-wrap items-center gap-2">
                                     <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 hover:bg-gray-50">
@@ -1116,7 +1119,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             const details = Object.entries(inspection.conditionRatings || {})
               .filter(([, value]) => value !== 'N/A');
             const defects = details.filter(([, value]) => value === 'Fair' || value === 'Poor' || value === 'Bad');
-            const condition = getConditionLabel(inspection);
+            const condition = isPendingInspectionRecord(inspection) ? 'Pending' : getConditionLabel(inspection);
             const road = localRoadList.find((item) => item.id === inspection.localRoadId);
             const projectName = road?.projectName || road?.name || inspection.projectName || inspection.localRoadName;
 
@@ -1164,14 +1167,14 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                         ['Inspection Type', isPendingInspectionRecord(inspection) ? '' : inspection.inspectionType || ''],
                         ['Integrity', `${score}%`],
                         ['Condition', condition],
-                        [inspection.isAnnualFollowUp ? 'Follow-up Status' : 'Validation Status', inspection.validationStatus || 'Pending Validation'],
+                        [inspection.isAnnualFollowUp || inspection.isScheduledAnnualFollowUp ? 'Follow-up Status' : 'Validation Status', isPendingInspectionRecord(inspection) ? 'Pending' : inspection.validationStatus || 'Pending Validation'],
                       ].map(([label, value]) => (
                         <div key={label}><span className="mb-2 block text-sm font-medium text-gray-700">{label}</span><span className="block min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm text-gray-700">{value}</span></div>
                       ))}
                     </div>
                     <p className="mb-2 mt-4 block text-sm font-medium text-gray-700">Observation Notes</p>
                     <p className="min-h-[5rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700">
-                      {findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}
+                      {isPendingInspectionRecord(inspection) ? '' : findingsSummary(inspection.conditionRatings || {}, inspection.conditionRemarks || {}) || inspection.remarks || ''}
                     </p>
                   </section>
                   {(road?.projectDescription || road?.description || inspection.projectDescription || inspection.roadNetworkId || road?.roadNetworkId) && (
@@ -1343,16 +1346,16 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search..."
               aria-label="Search inspections"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
             <div className="flex w-full items-center gap-2 sm:w-auto">
-              <label className="relative flex-1 sm:flex-none">
-                <Calendar aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+              <label className="relative w-[190px] max-w-full shrink-0">
+                <Calendar aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input type="date" aria-label="Filter by inspection date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
                   onChange={event => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterDate(event.currentTarget.value); }}
                   onBlur={event => { if (!event.currentTarget.value) setFilterDate(''); }}
-                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[240px]" />
+                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
               </label>
               {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
             </div>
@@ -1361,9 +1364,9 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
         <section aria-label="Inspection records">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <div role="tablist" aria-label="Inspection views" className="flex flex-wrap gap-2">
-              <button type="button" role="tab" aria-selected={inspectionView === 'history'} onClick={() => setInspectionView('history')} className={`inline-flex items-center gap-3 rounded-xl px-4 py-2 text-2xl font-bold ${inspectionView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}><ClipboardCheck className="h-6 w-6" aria-hidden="true" /> Inspection History</button>
-              <button type="button" role="tab" aria-selected={inspectionView === 'overview'} onClick={() => setInspectionView('overview')} className={`inline-flex items-center gap-3 rounded-xl px-4 py-2 text-2xl font-bold ${inspectionView === 'overview' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}><Table2 className="h-6 w-6" aria-hidden="true" /> Overview</button>
+            <div role="tablist" aria-label="Inspection views" className="flex flex-wrap items-end gap-2 border-b border-slate-200">
+              <button type="button" role="tab" aria-selected={inspectionView === 'history'} onClick={() => setInspectionView('history')} className={`inline-flex items-center gap-2 rounded-t-2xl px-6 py-4 font-semibold transition-colors ${inspectionView === 'history' ? 'border-b-2 border-blue-600 bg-white text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}><ClipboardCheck className="h-5 w-5" aria-hidden="true" /> Inspection History</button>
+              <button type="button" role="tab" aria-selected={inspectionView === 'overview'} onClick={() => setInspectionView('overview')} className={`inline-flex items-center gap-2 rounded-t-2xl px-6 py-4 font-semibold transition-colors ${inspectionView === 'overview' ? 'border-b-2 border-blue-600 bg-white text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}><Table2 className="h-5 w-5" aria-hidden="true" /> Overview</button>
             </div>
             <span className="text-sm text-slate-500">{filteredInspections.length} {filteredInspections.length === 1 ? 'record' : 'records'} listed</span>
           </div>

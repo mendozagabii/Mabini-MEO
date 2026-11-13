@@ -210,7 +210,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       attachments: value.attachments.map(file => file.name),
     }, (_key, value) => typeof value === 'string' ? value.trim() : value);
     if (returned && normalizeForm(formData) === normalizeForm(getInitialFormData(item))) {
-      setAttachmentNotice('Change at least one project detail before returning this project to the validator.');
+      setAttachmentNotice('Update the project information.');
       return;
     }
     if (submittingRef.current) return;
