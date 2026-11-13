@@ -538,8 +538,8 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     projectId = data.id as string;
   }
 
-  // @mine — task 12: the coverage locations are replaced as a set on every save, so a
-  // removed line really disappears. Best-effort like the attachments below: the project
+  // Update supplied coverage lines before removing extras, so a failed write does not
+  // erase all previously stored locations. Best-effort like the attachments below: the project
   // itself is already committed, so a failure here warns instead of failing the save.
   let attachmentWarning = '';
   // Only a caller that actually sent the list may replace it — a partial update (a
@@ -547,14 +547,15 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
   if (Array.isArray(rec.locations)) {
     const locations = (rec.locations as unknown[]).map((label) => String(label ?? '').trim()).filter(Boolean).slice(0, 5);
     try {
-      const { error: clearError } = await db.from('project_locations').delete().eq('project_id', projectId);
-      if (clearError) throw clearError;
       if (locations.length) {
-        const { error: insertError } = await db.from('project_locations').insert(
+        const { error: upsertError } = await db.from('project_locations').upsert(
           locations.map((label, index) => ({ project_id: projectId, position: index + 1, label })),
+          { onConflict: 'project_id,position' },
         );
-        if (insertError) throw insertError;
+        if (upsertError) throw upsertError;
       }
+      const { error: clearError } = await db.from('project_locations').delete().eq('project_id', projectId).gt('position', locations.length);
+      if (clearError) throw clearError;
     } catch (error) {
       console.error('Project saved but its locations could not be stored.', error);
       attachmentWarning = 'The project was saved, but its locations could not be updated. Please edit the project and try again.';

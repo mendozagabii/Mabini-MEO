@@ -44,6 +44,11 @@ test('required components have remarks and files except N/A; findings summarize 
   assert.equal(findingsSummary(ratings, remarks), 'Cracks near the bridge.');
   assert.equal(validateAssessment(ratings, {}, files), false);
   assert.equal(validateAssessment(ratings, remarks, {}), false);
+  ratings.Concrete = 'Good';
+  assert.equal(validateAssessment(ratings, {}, {}), true);
+  ratings.Asphalt = 'Poor';
+  assert.equal(validateAssessment(ratings, {}, {}), false);
+  ratings.Concrete = 'Fair';
   const long = findingsSummary(ratings, {Concrete:'x'.repeat(300)});
   assert.ok(long.length <= 320);
 });

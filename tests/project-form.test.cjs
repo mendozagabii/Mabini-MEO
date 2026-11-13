@@ -576,6 +576,7 @@ test('maintenance overview and history use the same live records for encoder and
     assert.ok(container.querySelector('[aria-label="View maintenance details for Road"]'));
     await act(async () => [...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
     const table = container.querySelector('table');
+    assert.equal(table.querySelector('col').style.width,'33%'); assert.ok(table.className.includes('table-fixed'));
     assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Maintenance Date','Status','Remarks']);
     // task 14: the print controls sit in the header, beside Remarks, for the Head Engineer only
     if (role === 'Head Engineer') {
@@ -587,6 +588,7 @@ test('maintenance overview and history use the same live records for encoder and
       assert.equal(container.querySelector('button[aria-label="Print maintenance overview"]'), null);
     }
     assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Road','','Scheduled','Initial remark']);
+    assert.equal(table.querySelector('tbody tr td:last-child').colSpan, role === 'Head Engineer' ? 2 : 1);
     assert.match(table.textContent,/Road/); assert.match(table.textContent,/Scheduled/); assert.match(table.textContent,/Initial remark/);
     for (const status of ['Scheduled','In Progress','Deferred','Completed']) {
       await act(async () => root.render(React.createElement(MaintenanceModule, {...props,maintenanceRecords:[{...record,status,dateStarted:'2026-02-02',completedDate:'2026-03-03',remarks:'Updated remark'}]})));
@@ -683,13 +685,13 @@ test('the validation table names the project and lists show the barangay', async
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, validationMode: true, userRole: 'Staff - Validator' })));
   assert.match(container.textContent, /Project Name/);       // task 16 — column header
   assert.match(container.textContent, /Poblacion Road Project/); // task 16 — the project name
-  assert.match(container.textContent, /Anilao East/);        // task 15 — the barangay
-  assert.doesNotMatch(container.textContent, /Typewritten location/); // never the free-text location
+  assert.match(container.querySelector('tbody').textContent, /Anilao East/);
+  assert.doesNotMatch(container.querySelector('tbody').textContent, /Typewritten location/);
 
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Staff - Encoder' })));
-  assert.match(container.textContent, /Anilao East/);        // task 15 — the project list too
-  assert.doesNotMatch(container.textContent, /Typewritten location/);
+  assert.match(container.querySelector('article').textContent, /Anilao East/);
+  assert.doesNotMatch(container.querySelector('article').textContent, /Typewritten location/);
   await reset();
 });
 
@@ -740,11 +742,12 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   for (const header of ['Project Name', 'Location', 'Contract Amount', 'Completion Date', 'Inspector']) {
     assert.match(container.textContent, new RegExp(header), header);
   }
+  assert.deepEqual([...container.querySelectorAll('colgroup col')].map(col=>col.style.width), ['300px','160px','165px','155px','200px','48px']);
   assert.match(container.textContent, /Php 1,250,000\.00/);
   assert.match(container.textContent, /2025-03-31/);
   const select = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
   assert.ok(select);
-  assert.match(select.textContent, /Not assigned/);
+  assert.match(select.textContent, /Not Assigned/);
   assert.match(select.textContent, /Juan Dela Cruz/);
   assert.equal(container.querySelector('[aria-label="Delete Poblacion Road"]') !== null, true);
   assert.equal(select.disabled, false);
@@ -756,7 +759,7 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   const pendingSelect = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
   assert.ok(pendingSelect);
   assert.equal(pendingSelect.disabled, true);
-  assert.match(pendingSelect.textContent, /Awaiting validation/);
+  assert.match(pendingSelect.textContent, /Awaiting Validation/);
 
   // task 13: both project lists filter by completion date instead of location
   for (const userRole of ['Head Engineer', 'Staff - Encoder']) {
@@ -764,10 +767,10 @@ test('task 11: the Head Engineer project table carries the five columns and an i
     await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole })));
     assert.ok(container.querySelector('input[aria-label="Filter by project completion date"]'), userRole);
   }
-  // the validator keeps the existing list, which has no completion-date filter
+  // validation uses its listed date-built value
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Staff - Validator', validationMode: true })));
-  assert.equal(container.querySelector('input[aria-label="Filter by project completion date"]'), null);
+  assert.ok(container.querySelector('input[aria-label="Filter validation by date"]'));
   await reset();
 });
 
@@ -775,12 +778,19 @@ test('task 12: a project records up to five free-text coverage locations', async
   let saved;
   await reset(); await render(value => { saved = value; });
   assert.ok(field('Location'));
+  assert.equal(field('Location').placeholder, '');
+  assert.doesNotMatch(container.textContent, /One line per location/);
   assert.equal(field('Location 2'), null);
+  assert.equal(field('Road Name').tagName, 'TEXTAREA');
+  assert.equal(field('Road Name').readOnly, true);
+  assert.equal(field('Road Network ID No.').tagName, 'TEXTAREA');
+  assert.equal(field('Road Name').parentElement.previousElementSibling.querySelector('[data-field]').dataset.field, 'Road Network ID No.');
   const addButton = () => [...container.querySelectorAll('button')].find(button => /Add location|Five locations/.test(button.textContent));
   assert.equal(addButton().textContent, 'Add location');
   for (let index = 2; index <= 5; index += 1) {
     await act(async () => addButton().click());
     assert.ok(field(`Location ${index}`), `expected line ${index}`);
+    assert.equal(field(`Location ${index}`).placeholder, '');
   }
   assert.equal(container.querySelectorAll('input[data-field^="Location"]').length, 5);
   assert.equal(addButton().disabled, true);
@@ -790,18 +800,30 @@ test('task 12: a project records up to five free-text coverage locations', async
   await fill(); await file();
   await change('Location', '  Sitio Dao, Anilao East, Mabini, Batangas  ');
   await change('Location 2', 'Sitio Balibago');
+  assert.equal(field('Road Name').value, '  Sitio Dao, Anilao East, Mabini, Batangas  \nSitio Balibago');
   await change('Location 3', '   ');
   await submit();
-  // blanks and padding are dropped, and the legacy single value keeps the first line
+  // Blank lines and surrounding padding are dropped, while both full locations are retained.
   assert.deepEqual(saved.locations, ['Sitio Dao, Anilao East, Mabini, Batangas', 'Sitio Balibago']);
-  assert.equal(saved.location, 'Sitio Dao, Anilao East, Mabini, Batangas');
+  assert.equal(saved.location, 'Sitio Dao, Anilao East, Mabini, Batangas\nSitio Balibago');
+  assert.equal(saved.roadName, saved.location);
 
   // editing a saved project shows every stored line, one per input
   await reset();
-  await render(() => {}, { item: { id: 'p1', name: 'Road', projectName: 'Road', location: 'Sitio Dao',
+  let edited;
+  await render(value => { edited = value; }, { item: { id: 'p1', name: 'Road', projectName: 'Road', location: 'Sitio Dao',
     locations: ['Sitio Dao', 'Anilao East, Mabini, Batangas'], dateBuilt: '2020-01-01', condition: 'Good' }, editId: 'p1' });
   assert.equal(field('Location').value, 'Sitio Dao');
   assert.equal(field('Location 2').value, 'Anilao East, Mabini, Batangas');
+  assert.equal(field('Road Name').value, 'Sitio Dao\nAnilao East, Mabini, Batangas');
+  await fill();
+  await change('Location', 'Sitio Grahe, Anilao East');
+  await change('Location 2', 'Sitio Dao, Anilao East');
+  assert.equal(field('Road Name').value, 'Sitio Grahe, Anilao East\nSitio Dao, Anilao East');
+  await file(); await submit();
+  assert.deepEqual(edited.locations, ['Sitio Grahe, Anilao East', 'Sitio Dao, Anilao East']);
+  assert.equal(edited.location, 'Sitio Grahe, Anilao East\nSitio Dao, Anilao East');
+  assert.equal(edited.roadName, edited.location);
   await reset();
 });
 
@@ -823,6 +845,7 @@ test('task 12: the project detail shows one box with a line per location', async
 
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
+  assert.match(container.querySelector('article').textContent, /Anilao East/);
   await act(async () => container.querySelector('[aria-label="View details for Coastal Road"]').click());
 
   const box = container.querySelector('[data-field="Location"]');
@@ -860,4 +883,91 @@ test('task 12: the server rejects more than five locations or an overlong line',
   assert.match(validation.projectLocationsError(['1', '2', '3', '4', '5', '6']), /at most 5 locations/);
   assert.match(validation.projectLocationsError(['x'.repeat(501)]), /500 characters or fewer/);
   assert.equal(validation.projectLocationsError(['x'.repeat(500)]), null);
+});
+
+test('project and validation search and date filters match the fields shown in each list', async () => {
+  const Dummy = ({children}) => React.createElement(React.Fragment,null,children);
+  const ui = new Proxy({}, {get:()=>Dummy});
+  const {LocalRoadList} = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,
+    '@/lib/activity-log-client':{recordClientActivity:async()=>{}},'@/lib/project-validation-workflow':loadTs('src/lib/project-validation-workflow.ts'),'@/lib/project-form-validation':validation,
+  });
+  const item={id:'p',name:'Hidden road',projectName:'Visible Project',location:'Hidden sitio',barangay:'Anilao East',dateBuilt:'2024-01-05',actualCompletionDate:'2024-09-10',contractedAmount:'1234',condition:'Good',lastInspection:'2025-01-01',annualValidationEntries:[{year:2025,dueDate:'2025-08-11',result:'Pending',remarks:''}]};
+  const props={data:[item],currentUser:'User',onAdd(){},onEdit(){},onDelete(){}};
+  const setInput=async(el,value)=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  for (const [role,validationMode,dateLabel,visibleDate,otherDate] of [
+    ['Staff - Encoder',false,'Filter by project completion date','2024-01-05','2024-09-10'],
+    ['Head Engineer',false,'Filter by project completion date','2024-09-10','2024-01-05'],
+    ['Staff - Validator',true,'Filter validation by date','2024-01-05','2024-09-10'],
+  ]) {
+    await reset(); await act(async()=>root.render(React.createElement(LocalRoadList,{...props,userRole:role,validationMode})));
+    const date=container.querySelector(`[aria-label="${dateLabel}"]`), search=container.querySelector('input[type=search]');
+    assert.ok(date); assert.equal(search.placeholder,'Search...');
+    await setInput(date,otherDate); assert.match(container.textContent,/0 records listed/);
+    await setInput(date,visibleDate); assert.match(container.textContent,/1 records listed/);
+    await setInput(search,'Anilao East'); assert.match(container.textContent,/1 records listed/);
+    await setInput(search,'Hidden sitio'); assert.match(container.textContent,/0 records listed/);
+    await setInput(search,'Visible Project'); assert.match(container.textContent,/1 records listed/);
+  }
+  await reset();
+});
+
+test('maintenance filters follow visible dates and fields in history and overview', async () => {
+  const Dummy=({children})=>React.createElement(React.Fragment,null,children); const ui=new Proxy({}, {get:()=>Dummy});
+  const {MaintenanceModule}=loadTs('src/app/components/MaintenanceModule.tsx',{'@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),'@/lib/project-form-validation':validation,'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}}});
+  const props={maintenanceRecords:[{id:'m',localRoadId:'p',localRoadName:'Old Road',inspectionId:'i',type:'Routine',scheduledDate:'2026-04-01',dateStarted:'2026-03-01',status:'In Progress',cost:0,description:'Hidden activities',remarks:'Visible overview remark'}],localRoadList:[{id:'p',name:'Road',projectName:'Visible Project',location:'Hidden sitio',barangay:'Anilao East'}],inspections:[{id:'i',localRoadId:'p',date:'2026-02-01'}],onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){},userRole:'Staff - Encoder',currentUser:'User'};
+  await reset(); await act(async()=>root.render(React.createElement(MaintenanceModule,props)));
+  const date=container.querySelector('[aria-label="Filter by maintenance completion date"]'),search=container.querySelector('input[type=search]');
+  const setInput=async(el,value)=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  await setInput(date,'2026-03-01'); assert.match(container.textContent,/0 records listed/);
+  await setInput(date,'2026-02-01'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'Anilao East'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'Hidden activities'); assert.match(container.textContent,/0 records listed/);
+  await setInput(search,''); await act(async()=>[...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
+  assert.match(container.textContent,/0 records listed/);
+  await setInput(date,'2026-03-01'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'overview remark'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'Anilao East'); assert.match(container.textContent,/0 records listed/);
+  await reset();
+});
+
+test('maintenance overview year and search filters constrain both table and print', async () => {
+  const printed=[]; const Dummy=({children})=>React.createElement(React.Fragment,null,children);const ui=new Proxy({}, {get:()=>Dummy});
+  const {MaintenanceModule}=loadTs('src/app/components/MaintenanceModule.tsx',{'@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),'@/lib/project-form-validation':validation,'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':{PrintDocument:props=>{printed.push(props);return null;}},'@/lib/activity-log-client':{recordClientActivity:async()=>{}}});
+  const records=[{id:'a',localRoadId:'a',localRoadName:'Alpha',dateStarted:'2025-01-01',status:'In Progress',remarks:'Alpha note'},{id:'b',localRoadId:'b',localRoadName:'Beta',dateStarted:'2026-01-01',status:'In Progress',remarks:'Beta note'}];
+  await reset();await act(async()=>root.render(React.createElement(MaintenanceModule,{maintenanceRecords:records,localRoadList:[],inspections:[],userRole:'Head Engineer',currentUser:'User',onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){}})));
+  await act(async()=>[...container.querySelectorAll('[role=tab]')].find(e=>e.textContent.includes('Overview')).click());
+  const year=container.querySelector('[aria-label="Print maintenance overview year"]');
+  await act(async()=>{year.value='2026';year.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  assert.deepEqual([...container.querySelectorAll('tbody tr')].map(row=>row.cells[0].textContent),['Beta']);
+  assert.ok(container.querySelector('tbody tr td:nth-child(3) span').className.includes('whitespace-nowrap'));
+  await act(async()=>container.querySelector('[aria-label="Print maintenance overview"]').click());
+  assert.deepEqual(printed.at(-1).sections.map(section=>section.title),['Beta']);
+  const search=container.querySelector('input[type=search]');
+  await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(search,'Alpha');search.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  assert.match(container.textContent,/0 records listed/);
+  await reset();
+});
+
+
+test('returned validation status shows the year in the badge and a bold header', async () => {
+  const Dummy=({children})=>React.createElement(React.Fragment,null,children);const ui=new Proxy({}, {get:()=>Dummy});
+  const {LocalRoadList}=loadTs('src/app/components/LocalRoadList.tsx',{'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}},'@/lib/project-validation-workflow':loadTs('src/lib/project-validation-workflow.ts'),'@/lib/project-form-validation':validation});
+  const item={id:'p',name:'Road',actualCompletionDate:'2020-01-01',annualValidationEntries:[{year:2021,dueDate:'2020-12-01',result:'Return for Revision',remarks:'Fix details'}]};
+  await reset();await act(async()=>root.render(React.createElement(LocalRoadList,{data:[item],validationMode:true,userRole:'Staff - Validator',currentUser:'User',onAdd(){},onEdit(){},onDelete(){}})));
+  const header=[...container.querySelectorAll('th')].find(th=>th.textContent==='Validation Status');assert.ok(header.className.includes('font-bold'));
+  const table=container.querySelector('table');assert.equal(table.querySelectorAll('col')[1].style.width,'290px');assert.ok(table.className.includes('min-w-[1100px]'));
+  const cell=container.querySelector('tbody tr').cells[1];assert.equal(cell.children.length,1);assert.equal(cell.children[0].textContent.trim(),'Return for Revision · Annual 2021');assert.ok(cell.children[0].className.includes('rounded-full'));
+  await reset();
+});
+
+test('AI recommendations render project data in a prioritized table', async () => {
+  const {AIPredictionModule}=loadTs('src/app/components/AIPredictionModule.tsx');
+  const roads=[{id:'a',name:'Road A',projectName:'Project Alpha',projectCategory:'Local Road'}, {id:'b',name:'Road B',projectName:'Project Beta',projectCategory:'Bridge'}];
+  const inspections=roads.map(r=>({localRoadId:r.id,date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}));
+  const predictions=roads.map((r,i)=>({localRoadId:r.id,localRoadName:r.name,type:'Wrong category',condition:'Fair',priorityScore:i+1,justification:'Cracks',recommendation:'Repair'}));
+  await reset();await act(async()=>root.render(React.createElement(AIPredictionModule,{localRoadData:roads,inspections,predictions,onPredictionsChange(){}})));
+  assert.deepEqual([...container.querySelectorAll('th')].map(x=>x.textContent),['Project Name','Category','Condition','AI Justification','Recommended Maintenance Activity']);
+  const rows=[...container.querySelectorAll('tbody tr')];assert.equal(rows.length,2);assert.deepEqual([...rows[0].cells].map(x=>x.textContent),['Project Beta','Bridge','Fair','Cracks','Repair']);
+  await reset();
 });

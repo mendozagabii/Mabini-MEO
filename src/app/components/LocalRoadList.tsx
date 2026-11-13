@@ -88,8 +88,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   const [filterLocation, setFilterLocation] = useState('All');
   // @mine — task 13: project management filters by completion date, not by location.
   const [filterCompletionDate, setFilterCompletionDate] = useState('');
+  const filterDateRef = useRef<HTMLInputElement>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
-  const usesDateFilter = !validationMode && ['Staff - Encoder', 'Head Engineer'].includes(userRole);
+  const usesDateFilter = validationMode || ['Staff - Encoder', 'Head Engineer', 'Admin'].includes(userRole);
   const showsAssignTable = !validationMode && userRole === 'Head Engineer';
   const [selectedSnapshot, setSelectedItem] = useState<LocalRoad | null>(null);
   const selectedItem = selectedSnapshot ? data.find(item => item.id === selectedSnapshot.id) ?? selectedSnapshot : null;
@@ -171,10 +172,16 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
   };
 
   const filteredData = data.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const completion = item.actualCompletionDate || item.completionDate || '';
-    const matchesDate = !usesDateFilter || !filterCompletionDate || completion === filterCompletionDate;
+    const query = searchTerm.trim().toLowerCase();
+    const date = showsAssignTable ? (item.actualCompletionDate || item.completionDate || '') : (item.dateBuilt || '');
+    const task = validationTask(item);
+    const searchValues = validationMode
+      ? [item.projectName || item.name, task?.result || 'Pending', task?.year ? `Annual ${task.year}` : '', item.barangay || 'N/A', item.dateBuilt, item.condition, item.lastInspection || 'N/A']
+      : showsAssignTable
+      ? [item.projectName || item.name, item.barangay || 'N/A', item.contractedAmount && `Php ${formatSavedProjectCurrency(item.contractedAmount)}`, date, inspectors.find(person => person.id === item.inspectorId)?.name || (hasPassedValidation(item) ? 'Not Assigned' : 'Awaiting Validation')]
+      : [item.projectName || item.name, item.barangay || 'Location not set', item.dateBuilt || 'Not set', item.lastInspection || 'Not recorded', latestValidation(item).result === 'Return for Revision' ? 'For Revision' : ''];
+    const matchesSearch = searchValues.some(value => String(value ?? '').toLowerCase().includes(query));
+    const matchesDate = !usesDateFilter || !filterCompletionDate || date === filterCompletionDate;
     const matchesLocation = usesDateFilter || filterLocation === 'All' || (item.barangay || item.location) === filterLocation;
     const isEligibleForValidation = !validationMode || validationTask(item) !== null;
     return matchesSearch && matchesLocation && matchesDate && isEligibleForValidation;
@@ -538,30 +545,31 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
-              placeholder="Search by name or location..."
+              placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               aria-label="Search by name or location"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
           {usesDateFilter ? (
             <div className="flex w-full items-center gap-2 sm:w-auto">
-              <label className="relative flex-1 sm:flex-none">
+              <label className="relative w-[190px] max-w-full shrink-0">
                 <span className="sr-only">Filter by project completion date</span>
-                <CalendarDays aria-hidden="true" className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+                <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input
                   type="date"
-                  aria-label="Filter by project completion date"
+                  aria-label={validationMode ? 'Filter validation by date' : 'Filter by project completion date'}
+                  ref={filterDateRef}
                   min="1000-01-01"
                   max="9999-12-31"
-                  value={filterCompletionDate}
-                  onChange={(event) => setFilterCompletionDate(event.target.value)}
-                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[240px]"
+                  onChange={(event) => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterCompletionDate(event.currentTarget.value); }}
+                  onBlur={(event) => { if (!event.currentTarget.value) setFilterCompletionDate(''); }}
+                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]"
                 />
               </label>
               {filterCompletionDate && (
-                <button type="button" onClick={() => setFilterCompletionDate('')} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>
+                <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterCompletionDate(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>
               )}
             </div>
           ) : (
@@ -586,26 +594,22 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             <ClipboardCheck className="h-6 w-6 text-blue-600" />
             {validationMode ? 'Validation History' : 'Local Road Projects'}
           </h2>
-          {validationMode && (
-            <p className="mt-1 pl-9 text-sm text-slate-500">
-              Click any project row to review and submit its validation.
-            </p>
-          )}
         </div>
         <span className="text-sm text-slate-500">{filteredData.length} records listed</span>
       </div>
 
         {validationMode ? (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full">
+          <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[1100px] table-fixed border-separate border-spacing-0">
+              <colgroup><col style={{width: 240}} /><col style={{width: 290}} /><col style={{width: 160}} /><col style={{width: 130}} /><col style={{width: 120}} /><col style={{width: 160}} /></colgroup>
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Project Name</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Validation Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Date Built</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Last Inspection</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Project Name</th>
+                  <th className="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider text-gray-500">Validation Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Date Built</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Condition</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Last Inspection</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
@@ -634,7 +638,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     }}
                     className="cursor-pointer hover:bg-blue-50/60 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400"
                   >
-                    <td className="whitespace-nowrap px-6 py-4">
+                    <td className="break-words px-6 py-4">
                       {/* @mine — task 16: the validation table names the project, not the road. */}
                       <span className="font-medium text-[#0ea5e9]">
                         {item.projectName || item.name || item.roadName || 'N/A'}
@@ -649,11 +653,10 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         {status}{task?.year ? ` · Annual ${task.year}` : ''}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4">
+                    <td className="break-words px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <MapPin className="h-4 w-4" />
-                        {/* @mine — task 15: lists show the barangay under road information. */}
-                        {item.barangay || item.location || 'N/A'}
+                        <span>{item.barangay || 'N/A'}</span>
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{item.dateBuilt}</td>
@@ -672,15 +675,16 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           <>
             {/* @mine — task 11: the Head Engineer sees a table and assigns an inspector per row. */}
             {showsAssignTable ? (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full">
+              <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <table className="w-full min-w-[1028px] table-fixed border-separate border-spacing-0">
+                  <colgroup><col style={{width: 300}} /><col style={{width: 160}} /><col style={{width: 165}} /><col style={{width: 155}} /><col style={{width: 200}} /><col style={{width: 48}} /></colgroup>
                   <thead className="border-b border-gray-200 bg-gray-50">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Project Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Location</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Contract Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Completion Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Inspector</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Project Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Location</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Contract Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Completion Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Inspector</th>
                       <th className="px-2 py-3"><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
@@ -702,7 +706,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         <td className="px-6 py-4">
                           <span className="font-medium text-[#0ea5e9]">{item.projectName || item.name || 'N/A'}</span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{item.barangay || item.location || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{item.barangay || 'N/A'}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                           {item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : 'N/A'}
                         </td>
@@ -722,9 +726,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                               try { await onAssignInspector(item.id, event.target.value); }
                               finally { setAssigningId(null); }
                             }}
-                            className="min-h-[38px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
+                            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700 disabled:bg-gray-100"
                           >
-                            <option value="">{hasPassedValidation(item) ? 'Not assigned' : 'Awaiting validation'}</option>
+                            <option value="">{hasPassedValidation(item) ? 'Not Assigned' : 'Awaiting Validation'}</option>
                             {inspectors.map(inspector => (
                               <option key={inspector.id} value={inspector.id}>{inspector.name}</option>
                             ))}
@@ -754,7 +758,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               {filteredData.map((item, index) => (
-                  <article key={item.id} className="road-project-card group flex h-[150px] flex-col rounded-[22px] border border-slate-200 bg-white p-3 text-slate-800 shadow-sm transition hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(96,165,250,0.22),0_10px_25px_rgba(30,64,175,0.12)]">
+                  <article key={item.id} className="road-project-card group flex min-h-[150px] flex-col rounded-[22px] border border-slate-200 bg-white p-3 text-slate-800 shadow-sm transition hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(96,165,250,0.22),0_10px_25px_rgba(30,64,175,0.12)]">
                     <button
                       onClick={() => setSelectedItem(item)}
                       className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
@@ -769,10 +773,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         <p className="truncate text-base font-bold text-slate-800" title={item.projectName || item.name}>{item.projectName || item.name || 'N/A'}</p>
                       </div>
                       <div>
-                        <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-600">
+                        <p className="mt-0.5 flex items-start gap-1.5 text-sm text-slate-600">
                           <MapPin className="h-4 w-4 shrink-0" />
-                          {/* @mine — task 15: the list shows the barangay. */}
-                          {item.barangay || item.location || 'Location not set'}
+                          <span>{item.barangay || 'Location not set'}</span>
                         </p>
                       </div>
                     </div>

@@ -112,7 +112,7 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   noOfExtensions: road?.noOfExtensions || '',
   actualCompletionDate: road?.actualCompletionDate || '',
   roadNetworkId: road?.roadNetworkId || '',
-  roadName: road?.roadName || road?.name || '',
+  roadName: (road?.locations?.length ? road.locations : [road?.location || '']).filter(Boolean).join('\n'),
   barangay: road?.barangay || '',
   components: road?.components || '',
   description: road?.description || '',
@@ -166,22 +166,12 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     setActiveFormTab('project');
   }, [editId]);
 
-  // Auto-update roadName when the first coverage location changes
-  // @mine — task 12: "Location" is now up to five lines, so the road name follows the first.
-  const primaryLocation = formData.locations[0] ?? '';
-  useEffect(() => {
-    if (item) return;
-    setFormData(prev => ({
-      ...prev,
-      roadName: prev.locations[0] ?? '',
-    }));
-  }, [primaryLocation, item]);
-
   // @mine — task 12: the five coverage lines are edited in place; blanks are dropped on save.
   const setLocationLine = (index: number, value: string) =>
     setFormData(prev => ({
       ...prev,
       locations: prev.locations.map((line, position) => (position === index ? value : line)),
+      roadName: prev.locations.map((line, position) => (position === index ? value : line)).filter(line => line.trim()).join('\n'),
     }));
   const addLocationLine = () =>
     setFormData(prev => (prev.locations.length >= 5 ? prev : { ...prev, locations: [...prev.locations, ''] }));
@@ -220,7 +210,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       attachments: value.attachments.map(file => file.name),
     }, (_key, value) => typeof value === 'string' ? value.trim() : value);
     if (returned && normalizeForm(formData) === normalizeForm(getInitialFormData(item))) {
-      setAttachmentNotice('Change at least one project detail before returning this project to the validator.');
+      setAttachmentNotice('Update the project information.');
       return;
     }
     if (submittingRef.current) return;
@@ -255,8 +245,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       const localRoadData = {
         name: formData.projectName,
         type: formData.projectCategory,
-        // `location` stays the single-value field other screens read; the lines are the new truth.
-        location: coverageLocations[0] ?? '',
+        location: coverageLocations.join('\n'),
         locations: coverageLocations,
         dateBuilt: formData.dateStarted,
         dateStarted: formData.dateStarted,
@@ -268,7 +257,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         noOfExtensions: formData.noOfExtensions,
         actualCompletionDate: formData.actualCompletionDate,
         roadNetworkId: formData.roadNetworkId,
-        roadName: formData.roadName,
+        roadName: coverageLocations.join('\n'),
         barangay: formData.barangay,
         components: formData.components,
         description: formData.description,
@@ -503,10 +492,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Location *
               </label>
-              {/* @mine — task 12: one line per coverage location, up to five. */}
-              <p className="mb-2 text-xs text-gray-500">
-                One line per location, up to five. Example: Sitio Dao, Anilao East, Mabini, Batangas
-              </p>
               <div className="space-y-2">
                 {formData.locations.map((line, index) => (
                   <input
@@ -517,7 +502,6 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                     maxLength={500}
                     onChange={(e) => setLocationLine(index, e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                    placeholder={index === 0 ? 'Sitio Dao, Anilao East, Mabini, Batangas' : 'Another coverage location'}
                     aria-label={index === 0 ? 'Location' : `Location ${index + 1}`}
                     required={index === 0}
                   />
@@ -528,7 +512,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 onClick={addLocationLine}
                 disabled={formData.locations.length >= 5}
                 data-field="Add Location"
-                className="mt-2 rounded-lg border border-[#0ea5e9] px-3 py-2 text-sm font-medium text-[#0ea5e9] transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
+                className="mt-2 rounded-sm border border-gray-400 bg-gray-100 px-2 py-1 text-sm text-gray-900 hover:bg-gray-200 disabled:cursor-not-allowed disabled:text-gray-400"
               >
                 {formData.locations.length >= 5 ? 'Five locations is the maximum' : 'Add location'}
               </button>
@@ -599,7 +583,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           <section ref={roadSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Road Information</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Road Network ID No.
@@ -616,13 +600,12 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Road Name *
                 </label>
-                <input
-                  type="text"
+                <AutoGrowTextarea
                   data-field="Road Name"
                   value={formData.roadName}
-                  disabled
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed opacity-75"
-                  required
+                  readOnly
+                  rows={2}
+                  className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-900"
                 />
               </div>
             </div>

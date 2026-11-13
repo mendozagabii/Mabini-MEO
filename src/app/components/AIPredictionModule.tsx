@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Brain, AlertTriangle, TrendingUp, Activity, Sparkles, Loader2, CheckCircle } from 'lucide-react';
+import { Brain, Sparkles, Loader2, CheckCircle } from 'lucide-react';
 
 export interface PredictionResult {
   localRoadId: string;
@@ -76,8 +76,8 @@ export function AIPredictionModule({
 
         return [{
           id: road.id,
-          name: road.name,
-          type: road.type,
+          name: road.projectName || road.name,
+          type: road.projectCategory || road.type,
           condition: road.condition,
           dateBuilt: road.dateBuilt || '',
           lastInspection: road.lastInspection || '',
@@ -113,8 +113,8 @@ export function AIPredictionModule({
         if (!road) throw new Error('The AI service returned a recommendation for an unknown road.');
         return {
           localRoadId: road.id,
-          localRoadName: road.name,
-          type: road.type,
+          localRoadName: road.projectName || road.name,
+          type: road.projectCategory || road.type,
           lastInspection: road.lastInspection || 'N/A',
           condition: road.condition,
           riskLevel: prediction.riskLevel,
@@ -202,41 +202,25 @@ export function AIPredictionModule({
       {/* Results State */}
       {viewState === 'results' && (
         <>
-          {/* Prioritized List */}
-          <div>
-            <div className="space-y-4">
-              {visiblePredictions.length > 0
-                ? [...visiblePredictions].sort((a, b) => b.priorityScore - a.priorityScore).map((prediction) => (
-                <article key={prediction.localRoadId} className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(59,130,246,0.12),0_12px_28px_rgba(37,99,235,0.16)]">
-                  {/* Header */}
-                  <div className="mb-3">
-                    <h3 className="text-base font-bold text-slate-900">{prediction.localRoadName}</h3>
-                  </div>
-
-                  {/* Meta */}
-                  <p className="text-xs text-gray-600 mb-4">
-                    {prediction.type} | Last inspected: {prediction.lastInspection} | Condition: {prediction.condition}
-                  </p>
-
-                  {/* Justification */}
-                  <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">AI Justification</p>
-                    <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
-                      {prediction.justification.replace(/\s*(Inspection findings:)/i, '\n$1')}
-                    </p>
-                  </div>
-
-                  {/* Recommendation */}
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Recommended Maintenance Activity</p>
-                    <p className="text-sm leading-6 text-slate-700">{prediction.recommendation}</p>
-                  </div>
-                </article>
-              ))
-                : <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
-                    No projects have a Fair, Poor, or Bad rating in their latest completed inspection. Projects rated only Good or N/A are not shown.
-                  </p>}
-            </div>
+          <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left">
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>{['Project Name', 'Category', 'Condition', 'AI Justification', 'Recommended Maintenance Activity'].map(label => <th key={label} scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">{label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {[...visiblePredictions].sort((a, b) => b.priorityScore - a.priorityScore).map(prediction => {
+                  const road = localRoadData.find(item => item.id === prediction.localRoadId);
+                  return <tr key={prediction.localRoadId} className="hover:bg-blue-50/60">
+                    <td className="px-6 py-4 font-medium text-[#0ea5e9]">{road?.projectName || prediction.localRoadName || 'N/A'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{road?.projectCategory || prediction.type || 'N/A'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{prediction.condition || 'N/A'}</td>
+                    <td className="whitespace-pre-line px-6 py-4 text-sm leading-6 text-slate-700">{prediction.justification.replace(/\s*(Inspection findings:)/i, '\n$1')}</td>
+                    <td className="px-6 py-4 text-sm leading-6 text-slate-700">{prediction.recommendation}</td>
+                  </tr>;
+                })}
+                {visiblePredictions.length === 0 && <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-600">No projects have a Fair, Poor, or Bad rating in their latest completed inspection. Projects rated only Good or N/A are not shown.</td></tr>}
+              </tbody>
+            </table>
           </div>
 
           {/* Footer */}

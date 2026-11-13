@@ -136,6 +136,7 @@ test('the inspection form shows a remark box and an attach control under each ca
   openPendingForm(container);
   assert.equal(container.querySelector('[aria-label="Required inspection attachment"]'), null);
   assert.match(container.textContent, /Monitoring and Maintenance Inspection/);
+  assert.doesNotMatch(container.textContent, /Automatically populated from the validated project\./);
   assert.doesNotMatch(container.textContent, /Acceptance Inspection/);
 
   const remarkBoxes = [...container.querySelectorAll('[data-category-remark]')];
@@ -280,7 +281,7 @@ test('inspection overview follows history changes and pending annual cards keep 
     assert.match(container.textContent,/Pending/);
     const tabs=()=>[...container.querySelectorAll('[role=tab]')];
     await act(async()=>tabs().find(el=>el.textContent.includes('Overview')).click());
-    let table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Inspection Date','Contracted Amount','Findings']);
+    let table=container.querySelector('table'); assert.equal(table.querySelector('col').style.width,'30%'); assert.ok(table.className.includes('table-fixed')); assert.deepEqual([...table.querySelectorAll('th')].map(th=>th.textContent).slice(0,4),['Project Name','Inspection Date','Contracted Amount','Findings']);
     // task 14: only the Head Engineer gets the overview print controls, in the header
     if (role === 'Head Engineer') {
       assert.equal(table.querySelectorAll('th').length, 5);
@@ -291,6 +292,7 @@ test('inspection overview follows history changes and pending annual cards keep 
       assert.equal(container.querySelector('button[aria-label="Print inspection overview"]'), null);
     }
     assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','','','']);
+    assert.equal(table.querySelector('tbody tr td:last-child').colSpan,role === 'Head Engineer' ? 2 : 1);
     await act(async()=>root.render(React.createElement(InspectionModule,{inspections:[{...pending,isScheduledAnnualFollowUp:false,conditionRating:6,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracks'}}],localRoadList:[{id:'road-1',name:'Poblacion Road',contractedAmount:'1234567.5'}],onAddInspection(){},onEditInspection(){},onDeleteInspection(){},currentUser:'User',userRole:role})));
     table=container.querySelector('table'); assert.deepEqual([...table.querySelectorAll('tbody td')].map(td=>td.textContent),['Poblacion Road','2027-01-01','Php 1,234,567.50','Cracks.']);
     await act(async()=>tabs().find(el=>el.textContent.includes('Inspection History')).click()); assert.match(container.textContent,/Cracks/);
@@ -325,8 +327,9 @@ test('task 14: the inspection overview prints every record, or a single year', a
   const print = () => container.querySelector('button[aria-label="Print inspection overview"]');
   await act(async () => print().click());
   let sections = printedDocuments.at(-1).sections;
-  // the pending follow-up has nothing recorded yet, so it is not printed
-  assert.deepEqual(sections.map(section => section.title).sort(), ['Anilao Road', 'Poblacion Road']);
+  // Printing includes all visible rows; pending findings stay blank.
+  assert.deepEqual(sections.map(section => section.title).sort(), ['Anilao Road', 'Bagalangit Road', 'Poblacion Road']);
+  assert.equal(sections.find(section => section.title === 'Bagalangit Road').fields[2].value, '');
   assert.deepEqual(sections[0].fields.map(field => field.label), ['Date of Inspection', 'Amount Contracted', 'Findings / Remarks']);
 
   const year = container.querySelector('select[aria-label="Print inspection overview year"]');
@@ -336,8 +339,55 @@ test('task 14: the inspection overview prints every record, or a single year', a
     Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(year, '2026');
     year.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
+  assert.deepEqual([...container.querySelectorAll('[aria-label="Inspection Overview"] tbody tr')].map(row => row.cells[0].textContent), ['Poblacion Road']);
   await act(async () => print().click());
   sections = printedDocuments.at(-1).sections;
   assert.deepEqual(sections.map(section => section.title), ['Poblacion Road']);
   act(() => root.unmount()); container.remove();
+});
+
+
+test('inspection search uses the visible history or overview fields', async () => {
+  const inspection={...pendingInspection,id:'i',isScheduledAnnualFollowUp:false,conditionRating:7,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracked pavement'},inspector:'Hidden Inspector',date:'2026-11-11'};
+  const {container,root}=renderModule([inspection],'Head Engineer');
+  const search=container.querySelector('input[type=search]');
+  const setSearch=async value=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(search,value);search.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  assert.equal(search.placeholder,'Search...');
+  await setSearch('Cracked pavement'); assert.match(container.textContent,/1 record listed/);
+  await setSearch('Hidden Inspector'); assert.match(container.textContent,/0 records listed/);
+  await setSearch(''); await act(async()=>[...container.querySelectorAll('[role=tab]')].find(e=>e.textContent.includes('Overview')).click());
+  await setSearch('Poblacion Road'); assert.match(container.textContent,/1 record listed/);
+  await setSearch('Cracked pavement'); assert.match(container.textContent,/1 record listed/);
+  act(()=>root.unmount()); container.remove();
+});
+
+test('pending inspection view and print do not expose stale results', async () => {
+  const inspection={...pendingInspection,conditionRating:9,conditionRatings:{Concrete:'Good'},conditionRemarks:{Concrete:'Stale note'},remarks:'Stale note',validationStatus:'Validated'};
+  const {container,root}=renderModule([inspection],'Head Engineer');
+  await act(async()=>container.querySelector('[aria-label^="View full inspection"]').click());
+  const dialog=container.querySelector('.inspection-detail-dialog');
+  const observation=[...dialog.querySelectorAll('p')].find(p=>p.textContent==='Observation Notes');
+  assert.equal(observation.nextElementSibling.textContent.trim(),'');
+  for(const label of ['Condition','Follow-up Status']) {
+    const el=[...dialog.querySelectorAll('span')].find(e=>e.textContent===label);
+    assert.equal(el.nextElementSibling.textContent,'Pending');
+  }
+  await act(async()=>[...dialog.querySelectorAll('button')].find(b=>b.textContent.includes('Print')).click());
+  assert.equal(printedDocuments.at(-1).sections.find(section=>section.title==='Inspection Findings').fields[0].value,'');
+  act(()=>root.unmount());container.remove();
+});
+
+
+test('inspection road name is below the network ID in edit, view and print', async () => {
+  const {container,root}=renderModule([pendingInspection]);
+  await act(async()=>container.querySelector('[aria-label^="View full inspection"]').click());
+  const roadSection=[...container.querySelectorAll('.inspection-detail-dialog section')].find(e=>e.textContent.includes('Road Information'));
+  assert.ok(roadSection.querySelector('.space-y-4'));assert.match(roadSection.textContent,/Road Network ID No\.Road Name/);
+  await act(async()=>[...container.querySelectorAll('.inspection-detail-dialog button')].find(b=>b.textContent.includes('Print')).click());
+  const fields=printedDocuments.at(-1).sections.find(s=>s.title==='Road Information').fields;
+  assert.deepEqual(fields.slice(0,2).map(f=>[f.label,f.width]),[['Road Network ID No.','full'],['Road Name','full']]);
+  openPendingForm(container);
+  const editRoad=[...container.querySelectorAll('section')].find(e=>e.querySelector('h3')?.textContent==='Road Information');
+  assert.ok(editRoad.querySelector('.space-y-3'));assert.match(editRoad.textContent,/Road Network ID No\.Road Name/);assert.equal(editRoad.querySelector('.space-y-3').querySelectorAll('textarea[readonly]').length,2);
+  act(()=>root.unmount());container.remove();
 });

@@ -710,7 +710,7 @@ export default function App() {
   if (loading) {
     return <div role="status" aria-live="polite" className="flex min-h-screen items-center justify-center bg-[#E3EEF9] text-[#1e3a5f]">
       <div className="text-center"><div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-700" />
-      <p className="font-semibold">Loading your workspace…</p><p className="text-sm">Fetching your permitted projects and records.</p></div>
+      <p className="font-semibold">Office of the Municipal Engineer</p><p className="text-sm">Please wait while we prepare your workspace...</p></div>
     </div>;
   }
 
