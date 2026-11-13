@@ -28,6 +28,11 @@ function projectDetailsChanged(payload: StoredRecord, current: StoredRecord): bo
   const text = (value: unknown) => String(value ?? '').trim();
   for (const key of COMPARED_DETAIL_FIELDS) {
     if (!(key in payload)) continue;
+    if (key === 'roadName' && Array.isArray(payload.locations)) {
+      const locationName = (Array.isArray(current.locations) && current.locations.length ? current.locations : [current.location])
+        .map(text).filter(Boolean).join('\n');
+      if (text(payload.roadName) === text(current.roadName || current.name) || text(payload.roadName) === locationName) continue;
+    }
     const previous = key === 'dateStarted' ? (current.dateStarted || current.dateBuilt)
       : key === 'roadName' ? (current.roadName || current.name)
       : key === 'projectDescription' ? (current.projectDescription || current.description)

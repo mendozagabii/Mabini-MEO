@@ -83,7 +83,7 @@ export function PrintDocument({ title, referenceId, sections, attachment, onComp
             {section.fields.map((field) => (
               <div key={field.label} className={`print-field print-field-${field.width || 'full'}`}>
                 <div className="print-field-label">{field.label}</div>
-                <div className="print-field-value">
+                <div className="print-field-value" style={{ whiteSpace: 'pre-wrap' }}>
                   {field.value ?? ''}
                 </div>
               </div>

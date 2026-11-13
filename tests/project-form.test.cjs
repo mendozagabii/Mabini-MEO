@@ -664,7 +664,7 @@ test('maintenance edit uses linked inspection date as the minimum for both field
   assert.equal(fields[1].validationMessage,'Please fill out valid date.');
 });
 
-test('the validation table names the project and lists show the barangay', async () => {
+test('the validation table names the project and lists show the full location', async () => {
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
   const ui = new Proxy({}, { get: () => Dummy });
   const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
@@ -683,13 +683,11 @@ test('the validation table names the project and lists show the barangay', async
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, validationMode: true, userRole: 'Staff - Validator' })));
   assert.match(container.textContent, /Project Name/);       // task 16 — column header
   assert.match(container.textContent, /Poblacion Road Project/); // task 16 — the project name
-  assert.match(container.textContent, /Anilao East/);        // task 15 — the barangay
-  assert.doesNotMatch(container.textContent, /Typewritten location/); // never the free-text location
+  assert.match(container.querySelector('tbody').textContent, /Typewritten location/);
 
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Staff - Encoder' })));
-  assert.match(container.textContent, /Anilao East/);        // task 15 — the project list too
-  assert.doesNotMatch(container.textContent, /Typewritten location/);
+  assert.match(container.querySelector('article').textContent, /Typewritten location/);
   await reset();
 });
 
@@ -775,12 +773,19 @@ test('task 12: a project records up to five free-text coverage locations', async
   let saved;
   await reset(); await render(value => { saved = value; });
   assert.ok(field('Location'));
+  assert.equal(field('Location').placeholder, '');
+  assert.doesNotMatch(container.textContent, /One line per location/);
   assert.equal(field('Location 2'), null);
+  assert.equal(field('Road Name').tagName, 'TEXTAREA');
+  assert.equal(field('Road Name').readOnly, true);
+  assert.equal(field('Road Network ID No.').tagName, 'TEXTAREA');
+  assert.equal(field('Road Name').parentElement.previousElementSibling.querySelector('[data-field]').dataset.field, 'Road Network ID No.');
   const addButton = () => [...container.querySelectorAll('button')].find(button => /Add location|Five locations/.test(button.textContent));
   assert.equal(addButton().textContent, 'Add location');
   for (let index = 2; index <= 5; index += 1) {
     await act(async () => addButton().click());
     assert.ok(field(`Location ${index}`), `expected line ${index}`);
+    assert.equal(field(`Location ${index}`).placeholder, '');
   }
   assert.equal(container.querySelectorAll('input[data-field^="Location"]').length, 5);
   assert.equal(addButton().disabled, true);
@@ -790,18 +795,30 @@ test('task 12: a project records up to five free-text coverage locations', async
   await fill(); await file();
   await change('Location', '  Sitio Dao, Anilao East, Mabini, Batangas  ');
   await change('Location 2', 'Sitio Balibago');
+  assert.equal(field('Road Name').value, '  Sitio Dao, Anilao East, Mabini, Batangas  \nSitio Balibago');
   await change('Location 3', '   ');
   await submit();
-  // blanks and padding are dropped, and the legacy single value keeps the first line
+  // Blank lines and surrounding padding are dropped, while both full locations are retained.
   assert.deepEqual(saved.locations, ['Sitio Dao, Anilao East, Mabini, Batangas', 'Sitio Balibago']);
-  assert.equal(saved.location, 'Sitio Dao, Anilao East, Mabini, Batangas');
+  assert.equal(saved.location, 'Sitio Dao, Anilao East, Mabini, Batangas\nSitio Balibago');
+  assert.equal(saved.roadName, saved.location);
 
   // editing a saved project shows every stored line, one per input
   await reset();
-  await render(() => {}, { item: { id: 'p1', name: 'Road', projectName: 'Road', location: 'Sitio Dao',
+  let edited;
+  await render(value => { edited = value; }, { item: { id: 'p1', name: 'Road', projectName: 'Road', location: 'Sitio Dao',
     locations: ['Sitio Dao', 'Anilao East, Mabini, Batangas'], dateBuilt: '2020-01-01', condition: 'Good' }, editId: 'p1' });
   assert.equal(field('Location').value, 'Sitio Dao');
   assert.equal(field('Location 2').value, 'Anilao East, Mabini, Batangas');
+  assert.equal(field('Road Name').value, 'Sitio Dao\nAnilao East, Mabini, Batangas');
+  await fill();
+  await change('Location', 'Sitio Grahe, Anilao East');
+  await change('Location 2', 'Sitio Dao, Anilao East');
+  assert.equal(field('Road Name').value, 'Sitio Grahe, Anilao East\nSitio Dao, Anilao East');
+  await file(); await submit();
+  assert.deepEqual(edited.locations, ['Sitio Grahe, Anilao East', 'Sitio Dao, Anilao East']);
+  assert.equal(edited.location, 'Sitio Grahe, Anilao East\nSitio Dao, Anilao East');
+  assert.equal(edited.roadName, edited.location);
   await reset();
 });
 
@@ -823,6 +840,8 @@ test('task 12: the project detail shows one box with a line per location', async
 
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
+  assert.match(container.querySelector('article').textContent, /Sitio Dao/);
+  assert.match(container.querySelector('article').textContent, /Anilao East, Mabini, Batangas/);
   await act(async () => container.querySelector('[aria-label="View details for Coastal Road"]').click());
 
   const box = container.querySelector('[data-field="Location"]');

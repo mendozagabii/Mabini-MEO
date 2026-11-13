@@ -652,8 +652,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <MapPin className="h-4 w-4" />
-                        {/* @mine — task 15: lists show the barangay under road information. */}
-                        {item.barangay || item.location || 'N/A'}
+                        <span className="whitespace-pre-wrap">{locationLines(item).join('\n') || item.barangay || 'N/A'}</span>
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{item.dateBuilt}</td>
@@ -702,7 +701,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         <td className="px-6 py-4">
                           <span className="font-medium text-[#0ea5e9]">{item.projectName || item.name || 'N/A'}</span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{item.barangay || item.location || 'N/A'}</td>
+                        <td className="whitespace-pre-wrap px-6 py-4 text-sm text-gray-600">{locationLines(item).join('\n') || item.barangay || 'N/A'}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                           {item.contractedAmount ? `Php ${formatSavedProjectCurrency(item.contractedAmount)}` : 'N/A'}
                         </td>
@@ -754,7 +753,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               {filteredData.map((item, index) => (
-                  <article key={item.id} className="road-project-card group flex h-[150px] flex-col rounded-[22px] border border-slate-200 bg-white p-3 text-slate-800 shadow-sm transition hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(96,165,250,0.22),0_10px_25px_rgba(30,64,175,0.12)]">
+                  <article key={item.id} className="road-project-card group flex min-h-[150px] flex-col rounded-[22px] border border-slate-200 bg-white p-3 text-slate-800 shadow-sm transition hover:border-blue-300 hover:shadow-[0_0_0_3px_rgba(96,165,250,0.22),0_10px_25px_rgba(30,64,175,0.12)]">
                     <button
                       onClick={() => setSelectedItem(item)}
                       className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
@@ -769,10 +768,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         <p className="truncate text-base font-bold text-slate-800" title={item.projectName || item.name}>{item.projectName || item.name || 'N/A'}</p>
                       </div>
                       <div>
-                        <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-600">
+                        <p className="mt-0.5 flex items-start gap-1.5 text-sm text-slate-600">
                           <MapPin className="h-4 w-4 shrink-0" />
-                          {/* @mine — task 15: the list shows the barangay. */}
-                          {item.barangay || item.location || 'Location not set'}
+                          <span className="whitespace-pre-wrap break-words">{locationLines(item).join('\n') || item.barangay || 'Location not set'}</span>
                         </p>
                       </div>
                     </div>

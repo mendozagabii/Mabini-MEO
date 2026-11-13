@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-13 — [mine] Keep project location and road name in sync
+- **Type:** Modified
+- **Files:** `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/PrintDocument.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/project-upload.test.cjs` (modified)
+- **What & why:** Display and save up to five full coverage locations consistently in forms, project views and printouts; preserve prior lines when a location upsert fails.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-12 — [mine] Record the finished state in the session handoff
 - **Type:** Docs
 - **Files:** `docs/SESSION-HANDOFF.md` (modified)

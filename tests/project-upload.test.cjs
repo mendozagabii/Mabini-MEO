@@ -32,6 +32,9 @@ function mockDb(options = {}) {
         select(value) { selected = value; return chain; },
         insert(value) { op = 'insert'; payload = value; writes.push({ table, op, value }); return chain; },
         update(value) { op = 'update'; payload = value; writes.push({ table, op, value }); return chain; },
+        upsert(value) { op = 'upsert'; payload = value; writes.push({ table, op, value }); return chain; },
+        delete() { op = 'delete'; writes.push({ table, op }); return chain; },
+        gt() { return chain; },
         eq() { return chain; }, ilike() { return chain; }, limit() { return Promise.resolve({ data: options.linked ? [{ id: 'existing' }] : [], error: null }); },
         maybeSingle: async () => {
           if (table === 'projects' && op === 'select') return { data: options.edit ? { id: 'project-1', road_id: 'road-1' } : null, error: null };
@@ -42,7 +45,7 @@ function mockDb(options = {}) {
           if (table === 'projects' && op === 'select' && selected.includes('roads!')) return { data: null, error: new Error('mock join unavailable') };
           return { data: { id: table === 'projects' ? 'project-1' : 'road-1' }, error: null };
         },
-        then(resolve, reject) { return Promise.resolve({ data: null, error: table === 'attachments' && options.linkError ? new Error('link denied') : null }).then(resolve, reject); },
+        then(resolve, reject) { return Promise.resolve({ data: null, error: table === 'attachments' && options.linkError ? new Error('link denied') : table === 'project_locations' && op === 'upsert' && options.locationError ? new Error('locations denied') : null }).then(resolve, reject); },
       }; return chain;
     },
   };
@@ -64,6 +67,22 @@ test('project create and edit link checked staged files without base64', async (
     assert.equal(linked.value.storage_path, PATH); assert.equal(linked.value.file_size, 100);
     assert.equal(linked.value.category, 'turnover_certificate');
   }
+});
+
+test('project locations and road name persist every full line, and failed location writes do not clear older lines', async () => {
+  const locations = ['Sitio Dao, Anilao East, Mabini, Batangas', 'Sitio Grahe, Anilao East'];
+  for (const edit of [false, true]) {
+    const db = mockDb({ edit });
+    await dataModule.saveRoad(db, { ...payload, id: edit ? 'project-1' : '', locations, location: locations.join('\n'), roadName: locations.join('\n') }, USER);
+    assert.equal(db.writes.find(w => w.table === 'roads').value.road_name, locations.join('\n'));
+    const writes = db.writes.filter(w => w.table === 'project_locations');
+    assert.deepEqual(writes.map(w => w.op), ['upsert', 'delete']);
+    assert.deepEqual(writes[0].value.map(row => row.label), locations);
+  }
+  const db = mockDb({ edit: true, locationError: true });
+  const saved = await dataModule.saveRoad(db, { ...payload, id: 'project-1', locations, roadName: locations.join('\n') }, USER);
+  assert.match(saved.attachmentWarning, /locations could not be updated/);
+  assert.deepEqual(db.writes.filter(w => w.table === 'project_locations').map(w => w.op), ['upsert']);
 });
 
 test('unverified, oversized, mismatched, reused or foreign staged files are rejected before project writes', async () => {
