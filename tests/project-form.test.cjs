@@ -664,7 +664,7 @@ test('maintenance edit uses linked inspection date as the minimum for both field
   assert.equal(fields[1].validationMessage,'Please fill out valid date.');
 });
 
-test('the validation table names the project and lists show the full location', async () => {
+test('the validation table names the project and lists show the barangay', async () => {
   const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
   const ui = new Proxy({}, { get: () => Dummy });
   const { LocalRoadList } = loadTs('src/app/components/LocalRoadList.tsx', {
@@ -683,11 +683,13 @@ test('the validation table names the project and lists show the full location', 
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, validationMode: true, userRole: 'Staff - Validator' })));
   assert.match(container.textContent, /Project Name/);       // task 16 — column header
   assert.match(container.textContent, /Poblacion Road Project/); // task 16 — the project name
-  assert.match(container.querySelector('tbody').textContent, /Typewritten location/);
+  assert.match(container.querySelector('tbody').textContent, /Anilao East/);
+  assert.doesNotMatch(container.querySelector('tbody').textContent, /Typewritten location/);
 
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Staff - Encoder' })));
-  assert.match(container.querySelector('article').textContent, /Typewritten location/);
+  assert.match(container.querySelector('article').textContent, /Anilao East/);
+  assert.doesNotMatch(container.querySelector('article').textContent, /Typewritten location/);
   await reset();
 });
 
@@ -762,10 +764,10 @@ test('task 11: the Head Engineer project table carries the five columns and an i
     await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole })));
     assert.ok(container.querySelector('input[aria-label="Filter by project completion date"]'), userRole);
   }
-  // the validator keeps the existing list, which has no completion-date filter
+  // validation uses its listed date-built value
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Staff - Validator', validationMode: true })));
-  assert.equal(container.querySelector('input[aria-label="Filter by project completion date"]'), null);
+  assert.ok(container.querySelector('input[aria-label="Filter validation by date"]'));
   await reset();
 });
 
@@ -840,8 +842,7 @@ test('task 12: the project detail shows one box with a line per location', async
 
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { data: [item], currentUser: 'User', userRole: 'Staff - Encoder', onAdd() {}, onEdit() {}, onDelete() {} })));
-  assert.match(container.querySelector('article').textContent, /Sitio Dao/);
-  assert.match(container.querySelector('article').textContent, /Anilao East, Mabini, Batangas/);
+  assert.match(container.querySelector('article').textContent, /Anilao East/);
   await act(async () => container.querySelector('[aria-label="View details for Coastal Road"]').click());
 
   const box = container.querySelector('[data-field="Location"]');
@@ -879,4 +880,50 @@ test('task 12: the server rejects more than five locations or an overlong line',
   assert.match(validation.projectLocationsError(['1', '2', '3', '4', '5', '6']), /at most 5 locations/);
   assert.match(validation.projectLocationsError(['x'.repeat(501)]), /500 characters or fewer/);
   assert.equal(validation.projectLocationsError(['x'.repeat(500)]), null);
+});
+
+test('project and validation search and date filters match the fields shown in each list', async () => {
+  const Dummy = ({children}) => React.createElement(React.Fragment,null,children);
+  const ui = new Proxy({}, {get:()=>Dummy});
+  const {LocalRoadList} = loadTs('src/app/components/LocalRoadList.tsx', {
+    './ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,
+    '@/lib/activity-log-client':{recordClientActivity:async()=>{}},'@/lib/project-validation-workflow':loadTs('src/lib/project-validation-workflow.ts'),'@/lib/project-form-validation':validation,
+  });
+  const item={id:'p',name:'Hidden road',projectName:'Visible Project',location:'Hidden sitio',barangay:'Anilao East',dateBuilt:'2024-01-05',actualCompletionDate:'2024-09-10',contractedAmount:'1234',condition:'Good',lastInspection:'2025-01-01',annualValidationEntries:[{year:2025,dueDate:'2025-08-11',result:'Pending',remarks:''}]};
+  const props={data:[item],currentUser:'User',onAdd(){},onEdit(){},onDelete(){}};
+  const setInput=async(el,value)=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  for (const [role,validationMode,dateLabel,visibleDate,otherDate] of [
+    ['Staff - Encoder',false,'Filter by project completion date','2024-01-05','2024-09-10'],
+    ['Head Engineer',false,'Filter by project completion date','2024-09-10','2024-01-05'],
+    ['Staff - Validator',true,'Filter validation by date','2024-01-05','2024-09-10'],
+  ]) {
+    await reset(); await act(async()=>root.render(React.createElement(LocalRoadList,{...props,userRole:role,validationMode})));
+    const date=container.querySelector(`[aria-label="${dateLabel}"]`), search=container.querySelector('input[type=search]');
+    assert.ok(date); assert.equal(search.placeholder,'Search...');
+    await setInput(date,otherDate); assert.match(container.textContent,/0 records listed/);
+    await setInput(date,visibleDate); assert.match(container.textContent,/1 records listed/);
+    await setInput(search,'Anilao East'); assert.match(container.textContent,/1 records listed/);
+    await setInput(search,'Hidden sitio'); assert.match(container.textContent,/0 records listed/);
+    await setInput(search,'Visible Project'); assert.match(container.textContent,/1 records listed/);
+  }
+  await reset();
+});
+
+test('maintenance filters follow visible dates and fields in history and overview', async () => {
+  const Dummy=({children})=>React.createElement(React.Fragment,null,children); const ui=new Proxy({}, {get:()=>Dummy});
+  const {MaintenanceModule}=loadTs('src/app/components/MaintenanceModule.tsx',{'@/lib/inspection-selection':loadTs('src/lib/inspection-selection.ts'),'@/lib/project-form-validation':validation,'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}}});
+  const props={maintenanceRecords:[{id:'m',localRoadId:'p',localRoadName:'Old Road',inspectionId:'i',type:'Routine',scheduledDate:'2026-04-01',dateStarted:'2026-03-01',status:'In Progress',cost:0,description:'Hidden activities',remarks:'Visible overview remark'}],localRoadList:[{id:'p',name:'Road',projectName:'Visible Project',location:'Hidden sitio',barangay:'Anilao East'}],inspections:[{id:'i',localRoadId:'p',date:'2026-02-01'}],onAddMaintenance(){},onEditMaintenance(){},onDeleteMaintenance(){},onUpdateStatus(){},userRole:'Staff - Encoder',currentUser:'User'};
+  await reset(); await act(async()=>root.render(React.createElement(MaintenanceModule,props)));
+  const date=container.querySelector('[aria-label="Filter by maintenance completion date"]'),search=container.querySelector('input[type=search]');
+  const setInput=async(el,value)=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  await setInput(date,'2026-03-01'); assert.match(container.textContent,/0 records listed/);
+  await setInput(date,'2026-02-01'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'Anilao East'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'Hidden activities'); assert.match(container.textContent,/0 records listed/);
+  await setInput(search,''); await act(async()=>[...container.querySelectorAll('[role=tab]')].find(el=>el.textContent.includes('Overview')).click());
+  assert.match(container.textContent,/0 records listed/);
+  await setInput(date,'2026-03-01'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'overview remark'); assert.match(container.textContent,/1 records listed/);
+  await setInput(search,'Anilao East'); assert.match(container.textContent,/0 records listed/);
+  await reset();
 });

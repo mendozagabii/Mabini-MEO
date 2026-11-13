@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-13 — [mine] Align list filters and overview controls
+- **Type:** Modified
+- **Files:** `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Use the displayed list fields for search and dates, retain partial activity dates, and unify filters and rounded table layouts across modules.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-13 — [mine] Keep project location and road name in sync
 - **Type:** Modified
 - **Files:** `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/PrintDocument.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/project-upload.test.cjs` (modified)

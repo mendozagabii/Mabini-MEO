@@ -341,3 +341,18 @@ test('task 14: the inspection overview prints every record, or a single year', a
   assert.deepEqual(sections.map(section => section.title), ['Poblacion Road']);
   act(() => root.unmount()); container.remove();
 });
+
+
+test('inspection search uses the visible history or overview fields', async () => {
+  const inspection={...pendingInspection,id:'i',isScheduledAnnualFollowUp:false,conditionRating:7,conditionRatings:{Concrete:'Fair'},conditionRemarks:{Concrete:'Cracked pavement'},inspector:'Hidden Inspector',date:'2026-11-11'};
+  const {container,root}=renderModule([inspection],'Head Engineer');
+  const search=container.querySelector('input[type=search]');
+  const setSearch=async value=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(search,value);search.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  assert.equal(search.placeholder,'Search...');
+  await setSearch('Cracked pavement'); assert.match(container.textContent,/1 record listed/);
+  await setSearch('Hidden Inspector'); assert.match(container.textContent,/0 records listed/);
+  await setSearch(''); await act(async()=>[...container.querySelectorAll('[role=tab]')].find(e=>e.textContent.includes('Overview')).click());
+  await setSearch('Poblacion Road'); assert.match(container.textContent,/1 record listed/);
+  await setSearch('Cracked pavement'); assert.match(container.textContent,/1 record listed/);
+  act(()=>root.unmount()); container.remove();
+});

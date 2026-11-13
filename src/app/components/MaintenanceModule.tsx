@@ -92,18 +92,15 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
     }))
     .filter(({ record, referenceId }) => {
       const road = localRoadList.find((item) => item.id === record.localRoadId);
-      const matchesDate = !filterDate || record.scheduledDate === filterDate;
+      const inspectionDate = record.inspectionId ? [...inspections, ...scheduledArchivedInspections].find(item => item.id === record.inspectionId && item.localRoadId === record.localRoadId)?.date : undefined;
+      const displayedDate = maintenanceView === 'overview' ? (record.status === 'Completed' ? record.completedDate : record.dateStarted) : (record.status === 'Completed' ? record.completedDate : inspectionDate);
+      const matchesDate = !filterDate || displayedDate === filterDate;
       const query = searchTerm.trim().toLowerCase();
-      const searchable = [
-        referenceId,
-        record.localRoadName,
-        road?.projectName,
-        road?.roadNetworkId,
-        road?.barangay,
-        road?.location,
-        record.description,
-        record.type,
-      ].filter(Boolean).join(' ').toLowerCase();
+      const name = road?.projectName || road?.name || record.localRoadName;
+      const searchable = (maintenanceView === 'overview'
+        ? [name, displayedDate, record.status, record.remarks]
+        : [referenceId, name, road?.barangay || 'Location not set', displayedDate, record.status, record.status === 'Completed' ? 'Completed' : 'Inspection'])
+        .filter(Boolean).join(' ').toLowerCase();
       return matchesDate && searchable.includes(query);
     });
   const [formData, setFormData] = useState({
@@ -382,22 +379,21 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search by road project, network ID, barangay, or activity..."
+              placeholder="Search..."
               aria-label="Search maintenance records"
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2">
-              <Calendar aria-hidden="true" className="h-4 w-4 text-blue-600" />
-              <span className="sr-only">Filter maintenance by completion date</span>
-              <input type="date" aria-label="Filter by maintenance completion date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
-                onChange={event => { if (event.target.value && event.target.validity.valid) setFilterDate(event.target.value); }}
-                onBlur={event => { if (!event.target.value) setFilterDate(''); }}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100" />
-            </label>
-            {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
-          </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+              <label className="relative flex-1 sm:flex-none">
+                <Calendar aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+                <input type="date" aria-label="Filter by maintenance completion date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
+                  onChange={event => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterDate(event.currentTarget.value); }}
+                  onBlur={event => { if (!event.currentTarget.value) setFilterDate(''); }}
+                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[240px]" />
+              </label>
+              {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
+            </div>
         </div>
       </section>
 
@@ -708,25 +704,25 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       <div className="flex flex-wrap items-center justify-between gap-4 py-1">
         <div role="tablist" aria-label="Maintenance views" className="flex flex-wrap gap-2">
           <button type="button" role="tab" aria-selected={maintenanceView === 'history'} onClick={() => setMaintenanceView('history')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${maintenanceView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
-            <ClipboardCheck className="h-5 w-5" aria-hidden="true" /> Maintenance History
+            className={`inline-flex items-center gap-3 rounded-xl px-4 py-2 text-2xl font-bold ${maintenanceView === 'history' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
+            <ClipboardCheck className="h-6 w-6" aria-hidden="true" /> Maintenance History
           </button>
           <button type="button" role="tab" aria-selected={maintenanceView === 'overview'} onClick={() => setMaintenanceView('overview')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-lg font-bold ${maintenanceView === 'overview' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
-            <Table2 className="h-5 w-5" aria-hidden="true" /> Overview
+            className={`inline-flex items-center gap-3 rounded-xl px-4 py-2 text-2xl font-bold ${maintenanceView === 'overview' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
+            <Table2 className="h-6 w-6" aria-hidden="true" /> Overview
           </button>
         </div>
         <span className="text-sm text-slate-500">{visibleRecords.length} records listed</span>
       </div>
       {maintenanceView === 'overview' ? (
-        <div role="tabpanel" aria-label="Maintenance Overview" className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-left">
+        <div role="tabpanel" aria-label="Maintenance Overview" className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full border-separate border-spacing-0 text-left">
             <thead className="border-b border-gray-200 bg-gray-50"><tr>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Maintenance Date</th>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Status</th>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Remarks</th>
-              {canPrintOverview && <th className="w-px whitespace-nowrap px-6 py-3 text-right"><span className="inline-flex items-center gap-2"><select aria-label="Print maintenance overview year" value={overviewPrintYear} onChange={event => setOverviewPrintYear(event.currentTarget.value)} className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-xs font-normal normal-case text-gray-700 outline-none focus:border-blue-400"><option value="all">All years</option>{overviewYears.map(year => <option key={year} value={year}>{year}</option>)}</select><button type="button" aria-label="Print maintenance overview" onClick={() => printOverview(overviewPrintYear)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold normal-case text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"><Printer className="h-4 w-4" aria-hidden="true" /> Print</button></span></th>}
+              {canPrintOverview && <th className="w-px whitespace-nowrap px-6 py-3 text-right"><span className="inline-flex items-center gap-2"><select aria-label="Print maintenance overview year" value={overviewPrintYear} onChange={event => setOverviewPrintYear(event.currentTarget.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium normal-case text-slate-700"><option value="all">All years</option>{overviewYears.map(year => <option key={year} value={year}>{year}</option>)}</select><button type="button" aria-label="Print maintenance overview" onClick={() => printOverview(overviewPrintYear)} className="inline-flex items-center rounded-lg p-2 text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" title="Print overview"><Printer className="h-5 w-5" aria-hidden="true" /></button></span></th>}
             </tr></thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {visibleRecords.map(({record, referenceId}) => {
@@ -775,7 +771,7 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
                   </h2>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
                   <MapPin className="h-4 w-4 shrink-0" />
-                  {road?.barangay || road?.location || 'Location not set'}
+                  {road?.barangay || 'Location not set'}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyles[record.status]}`}>

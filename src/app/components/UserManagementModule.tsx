@@ -1,18 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Plus, Edit, Trash2, Shield, X, Save, Users, Activity, Archive, Search, Lock, Unlock, CheckCircle2, Award, UserX, ChevronDown, KeyRound, Eye, EyeOff, CalendarDays, Check, RotateCcw } from 'lucide-react';
+import { User, Plus, Edit, Trash2, Shield, X, Save, Users, Activity, Archive, Search, Lock, Unlock, CheckCircle2, Award, UserX, KeyRound, Eye, EyeOff, CalendarDays, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 // @mine — step 8: the 30-day archive retention, shown per archived record.
 import { purgeScheduleLabel } from '@/lib/retention';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 
 interface UserData {
   id: string;
@@ -107,6 +98,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   const [activeTab, setActiveTab] = useState<'accounts' | 'activity' | 'archived'>('accounts');
   const [archiveFilter, setArchiveFilter] = useState<'users' | 'projects' | 'inspections' | 'maintenance'>('users');
   const [activityDateFilter, setActivityDateFilter] = useState('');
+  const activityDateRef = useRef<HTMLInputElement>(null);
   const [userRoleFilter, setUserRoleFilter] = useState('All Roles');
   const [userStatusFilter, setUserStatusFilter] = useState('All Status');
   const [activityUserFilter, setActivityUserFilter] = useState('All Users');
@@ -416,6 +408,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
     }
     if (!activityDateFilter) return true;
 
+    const displayedIsoDate = /^\d{4}-\d{2}-\d{2}/.exec(log.timestamp)?.[0];
+    if (displayedIsoDate) return displayedIsoDate === activityDateFilter;
     const timestamp = new Date(log.timestamp);
     if (Number.isNaN(timestamp.getTime())) return false;
     const localDate = [
@@ -987,7 +981,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search employee ID, name, email, or role..."
+                  placeholder="Search..."
                   className="h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
@@ -997,8 +991,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
             </div>
           </div>
           <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="overflow-x-auto">
-            <table className="w-full">
+            <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full border-separate border-spacing-0">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
@@ -1073,83 +1067,28 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
       {/* Activity Logs Tab */}
       {activeTab === 'activity' && (
-        <div className="bg-white rounded-b-lg shadow-lg p-6">
+        <div className="min-w-0 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-[#0ea5e9]">Activity Logs</h2>
             <div className="flex flex-wrap items-center justify-end gap-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Filter by user"
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-blue-200 hover:bg-blue-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
-                  >
-                    <User aria-hidden="true" className="h-4 w-4 text-slate-600" />
-                    <span>Filter by User: {selectedActivityAccount?.name ?? 'All Users'}</span>
-                    <ChevronDown aria-hidden="true" className="h-4 w-4 text-slate-400" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  side="bottom"
-                  sideOffset={6}
-                  className="z-[100] min-w-[190px] rounded-xl border border-blue-100 bg-white p-1.5 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]"
-                >
-                  <DropdownMenuItem
-                    onSelect={() => setActivityUserFilter('All Users')}
-                    className="cursor-pointer rounded-lg px-3 py-2 text-sm focus:bg-blue-50 focus:text-blue-700"
-                  >
-                    <span className="flex-1">All Users</span>
-                    {activityUserFilter === 'All Users' && <Check aria-hidden="true" className="h-4 w-4 text-blue-600" />}
-                  </DropdownMenuItem>
-                  {activityRoleGroups.map(({ role, accounts }) => (
-                    <DropdownMenuSub key={role}>
-                      <DropdownMenuSubTrigger className="cursor-pointer rounded-lg px-3 py-2 text-sm focus:bg-blue-50 focus:text-blue-700 data-[state=open]:bg-blue-50 data-[state=open]:text-blue-700">
-                        {role}
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="z-[101] min-w-[210px] rounded-xl border border-blue-100 bg-white p-1.5 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
-                        {accounts.length ? accounts.map((user) => (
-                          <DropdownMenuItem
-                            key={user.id}
-                            onSelect={() => setActivityUserFilter(user.id)}
-                            className="cursor-pointer rounded-lg px-3 py-2 text-sm focus:bg-blue-50 focus:text-blue-700"
-                          >
-                            <span className="flex-1">{user.name}</span>
-                            {activityUserFilter === user.id && <Check aria-hidden="true" className="h-4 w-4 text-blue-600" />}
-                          </DropdownMenuItem>
-                        )) : (
-                          <div className="px-3 py-2 text-sm text-slate-400">No {role.toLowerCase()} accounts</div>
-                        )}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <label className="flex items-center gap-2">
-                <CalendarDays aria-hidden="true" className="h-4 w-4 text-blue-600" />
-                <span className="sr-only">Filter activity logs by date</span>
-                <input
-                  type="date"
-                  value={activityDateFilter}
-                  min="1000-01-01" max="9999-12-31"
-                  onChange={(event) => { if (!event.target.value || event.target.validity.valid) setActivityDateFilter(event.target.value); }}
-                  aria-label="Filter activity logs by date"
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
-                />
-              </label>
-              {activityDateFilter && (
-                <button
-                  type="button"
-                  onClick={() => setActivityDateFilter('')}
-                  className="text-sm font-medium text-blue-700 hover:text-blue-900"
-                >
-                  Clear
-                </button>
-              )}
+              <select aria-label="Filter by user" value={activityUserFilter} onChange={event => setActivityUserFilter(event.target.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">
+                <option value="All Users">All Users</option>
+                {activityRoleGroups.map(({role, accounts}) => <optgroup key={role} label={role}>{accounts.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}</optgroup>)}
+              </select>
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <label className="relative flex-1 sm:flex-none">
+                  <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+                  <input type="date" ref={activityDateRef} min="1000-01-01" max="9999-12-31" aria-label="Filter activity logs by date"
+                    onChange={event => { if (event.currentTarget.value && event.currentTarget.validity.valid) setActivityDateFilter(event.currentTarget.value); }}
+                    onBlur={event => { if (!event.currentTarget.value) setActivityDateFilter(''); }}
+                    className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[240px]" />
+                </label>
+                {activityDateFilter && <button type="button" onClick={() => { if (activityDateRef.current) activityDateRef.current.value = ''; setActivityDateFilter(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
+              </div>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full border-separate border-spacing-0">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
@@ -1189,13 +1128,12 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
       {/* Archived Users Tab */}
       {activeTab === 'archived' && (
-        <div className="bg-white rounded-b-lg shadow-lg p-6">
+        <div className="min-w-0 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-bold text-[#0ea5e9]">Archived Records</h2>
             <div className="flex items-center gap-3">
-              <label htmlFor="archived-record-filter" className="text-sm font-medium text-slate-600">Filter</label>
               <Select value={archiveFilter} onValueChange={(value: 'users' | 'projects' | 'inspections' | 'maintenance') => setArchiveFilter(value)}>
-                <SelectTrigger id="archived-record-filter" className="w-full min-w-44 sm:w-52">
+                <SelectTrigger id="archived-record-filter" aria-label="Archived record type" className="w-36">
                   <SelectValue placeholder="Select record type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1219,8 +1157,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   <p className="text-gray-500">No archived users</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full border-separate border-spacing-0">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
@@ -1268,8 +1206,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
             {archivedRecords.length === 0 ? (
               <p className="py-8 text-center text-gray-500">No archived project records</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full border-separate border-spacing-0">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Project</th>
@@ -1302,8 +1240,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
             <section className="border-t border-slate-200 pt-6">
               <h2 className="mb-4 text-xl font-bold text-[#0ea5e9]">Archived Inspections ({archivedInspections.length})</h2>
               {archivedInspections.length === 0 ? <p className="py-6 text-center text-gray-500">No archived inspections</p> : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full border-separate border-spacing-0">
                     <thead className="border-b border-gray-200 bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Project</th>
@@ -1334,8 +1272,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
             <section className="border-t border-slate-200 pt-6">
               <h2 className="mb-4 text-xl font-bold text-[#0ea5e9]">Archived Maintenance ({archivedMaintenance.length})</h2>
               {archivedMaintenance.length === 0 ? <p className="py-6 text-center text-gray-500">No archived maintenance records</p> : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full border-separate border-spacing-0">
                     <thead className="border-b border-gray-200 bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Project</th>
