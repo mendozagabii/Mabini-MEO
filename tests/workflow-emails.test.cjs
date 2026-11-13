@@ -184,3 +184,35 @@ test('email 6 — a saved inspection tells the encoder the work is recorded', as
   assert.equal(failed.status, 500);
   assert.deepEqual(emails, []);
 });
+
+test('email 6 — first results on a scheduled row notify; later edits and spoofed flags do not', async () => {
+  let existing = { id: 'scheduled', localRoadId: 'p', date: '2026-01-01', annualFollowUpYear: 2026,
+    isScheduledAnnualFollowUp: true, validationStatus: 'Pending Validation' };
+  let failSave = false;
+  const state = { roleDb: 'inspector', userId: 'u', data: {
+    listRoads: async () => [{ id: 'p', projectName: 'Scheduled Road', inspectorId: 'u', actualCompletionDate: '2025-01-01' }],
+    listInspections: async () => [existing],
+    saveInspection: async (_db, record) => {
+      if (failSave) throw Error('save failed');
+      existing = { ...record, isScheduledAnnualFollowUp: false };
+      return existing;
+    },
+    saveRoad: async (_db, record) => record, addActivityLog: async () => {},
+  } };
+  const mocks = baseMocks(state);
+  mocks['@/lib/inspection-selection'] = { validateAssessment: () => true, findingsSummary: () => 'Recorded' };
+  const route = load('src/app/api/inspections/route.ts', mocks);
+  const submit = () => route.PUT(request({ id: 'scheduled', localRoadId: 'p', date: '2026-01-01',
+    inspectionType: 'Monitoring and Maintenance Inspection', conditionRating: 7,
+    conditionRatings: {}, conditionRemarks: {}, conditionAttachments: {}, isScheduledAnnualFollowUp: true }));
+  emails.length = 0;
+  failSave = true;
+  assert.equal((await submit()).status, 500);
+  assert.equal(emails.length, 0);
+  failSave = false;
+  assert.equal((await submit()).status, 200);
+  assert.deepEqual(emails, [{ note: 'Action by: Tester', kind: 'inspection-recorded', projectName: 'Scheduled Road' }]);
+  emails.length = 0;
+  assert.equal((await submit()).status, 200);
+  assert.equal(emails.length, 0);
+});

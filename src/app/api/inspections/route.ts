@@ -79,6 +79,22 @@ function notAssignedToInspector(auth: { profile: { roleDb: string }; userId: str
   return auth.profile.roleDb === 'inspector' && String(road.inspectorId || '') !== auth.userId;
 }
 
+/** Notify on first result recording, whether POST or a scheduled-row PUT. */
+async function notifyInspectionRecorded(auth: NonNullable<Awaited<ReturnType<typeof requireAuth>>>, road: StoredRecord, inspection: StoredRecord) {
+  const notification = await notifyWorkflow(auth.admin, {
+    kind: 'inspection-recorded',
+    projectName: String(road.projectName || road.name || ''),
+    note: actionNote(auth.profile),
+  });
+  const notificationWarning = notification.sent === 0
+    ? `Inspection saved, but its email was not sent (${notification.skipped || 'delivery failed'}). Please contact the Head Engineer; do not resubmit the inspection.`
+    : notification.sent < notification.recipients.length
+      ? 'Inspection saved, but email delivery failed for some recipients. Please contact the Head Engineer.' : undefined;
+  await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username,
+    action: 'Inspection Email Delivery', details: `Inspection ${inspection.id}: sent ${notification.sent} of ${notification.recipients.length}; ${notification.skipped || (notificationWarning ? 'delivery incomplete' : 'delivered')}.` });
+  return notificationWarning;
+}
+
 export async function POST(request: Request) {
   // @mine — enforce the module action on the server, not just in the UI.
   const { auth, denied } = await requireRole(request, ['inspector']);
@@ -113,17 +129,7 @@ export async function POST(request: Request) {
     try { await refreshRoadCondition(auth, road.id); }
     catch (error) { console.error('Inspection saved; condition refresh failed.', error); }
     // Email 6 — the Head Engineer schedules the repair next, the encoder is told it is done.
-    const notification = await notifyWorkflow(auth.admin, {
-      kind: 'inspection-recorded',
-      projectName: String(road.projectName || road.name || ''),
-      note: actionNote(auth.profile),
-    });
-    const notificationWarning = notification.sent === 0
-      ? `Inspection saved, but its email was not sent (${notification.skipped || 'delivery failed'}). Please contact the Head Engineer; do not resubmit the inspection.`
-      : notification.sent < notification.recipients.length
-        ? 'Inspection saved, but email delivery failed for some recipients. Please contact the Head Engineer.' : undefined;
-    await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username,
-      action: 'Inspection Email Delivery', details: `Inspection ${inspection.id}: sent ${notification.sent} of ${notification.recipients.length}; ${notification.skipped || (notificationWarning ? 'delivery incomplete' : 'delivered')}.` });
+    const notificationWarning = await notifyInspectionRecorded(auth, road, inspection);
     return withRefresh(NextResponse.json({ success: true, data: inspection, notificationWarning }), auth);
   } catch (error) {
     console.error('Failed to create inspection.', error);
@@ -173,8 +179,14 @@ export async function PUT(request: Request) {
     }
     const inspection = await saveInspection(auth.admin, { ...existing, ...payload, id: existing.id, annualFollowUpYear: existing.annualFollowUpYear, validationStatus: existing.validationStatus }, road.id, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Updated', details: `Updated inspection ${inspection.id}` });
-    const roadUpdate = await refreshRoadCondition(auth, road.id);
-    return withRefresh(NextResponse.json({ success: true, data: inspection, roadUpdates: roadUpdate ? [roadUpdate] : [] }), auth);
+    // This flag is read from the stored row, never trusted from the request.
+    // Scheduled placeholders exist before any results have been recorded.
+    const notificationWarning = existing.isScheduledAnnualFollowUp === true
+      ? await notifyInspectionRecorded(auth, road, inspection) : undefined;
+    let roadUpdate = null;
+    try { roadUpdate = await refreshRoadCondition(auth, road.id); }
+    catch (error) { console.error('Inspection saved; condition refresh failed.', error); }
+    return withRefresh(NextResponse.json({ success: true, data: inspection, notificationWarning, roadUpdates: roadUpdate ? [roadUpdate] : [] }), auth);
   } catch (error) {
     console.error('Failed to update inspection.', error);
     return NextResponse.json({ message: 'Unable to update this inspection. Your role may not permit it.' }, { status: 500 });

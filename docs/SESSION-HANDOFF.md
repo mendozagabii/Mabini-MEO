@@ -287,3 +287,10 @@ Redoing any of these will conflict with what is already live.
 - New inspection save returns non-blocking notification warning and writes delivery outcome to activity log. Secondary condition-refresh failure cannot suppress notification. SMTP transport has finite connection/greeting/socket timeouts. Editing still does not notify.
 - Removed artificial three-second project-save delay. Existing form saving guards remain.
 - 153 tests and production build pass. SMTP inbox delivery and production latency are NOT verified. Owner retest required. No merge, purge test, or destructive migration.
+
+### Scheduled inspection first-result email fix
+- User logs showed Inspection Updated, not Inspection Created: annual scheduled placeholders already exist before first result entry.
+- PUT now sends inspection-recorded only when the server-loaded existing row isScheduledAnnualFollowUp=true; later edits remain email-free. Client-supplied flags cannot force a resend. POST behavior is unchanged.
+- Shared delivery warning/logging for both first-record paths; PUT UI displays delivery warnings too.
+- Regression covers failed save/no email, first scheduled submission/one email, subsequent edit with forged scheduled flag/no email. 154 tests and production build pass.
+- No retroactive messages sent for previously filled test inspections. No merge or database migration. Live inbox retest remains necessary with an unfilled scheduled inspection.

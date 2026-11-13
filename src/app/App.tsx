@@ -577,6 +577,7 @@ export default function App() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || 'Unable to update inspection.');
+      if (payload.notificationWarning) window.alert(payload.notificationWarning);
 
       setInspections((prev) => prev.map((item) => item.id === inspection.id ? payload.data : item));
       setLocalRoadData((prev) => prev.map((road) => {
