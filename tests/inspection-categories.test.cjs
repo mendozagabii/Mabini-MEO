@@ -374,3 +374,18 @@ test('pending inspection view and print do not expose stale results', async () =
   assert.equal(printedDocuments.at(-1).sections.find(section=>section.title==='Inspection Findings').fields[0].value,'');
   act(()=>root.unmount());container.remove();
 });
+
+
+test('inspection road name is below the network ID in edit, view and print', async () => {
+  const {container,root}=renderModule([pendingInspection]);
+  await act(async()=>container.querySelector('[aria-label^="View full inspection"]').click());
+  const roadSection=[...container.querySelectorAll('.inspection-detail-dialog section')].find(e=>e.textContent.includes('Road Information'));
+  assert.ok(roadSection.querySelector('.space-y-4'));assert.match(roadSection.textContent,/Road Network ID No\.Road Name/);
+  await act(async()=>[...container.querySelectorAll('.inspection-detail-dialog button')].find(b=>b.textContent.includes('Print')).click());
+  const fields=printedDocuments.at(-1).sections.find(s=>s.title==='Road Information').fields;
+  assert.deepEqual(fields.slice(0,2).map(f=>[f.label,f.width]),[['Road Network ID No.','full'],['Road Name','full']]);
+  openPendingForm(container);
+  const editRoad=[...container.querySelectorAll('section')].find(e=>e.querySelector('h3')?.textContent==='Road Information');
+  assert.ok(editRoad.querySelector('.space-y-3'));assert.match(editRoad.textContent,/Road Network ID No\.Road Name/);assert.equal(editRoad.querySelector('.space-y-3').querySelectorAll('textarea[readonly]').length,2);
+  act(()=>root.unmount());container.remove();
+});

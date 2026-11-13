@@ -178,7 +178,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
     const searchValues = validationMode
       ? [item.projectName || item.name, task?.result || 'Pending', task?.year ? `Annual ${task.year}` : '', item.barangay || 'N/A', item.dateBuilt, item.condition, item.lastInspection || 'N/A']
       : showsAssignTable
-      ? [item.projectName || item.name, item.barangay || 'N/A', item.contractedAmount && `Php ${formatSavedProjectCurrency(item.contractedAmount)}`, date, inspectors.find(person => person.id === item.inspectorId)?.name || (hasPassedValidation(item) ? 'Not assigned' : 'Awaiting validation')]
+      ? [item.projectName || item.name, item.barangay || 'N/A', item.contractedAmount && `Php ${formatSavedProjectCurrency(item.contractedAmount)}`, date, inspectors.find(person => person.id === item.inspectorId)?.name || (hasPassedValidation(item) ? 'Not Assigned' : 'Awaiting Validation')]
       : [item.projectName || item.name, item.barangay || 'Location not set', item.dateBuilt || 'Not set', item.lastInspection || 'Not recorded', latestValidation(item).result === 'Return for Revision' ? 'For Revision' : ''];
     const matchesSearch = searchValues.some(value => String(value ?? '').toLowerCase().includes(query));
     const matchesDate = !usesDateFilter || !filterCompletionDate || date === filterCompletionDate;
@@ -605,7 +605,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Project Name</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Validation Status</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">Validation Status</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Location</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Date Built</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Condition</th>
@@ -650,8 +650,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         status === 'Return for Revision' ? 'bg-amber-100 text-amber-800' :
                         'bg-gray-100 text-gray-700'
                       }`}>
-                        {status}{task?.year ? ` · Annual ${task.year}` : ''}
+                        {status}
                       </span>
+                      {task?.year && <span className="mt-1 block text-xs text-slate-500">Annual {task.year}</span>}
                     </td>
                     <td className="break-words px-6 py-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
@@ -728,7 +729,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                             }}
                             className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700 disabled:bg-gray-100"
                           >
-                            <option value="">{hasPassedValidation(item) ? 'Not assigned' : 'Awaiting validation'}</option>
+                            <option value="">{hasPassedValidation(item) ? 'Not Assigned' : 'Awaiting Validation'}</option>
                             {inspectors.map(inspector => (
                               <option key={inspector.id} value={inspector.id}>{inspector.name}</option>
                             ))}

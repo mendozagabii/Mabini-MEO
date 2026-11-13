@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-13 — [mine] Polish validation, inspection and recommendation displays
+- **Type:** Modified
+- **Files:** `src/app/components/AIPredictionModule.tsx` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Display real activity logs while loading, align inspection road fields, clarify assignment and validation labels, and show AI recommendations in a table.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-13 — [mine] Refine overview filtering and inspection requirements
 - **Type:** Modified
 - **Files:** `src/app/App.tsx` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/lib/inspection-selection.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/project-form.test.cjs` (modified)

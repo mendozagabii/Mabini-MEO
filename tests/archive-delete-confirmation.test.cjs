@@ -101,3 +101,25 @@ test('activity date filter retains partial input and filters the displayed log d
   assert.equal(document.querySelector('[aria-label="Filter by user"]').textContent,'All Users');
   testLogs=[];
 });
+
+
+test('activity log loading never displays example data and reports fetch errors', async () => {
+  const originalFetch=global.fetch; let resolveLogs;
+  global.fetch=(url,options)=>url==='/api/activity-logs'?new Promise(resolve=>{resolveLogs=resolve;}):originalFetch(url,options);
+  await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(mod.exports.UserManagementModule,{currentUserEmail:'test@example.com'})));
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Activity Logs')).click());
+  assert.match(document.body.textContent,/Loading activity logs/);assert.doesNotMatch(document.body.textContent,/Created user John Encoder|Updated system settings/);
+  await act(async()=>resolveLogs({ok:false,json:async()=>({message:'Logs unavailable'})}));
+  assert.match(document.body.textContent,/Logs unavailable/);global.fetch=originalFetch;
+});
+
+test('empty archive categories show an icon', async () => {
+  const originalFetch=global.fetch;
+  global.fetch=async (url,options)=>{const response=await originalFetch(url,options);const payload=await response.json();return {...response,json:async()=>({...payload,archived:[],archivedUsers:[]})};};
+  await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(mod.exports.UserManagementModule,{currentUserEmail:'test@example.com'})));
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Archived (')).click());
+  for(const [type,text] of [['Project (0)','No archived project records'],['Inspections (0)','No archived inspections'],['Maintenance (0)','No archived maintenance records']]) {
+    await act(async()=>button(type).click());const p=[...document.querySelectorAll('p')].find(e=>e.textContent===text);assert.ok(p);assert.ok(p.parentElement.querySelector('svg'));
+  }
+  global.fetch=originalFetch;
+});

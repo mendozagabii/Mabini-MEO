@@ -607,8 +607,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
       {
         title: 'Road Information',
         fields: [
-          { label: 'Road Network ID No.', value: road?.roadNetworkId || inspection.roadNetworkId, width: 'half' },
-          { label: 'Road Name', value: road?.roadName || road?.name || inspection.roadName, width: 'half' },
+          { label: 'Road Network ID No.', value: road?.roadNetworkId || inspection.roadNetworkId, width: 'full' },
+          { label: 'Road Name', value: road?.roadName || road?.name || inspection.roadName, width: 'full' },
           { label: 'Components', value: road?.components || inspection.components, width: 'full' },
           { label: 'Description', value: road?.description || inspection.description, width: 'full' },
         ],
@@ -830,11 +830,11 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                 <section ref={roadSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
                 <div className="border-b pb-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Road Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                  <div className="space-y-3 mb-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Road Network ID No.</label>
-                      <input
-                        type="text"
+                      <AutoGrowTextarea
+                        rows={2}
                         value={formData.roadNetworkId}
                         readOnly
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
@@ -842,8 +842,8 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Road Name</label>
-                      <input
-                        type="text"
+                      <AutoGrowTextarea
+                        rows={2}
                         value={formData.roadName}
                         readOnly
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
@@ -1149,12 +1149,12 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
 
                   <section className="border-b pb-6">
                     <h3 className="mb-4 text-lg font-semibold text-gray-900">Road Information</h3>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-4">
                       {[
                         ['Road Network ID No.', road?.roadNetworkId || inspection.roadNetworkId || ''],
                         ['Road Name', road?.roadName || road?.name || inspection.roadName || 'Not specified'],
                       ].map(([label, value]) => (
-                        <div key={label}><span className="mb-2 block text-sm font-medium text-gray-700">{label}</span><span className="block min-h-[3rem] rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm text-gray-700">{value}</span></div>
+                        <div key={label}><span className="mb-2 block text-sm font-medium text-gray-700">{label}</span><span className="block min-h-[3rem] whitespace-pre-wrap rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-sm text-gray-700">{value}</span></div>
                       ))}
                     </div>
                   </section>

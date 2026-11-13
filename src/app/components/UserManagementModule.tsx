@@ -107,83 +107,15 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   const userFormScrollRef = useRef<HTMLDivElement>(null);
   const userAccountSectionRef = useRef<HTMLElement>(null);
   const userAccessSectionRef = useRef<HTMLElement>(null);
-  const [users, setUsers] = useState<UserData[]>([
-    {
-      id: '1',
-      employeeId: 'EMP-0001',
-      name: 'Admin User',
-      email: 'admin@municipal.gov',
-      username: 'admin',
-      role: 'Head Engineer',
-      status: 'Active',
-      createdDate: '2026-01-15',
-    },
-    {
-      id: '2',
-      employeeId: 'EMP-0002',
-      name: 'John Encoder',
-      email: 'john.encoder@municipal.gov',
-      username: 'encoder',
-      role: 'Staff - Encoder',
-      status: 'Active',
-      createdDate: '2026-02-10',
-    },
-    {
-      id: '3',
-      employeeId: 'EMP-0003',
-      name: 'Peter Inspector',
-      email: 'peter.inspector@municipal.gov',
-      username: 'inspector',
-      role: 'Staff - Inspector',
-      status: 'Active',
-      createdDate: '2026-03-05',
-    },
-    {
-      id: '4',
-      employeeId: 'EMP-0004',
-      name: 'Maria Validator',
-      email: 'maria.validator@municipal.gov',
-      username: 'validator',
-      role: 'Staff - Validator',
-      status: 'Active',
-      createdDate: '2026-03-20',
-    },
-  ]);
+  const [users, setUsers] = useState<UserData[]>([]);
 
   const [archivedUsers, setArchivedUsers] = useState<UserData[]>([]);
   const [archivedRecords, setArchivedRecords] = useState<ArchivedRecord[]>([]);
   const [archivedInspections, setArchivedInspections] = useState<ArchivedRecord[]>([]);
   const [archivedMaintenance, setArchivedMaintenance] = useState<ArchivedRecord[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([
-    {
-      id: '1',
-      user: 'admin',
-      action: 'User Created',
-      timestamp: '2026-08-30 10:30:00',
-      details: 'Created user John Encoder',
-    },
-    {
-      id: '2',
-      user: 'admin',
-      action: 'Role Updated',
-      timestamp: '2026-08-30 09:15:00',
-      details: 'Changed Peter Inspector role to Inspector',
-    },
-    {
-      id: '3',
-      user: 'admin',
-      action: 'User Activated',
-      timestamp: '2026-08-29 14:45:00',
-      details: 'Activated Maria Validator account',
-    },
-    {
-      id: '4',
-      user: 'admin',
-      action: 'System Configuration',
-      timestamp: '2026-08-29 11:20:00',
-      details: 'Updated system settings',
-    },
-  ]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState('');
 
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -267,18 +199,29 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
   }, []);
 
   useEffect(() => {
-    Promise.all([fetch('/api/activity-logs'), fetch('/api/local-road'), fetch('/api/inspections'), fetch('/api/maintenance')])
-      .then(async ([logsResponse, roadsResponse, inspectionsResponse, maintenanceResponse]) => {
-        const logsPayload = await logsResponse.json();
+    let cancelled = false;
+    fetch('/api/activity-logs')
+      .then(async response => {
+        const payload = await response.json();
+        if (!response.ok || !Array.isArray(payload.logs)) throw new Error(payload?.message || 'Unable to load activity logs.');
+        if (!cancelled) setActivityLogs(previous => [...previous.filter(entry => !payload.logs.some((log: ActivityLog) => log.id === entry.id)), ...payload.logs]);
+      })
+      .catch((error: unknown) => { if (!cancelled) setActivityError(error instanceof Error ? error.message : 'Unable to load activity logs.'); })
+      .finally(() => { if (!cancelled) setActivityLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    Promise.all([fetch('/api/local-road'), fetch('/api/inspections'), fetch('/api/maintenance')])
+      .then(async ([roadsResponse, inspectionsResponse, maintenanceResponse]) => {
         const roadsPayload = await roadsResponse.json();
         const inspectionsPayload = await inspectionsResponse.json();
         const maintenancePayload = await maintenanceResponse.json();
-        if (logsResponse.ok && Array.isArray(logsPayload.logs)) setActivityLogs(logsPayload.logs);
         if (roadsResponse.ok && Array.isArray(roadsPayload.archived)) setArchivedRecords(roadsPayload.archived);
         if (inspectionsResponse.ok && Array.isArray(inspectionsPayload.archived)) setArchivedInspections(inspectionsPayload.archived);
         if (maintenanceResponse.ok && Array.isArray(maintenancePayload.archived)) setArchivedMaintenance(maintenancePayload.archived);
       })
-      .catch((error) => console.error('Failed to load activity logs and archived records.', error));
+      .catch((error) => console.error('Failed to load archived records.', error));
   }, []);
 
   useEffect(() => {
@@ -1125,9 +1068,9 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                 {filteredActivityLogs.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-500">
-                      {activityDateFilter || activityUserFilter !== 'All Users'
+                      {activityLoading ? 'Loading activity logs...' : activityError || (activityDateFilter || activityUserFilter !== 'All Users'
                         ? 'No activity logs match the selected filters.'
-                        : 'No activity logs available.'}
+                        : 'No activity logs available.')}
                     </td>
                   </tr>
                 )}
@@ -1215,7 +1158,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
           <div className="border-t border-slate-200 pt-6">
             <h2 className="mb-4 text-xl font-bold text-[#0ea5e9]">Archived Project Records ({archivedRecords.length})</h2>
             {archivedRecords.length === 0 ? (
-              <p className="py-8 text-center text-gray-500">No archived project records</p>
+              <div className="py-12 text-center"><Archive className="mx-auto mb-4 h-12 w-12 text-gray-300" aria-hidden="true" /><p className="text-gray-500">No archived project records</p></div>
             ) : (
               <div className="max-w-full overflow-x-auto rounded-xl">
                 <table className="w-full border-separate border-spacing-0">
@@ -1250,7 +1193,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
           {archiveFilter === 'inspections' && (
             <section className="border-t border-slate-200 pt-6">
               <h2 className="mb-4 text-xl font-bold text-[#0ea5e9]">Archived Inspections ({archivedInspections.length})</h2>
-              {archivedInspections.length === 0 ? <p className="py-6 text-center text-gray-500">No archived inspections</p> : (
+              {archivedInspections.length === 0 ? <div className="py-12 text-center"><Archive className="mx-auto mb-4 h-12 w-12 text-gray-300" aria-hidden="true" /><p className="text-gray-500">No archived inspections</p></div> : (
                 <div className="max-w-full overflow-x-auto rounded-xl">
                   <table className="w-full border-separate border-spacing-0">
                     <thead className="border-b border-gray-200 bg-gray-50">
@@ -1282,7 +1225,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
           {archiveFilter === 'maintenance' && (
             <section className="border-t border-slate-200 pt-6">
               <h2 className="mb-4 text-xl font-bold text-[#0ea5e9]">Archived Maintenance ({archivedMaintenance.length})</h2>
-              {archivedMaintenance.length === 0 ? <p className="py-6 text-center text-gray-500">No archived maintenance records</p> : (
+              {archivedMaintenance.length === 0 ? <div className="py-12 text-center"><Archive className="mx-auto mb-4 h-12 w-12 text-gray-300" aria-hidden="true" /><p className="text-gray-500">No archived maintenance records</p></div> : (
                 <div className="max-w-full overflow-x-auto rounded-xl">
                   <table className="w-full border-separate border-spacing-0">
                     <thead className="border-b border-gray-200 bg-gray-50">

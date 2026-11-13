@@ -744,7 +744,7 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   assert.match(container.textContent, /2025-03-31/);
   const select = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
   assert.ok(select);
-  assert.match(select.textContent, /Not assigned/);
+  assert.match(select.textContent, /Not Assigned/);
   assert.match(select.textContent, /Juan Dela Cruz/);
   assert.equal(container.querySelector('[aria-label="Delete Poblacion Road"]') !== null, true);
   assert.equal(select.disabled, false);
@@ -756,7 +756,7 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   const pendingSelect = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
   assert.ok(pendingSelect);
   assert.equal(pendingSelect.disabled, true);
-  assert.match(pendingSelect.textContent, /Awaiting validation/);
+  assert.match(pendingSelect.textContent, /Awaiting Validation/);
 
   // task 13: both project lists filter by completion date instead of location
   for (const userRole of ['Head Engineer', 'Staff - Encoder']) {
@@ -943,5 +943,27 @@ test('maintenance overview year and search filters constrain both table and prin
   const search=container.querySelector('input[type=search]');
   await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(search,'Alpha');search.dispatchEvent(new window.Event('input',{bubbles:true}));});
   assert.match(container.textContent,/0 records listed/);
+  await reset();
+});
+
+
+test('returned validation status shows the year on its own line and a bold header', async () => {
+  const Dummy=({children})=>React.createElement(React.Fragment,null,children);const ui=new Proxy({}, {get:()=>Dummy});
+  const {LocalRoadList}=loadTs('src/app/components/LocalRoadList.tsx',{'./ui/textarea':ui,'./ui/dialog':ui,'./ui/select':ui,'./ConfirmActionDialog':ui,'./PrintDocument':ui,'@/lib/activity-log-client':{recordClientActivity:async()=>{}},'@/lib/project-validation-workflow':loadTs('src/lib/project-validation-workflow.ts'),'@/lib/project-form-validation':validation});
+  const item={id:'p',name:'Road',actualCompletionDate:'2020-01-01',annualValidationEntries:[{year:2021,dueDate:'2020-12-01',result:'Return for Revision',remarks:'Fix details'}]};
+  await reset();await act(async()=>root.render(React.createElement(LocalRoadList,{data:[item],validationMode:true,userRole:'Staff - Validator',currentUser:'User',onAdd(){},onEdit(){},onDelete(){}})));
+  const header=[...container.querySelectorAll('th')].find(th=>th.textContent==='Validation Status');assert.ok(header.className.includes('font-semibold'));
+  const cell=container.querySelector('tbody tr').cells[1];assert.equal(cell.children[0].textContent.trim(),'Return for Revision');assert.equal(cell.children[1].textContent.trim(),'Annual 2021');assert.ok(cell.children[1].className.includes('block'));
+  await reset();
+});
+
+test('AI recommendations render project data in a prioritized table', async () => {
+  const {AIPredictionModule}=loadTs('src/app/components/AIPredictionModule.tsx');
+  const roads=[{id:'a',name:'Road A',projectName:'Project Alpha',projectCategory:'Local Road'}, {id:'b',name:'Road B',projectName:'Project Beta',projectCategory:'Bridge'}];
+  const inspections=roads.map(r=>({localRoadId:r.id,date:'2026-01-01',conditionRatings:{Concrete:'Fair'}}));
+  const predictions=roads.map((r,i)=>({localRoadId:r.id,localRoadName:r.name,type:'Wrong category',condition:'Fair',priorityScore:i+1,justification:'Cracks',recommendation:'Repair'}));
+  await reset();await act(async()=>root.render(React.createElement(AIPredictionModule,{localRoadData:roads,inspections,predictions,onPredictionsChange(){}})));
+  assert.deepEqual([...container.querySelectorAll('th')].map(x=>x.textContent),['Project Name','Category','Condition','AI Justification','Recommended Maintenance Activity']);
+  const rows=[...container.querySelectorAll('tbody tr')];assert.equal(rows.length,2);assert.deepEqual([...rows[0].cells].map(x=>x.textContent),['Project Beta','Bridge','Fair','Cracks','Repair']);
   await reset();
 });
