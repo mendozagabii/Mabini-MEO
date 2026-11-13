@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ConfirmActionDialog } from './ConfirmActionDialog';
 import { PrintDocument, type PrintSection } from './PrintDocument';
 import { recordClientActivity } from '@/lib/activity-log-client';
-import { isValidationLocked, latestValidation, validationTask } from '@/lib/project-validation-workflow';
+import { hasPassedValidation, isValidationLocked, latestValidation, validationTask } from '@/lib/project-validation-workflow';
 import { formatSavedProjectCurrency } from '@/lib/project-form-validation';
 
 interface ProjectAttachment {
@@ -747,7 +747,9 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                           <select
                             aria-label={`Assign inspector for ${item.projectName || item.name}`}
                             value={item.inspectorId || ''}
-                            disabled={!onAssignInspector || assigningId === item.id}
+                            // @mine — the officer's flow: only a validated project can take an inspector.
+                            disabled={!onAssignInspector || assigningId === item.id || !hasPassedValidation(item)}
+                            title={hasPassedValidation(item) ? undefined : 'Assign an inspector once the project is validated'}
                             onChange={async (event) => {
                               if (!onAssignInspector) return;
                               setAssigningId(item.id);
@@ -756,7 +758,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                             }}
                             className="min-h-[38px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
                           >
-                            <option value="">Not assigned</option>
+                            <option value="">{hasPassedValidation(item) ? 'Not assigned' : 'Awaiting validation'}</option>
                             {inspectors.map(inspector => (
                               <option key={inspector.id} value={inspector.id}>{inspector.name}</option>
                             ))}

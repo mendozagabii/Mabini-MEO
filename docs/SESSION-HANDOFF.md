@@ -271,3 +271,10 @@ Redoing any of these will conflict with what is already live.
 3. `MY-CHANGES.md` entry in the same commit; `scripts/check-changelog.sh` passes.
 4. Pushed to the session branch, PR opened (or updated), and the PR body states **what was verified and how**.
 5. Left unmerged until the owner says "merge".
+
+### Email verification follow-up
+- 150/150 tests and production build pass on the working tree.
+- New `tests/validation-reminders.test.cjs`: window boundary, project/year dedupe, exclusion rules, latest-decision assignment, cron auth, successful marking, skipped delivery, fail-closed history reads.
+- Reminder logs now use paginated filtered history, not the newest 500 UI rows.
+- See WORKFLOW-DECISIONS.md for delivery/concurrency limitations. SMTP remains deferred; PR merge and destructive drop remain on hold.
+- Changes are saved locally; deployment has not been performed by this verification pass.

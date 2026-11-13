@@ -28,6 +28,7 @@ const formValidation = load('src/lib/project-form-validation.ts');
 const res = (status, body = {}) => ({ status, body });
 const emails = [];
 const notifications = {
+  actionNote: () => 'Action by: Tester',
   notifyWorkflow: async (_db, options) => { emails.push(options); return { sent: 0, recipients: [] }; },
 };
 
@@ -56,7 +57,7 @@ const dueProject = {
   annualValidationEntries: [{ year: 2026, result: 'Pending', remarks: '', dueDate: '2026-10-12' }],
 };
 
-test('email 1 — creating a project tells the validator it is for validation', async () => {
+test('creating a project does not send a calendar reminder', async () => {
   emails.length = 0;
   const state = {
     roleDb: 'encoder',
@@ -69,7 +70,7 @@ test('email 1 — creating a project tells the validator it is for validation', 
   const route = load('src/app/api/local-road/route.ts', baseMocks(state));
   const response = await route.POST(request({ projectName: 'Poblacion Road', barangay: 'Poblacion' }));
   assert.equal(response.status, 200);
-  assert.deepEqual(emails, [{ kind: 'for-validation', projectName: 'Poblacion Road' }]);
+  assert.deepEqual(emails, []);
 });
 
 test('email 2 and email 4 — the validator sends it back, or tells the Head Engineer it is validated', async () => {
@@ -86,12 +87,12 @@ test('email 2 and email 4 — the validator sends it back, or tells the Head Eng
   emails.length = 0;
   const returned = await route.PATCH(request({ id: 'p', validationResult: 'Return for Revision', validationRemarks: 'Fix the drainage', annualValidationYear: 2026 }));
   assert.equal(returned.status, 200);
-  assert.deepEqual(emails, [{ kind: 'for-revision', projectName: 'Poblacion Road' }]);
+  assert.deepEqual(emails, [{ note: 'Action by: Tester', kind: 'for-revision', projectName: 'Poblacion Road' }]);
 
   emails.length = 0;
   const validated = await route.PATCH(request({ id: 'p', validationResult: 'Validated', validationRemarks: 'Complete', annualValidationYear: 2026 }));
   assert.equal(validated.status, 200);
-  assert.deepEqual(emails, [{ kind: 'validated', projectName: 'Poblacion Road' }]);
+  assert.deepEqual(emails, [{ note: 'Action by: Tester', kind: 'validated', projectName: 'Poblacion Road' }]);
 });
 
 test('email 3 — a returned project that comes back with changes tells the validator', async () => {
@@ -115,7 +116,7 @@ test('email 3 — a returned project that comes back with changes tells the vali
   emails.length = 0;
   const saved = await route.PATCH(request({ id: 'p', projectName: 'Poblacion Road Phase 2' }));
   assert.equal(saved.status, 200);
-  assert.deepEqual(emails, [{ kind: 'information-updated', projectName: 'Poblacion Road Phase 2' }]);
+  assert.deepEqual(emails, [{ note: 'Action by: Tester', kind: 'information-updated', projectName: 'Poblacion Road Phase 2' }]);
 
   // an ordinary edit of a project that was never returned emails nobody
   emails.length = 0;
@@ -129,7 +130,7 @@ test('email 5 — assigning an inspector tells that inspector, and clearing tell
   const state = {
     roleDb: 'head_engineer',
     data: {
-      listRoads: async () => [{ id: 'p', projectName: 'Poblacion Road' }],
+      listRoads: async () => [{ id: 'p', projectName: 'Poblacion Road', validationResult: 'Validated' }],
       findInspectorProfile: async (_admin, id) => (id === 'i1' ? { id, name: 'Juan' } : null),
       setProjectInspector: async () => {},
       addActivityLog: async () => {},
@@ -139,7 +140,7 @@ test('email 5 — assigning an inspector tells that inspector, and clearing tell
 
   emails.length = 0;
   assert.equal((await route.POST(request({ projectId: 'p', inspectorId: 'i1' }))).status, 200);
-  assert.deepEqual(emails, [{ kind: 'inspector-assigned', projectName: 'Poblacion Road', inspectorId: 'i1' }]);
+  assert.deepEqual(emails, [{ note: 'Action by: Tester', kind: 'inspector-assigned', projectName: 'Poblacion Road', inspectorId: 'i1' }]);
 
   emails.length = 0;
   assert.equal((await route.POST(request({ projectId: 'p', inspectorId: '' }))).status, 200);
@@ -171,7 +172,7 @@ test('email 6 — a saved inspection tells the encoder the work is recorded', as
     conditionRatings: {}, conditionRemarks: {}, conditionAttachments: {},
   }));
   assert.equal(created.status, 200);
-  assert.deepEqual(emails, [{ kind: 'inspection-recorded', projectName: 'Coastal Road' }]);
+  assert.deepEqual(emails, [{ note: 'Action by: Tester', kind: 'inspection-recorded', projectName: 'Coastal Road' }]);
 
   // a refused save never emails anybody
   emails.length = 0;

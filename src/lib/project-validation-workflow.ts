@@ -47,6 +47,14 @@ export function validationTask(project: ValidationProject, now = new Date()): { 
   return { year: entry.year, result: entry.result === 'Pending' ? undefined : entry.result, remarks: entry.remarks, dueDate: entry.dueDate };
 }
 
+/** Assignment follows the current annual decision, not a historical approval. */
+export function hasPassedValidation(project: ValidationProject): boolean {
+  const entries = project.annualValidationEntries ?? [];
+  if (!entries.length) return project.validationResult === 'Validated';
+  const latest = entries.slice().sort((a, b) => b.year - a.year)[0];
+  return latest.result === 'Validated';
+}
+
 /**
  * @mine — a validated project stays locked to the encoder until the next yearly
  * validation opens (WORKFLOW-DECISIONS Q4/B3). The lock lifts as soon as a newer

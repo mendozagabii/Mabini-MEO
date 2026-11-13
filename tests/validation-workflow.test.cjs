@@ -68,7 +68,7 @@ test('validator can only update a currently due annual task, never an initial de
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
     '@/lib/project-validation-workflow': workflow,
     '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
-    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: role, username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }), actionNote: () => '', automaticNote: () => '' }, '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: role, username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
     '@/lib/supabase-data': {
       listRoads: async () => [project], addActivityLog: async () => {},
       saveAnnualValidation: async (...args) => { calls.push(args); },
@@ -138,7 +138,7 @@ test('successful encoder edits requeue only returned decisions; partial edits an
       'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
       '@/lib/project-validation-workflow': workflow,
       '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
-    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }), actionNote: () => '', automaticNote: () => '' }, '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
       '@/lib/supabase-data': {
         listRoads: async () => [project], addActivityLog: async () => {},
         saveRoad: async (_db, rec) => ({ ...rec, ...(partial ? { attachmentWarning: 'Attachment failed' } : {}) }),
@@ -168,7 +168,7 @@ test('an encoder edit requeues every outstanding returned decision', async () =>
     'next/server': { NextResponse: { json: (body, init) => ({ status: init?.status || 200, body }) } },
     '@/lib/project-validation-workflow': workflow,
     '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
-    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => ({ status: 403 }), unauthorized: () => ({ status: 401 }), withRefresh: r => r },
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }), actionNote: () => '', automaticNote: () => '' }, '@/lib/api': { requireAuth: async () => ({ profile: { roleDb: 'encoder', username: 'Tester' }, db: 'user', admin: 'admin', userId: 'u' }), forbidden: () => ({ status: 403 }), unauthorized: () => ({ status: 401 }), withRefresh: r => r },
     '@/lib/supabase-data': {
       listRoads: async () => [project], addActivityLog: async () => {}, saveRoad: async (_db, rec) => rec,
       requeueReturnedValidation: async (_db, _id, year) => { years.push(year); if (year === undefined) project = { ...project, validationResult: undefined }; else project = { ...project, annualValidationEntries: [entry(year, 'Pending', 'Annual')] }; return true; },
@@ -225,7 +225,7 @@ function loadProjectRoute(projectRef) {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
     '@/lib/project-validation-workflow': workflow,
     '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
-    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': { requireAuth: async () => auth, requireRole: async () => ({ auth }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }), actionNote: () => '', automaticNote: () => '' }, '@/lib/api': { requireAuth: async () => auth, requireRole: async () => ({ auth }), forbidden: () => res(403), unauthorized: () => res(401), withRefresh: r => r },
     '@/lib/supabase-data': {
       listRoads: async () => [projectRef()], addActivityLog: async () => {},
       saveRoad: async (_db, rec) => ({ ...rec }), requeueReturnedValidation: async () => true,

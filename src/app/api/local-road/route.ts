@@ -5,7 +5,7 @@ import { hasFourDigitYear, projectLocationsError } from '@/lib/project-form-vali
 import { isValidationLocked, validationTask, type ValidationProject } from '@/lib/project-validation-workflow';
 import { requireAuth, requireRole, forbidden, unauthorized, withRefresh } from '@/lib/api';
 // @mine — step 6: the six workflow emails. Never throws; off until the mailbox is set.
-import { notifyWorkflow } from '@/lib/notifications';
+import { actionNote, notifyWorkflow } from '@/lib/notifications';
 import {
   addActivityLog, archiveRoad, listArchivedRoads, listRoads,
   permanentlyDeleteRoad, restoreRoad, saveAnnualValidation, requeueReturnedValidation, saveRoad, type StoredRecord,
@@ -79,8 +79,8 @@ export async function POST(request: Request) {
   try {
     const saved = await saveRoad(auth.db, { ...payload, id: '' }, auth.userId);
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Project Created', details: `Created project ${String(saved.projectName || saved.name || saved.id)}` });
-    // Email 1 — Encoder → Validator: the project has entered the queue.
-    await notifyWorkflow(auth.admin, { kind: 'for-validation', projectName: String(saved.projectName || saved.name || '') });
+    // Email 1 is not sent here: the officer's flow drives it from the calendar, when the
+    // 30-day validation window opens (src/app/api/validation-reminders/route.ts).
     return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
   } catch (error) {
     console.error('Failed to create project.', error);
@@ -161,6 +161,7 @@ export async function PATCH(request: Request) {
       await notifyWorkflow(auth.admin, {
         kind: result === 'Validated' ? 'validated' : 'for-revision',
         projectName: String(current.projectName || current.name || ''),
+        note: actionNote(auth.profile),
       });
       let updated: StoredRecord | undefined;
       try { updated = (await listRoads(auth.db, auth.admin)).find((road) => road.id === payload.id); }
@@ -195,7 +196,11 @@ export async function PATCH(request: Request) {
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Project Updated', details: `Updated project ${String(saved.projectName || saved.name || saved.id)}` });
     // Email 3 — Encoder → Validator: a returned project came back with changes.
     if (returned.length && !saved.attachmentWarning) {
-      await notifyWorkflow(auth.admin, { kind: 'information-updated', projectName: String(saved.projectName || saved.name || '') });
+      await notifyWorkflow(auth.admin, {
+        kind: 'information-updated',
+        projectName: String(saved.projectName || saved.name || ''),
+        note: actionNote(auth.profile),
+      });
     }
     return withRefresh(NextResponse.json({ success: true, data: saved }), auth);
   } catch (error) {

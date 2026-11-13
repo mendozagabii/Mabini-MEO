@@ -66,10 +66,11 @@ function assignmentRoute(state) {
   const auth = { profile: { roleDb: state.roleDb, username: 'Head' }, db: 'user', admin: 'admin', userId: 'u' };
   return load('src/app/api/local-road/inspector-assignment/route.ts', {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
-    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': {
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }), actionNote: () => '', automaticNote: () => '' }, '@/lib/api': {
       requireRole: async (_request, roles) => (roles.includes(state.roleDb) ? { auth } : { denied: res(403) }),
       withRefresh: response => response,
     },
+    '@/lib/project-validation-workflow': load('src/lib/project-validation-workflow.ts'),
     '@/lib/supabase-data': {
       listRoads: async () => state.projects,
       findInspectorProfile: async (_admin, id) => (state.inspectors.includes(id) ? { id, name: `Inspector ${id}` } : null),
@@ -82,7 +83,8 @@ function assignmentRoute(state) {
 const request = body => ({ json: async () => body });
 
 test('the Head Engineer assigns, reassigns and clears the single project inspector', async () => {
-  const state = { roleDb: 'head_engineer', projects: [{ id: 'p', projectName: 'Poblacion Road' }], inspectors: ['i1', 'i2'], writes: [], logs: [] };
+  const validated = { year: 2026, dueDate: '2026-03-01', result: 'Validated', remarks: 'Complete' };
+  const state = { roleDb: 'head_engineer', projects: [{ id: 'p', projectName: 'Poblacion Road', annualValidationEntries: [validated] }], inspectors: ['i1', 'i2'], writes: [], logs: [] };
   const route = assignmentRoute(state);
 
   assert.equal((await route.POST(request({ projectId: 'p', inspectorId: 'i1' }))).status, 200);
@@ -102,7 +104,8 @@ test('the Head Engineer assigns, reassigns and clears the single project inspect
 });
 
 test('assignment is refused for other roles, unknown projects and non-inspector accounts', async () => {
-  const state = { roleDb: 'head_engineer', projects: [{ id: 'p', projectName: 'Road' }], inspectors: ['i1'], writes: [], logs: [] };
+  const validated = { year: 2026, dueDate: '2026-03-01', result: 'Validated', remarks: 'Complete' };
+  const state = { roleDb: 'head_engineer', projects: [{ id: 'p', projectName: 'Road', annualValidationEntries: [validated] }], inspectors: ['i1'], writes: [], logs: [] };
   const route = assignmentRoute(state);
 
   const notInspector = await route.POST(request({ projectId: 'p', inspectorId: 'e1' }));
@@ -114,6 +117,15 @@ test('assignment is refused for other roles, unknown projects and non-inspector 
 
   const missingProjectId = await route.POST(request({ inspectorId: 'i1' }));
   assert.equal(missingProjectId.status, 400);
+
+  // @mine — the officer's flow: assignment waits for the validation decision.
+  const notValidated = { roleDb: 'head_engineer', projects: [{ id: 'p', projectName: 'Road' }], inspectors: ['i1'], writes: [], logs: [] };
+  const blocked = await assignmentRoute(notValidated).POST(request({ projectId: 'p', inspectorId: 'i1' }));
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.body.message, /not been validated/i);
+  assert.equal(notValidated.writes.length, 0);
+  // clearing what was never set stays harmless
+  assert.equal((await assignmentRoute(notValidated).POST(request({ projectId: 'p', inspectorId: '' }))).status, 200);
 
   state.roleDb = 'encoder';
   assert.equal((await route.POST(request({ projectId: 'p', inspectorId: 'i1' }))).status, 403);
@@ -127,7 +139,7 @@ test('the inspector list is readable by the Head Engineer only', async () => {
   const state = { roleDb: 'head_engineer' };
   const route = load('src/app/api/local-road/inspectors/route.ts', {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
-    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': {
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }), actionNote: () => '', automaticNote: () => '' }, '@/lib/api': {
       requireAuth: async () => ({ profile: { roleDb: state.roleDb, username: 'Head' }, db: 'user', admin: 'admin', userId: 'u' }),
       forbidden: () => res(403), unauthorized: () => res(401), withRefresh: response => response,
     },
@@ -152,7 +164,7 @@ function inspectionRoutes(state) {
     'next/server': { NextResponse: { json: (body, init) => res(init?.status || 200, body) } },
     '@/lib/inspection-selection': load('src/lib/inspection-selection.ts'),
     '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
-    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }) }, '@/lib/api': {
+    '@/lib/notifications': { notifyWorkflow: async () => ({ sent: 0, recipients: [] }), actionNote: () => '', automaticNote: () => '' }, '@/lib/api': {
       requireAuth: async () => auth(),
       requireRole: async (_request, roles) => (roles.includes(state.roleDb) ? { auth: auth() } : { denied: res(403) }),
       forbidden: () => res(403), unauthorized: () => res(401), withRefresh: response => response,

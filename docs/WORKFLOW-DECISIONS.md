@@ -152,3 +152,23 @@ Both points are assumed rather than stated by the office; if either is wrong onl
 4. **Task 13** (date filter) goes with task 11, since the project list is being reworked anyway.
 5. **Task 12** (five locations) is the largest of the group and needs its migration; it follows step 4–5.
 6. **Task 14** goes with step 7, where printing is built.
+
+## Email workflow verification — current branch
+
+The owner's six-trigger email flow is the acceptance reference:
+- Calendar reminder only: actual-completion-date anniversary minus 30 days; encoding does not send mail.
+- Return for Revision → Encoders; changed returned record → Validators.
+- Validated → Head Engineer; inspector assignment → selected inspector only.
+- New inspection result → Encoders; inspection edits do not resend.
+- All mail uses the office mailbox; human actions name the actor, reminders identify automation.
+
+Assignment now checks the latest annual decision: a historical validation cannot bypass a newer Pending or Return for Revision decision.
+Reminder history is read independently of the UI's newest-500 activity limit, with pagination. A history read failure stops the run rather than resending blindly. Only successful sends are marked; marker-write errors are surfaced. Scheduled reminder requests require the cron bearer secret, never merely an x-vercel-cron header.
+
+Verification: 150 automated tests pass; production build passes. No real SMTP delivery tested.
+
+Operational limitation: send-and-record is not an atomic transaction. Concurrent invocations, a crash after delivery, or delivery followed by marker-write failure can still duplicate an email. Partial recipient delivery also needs reconciliation; a positive send count marks that project/year. Do not describe this as an exactly-once delivery guarantee. A durable per-recipient outbox/provider idempotency would be needed for stronger guarantees.
+
+Schedule: two daily jobs (reminders 00:00 UTC / 08:00 PH; retention 02:00 UTC / 10:00 PH). Production cron execution and actual mailbox delivery remain deployment checks, not sandbox-verified results.
+
+Owner hold: do not merge PR #18 yet. Retired-field drop stays unapplied until after approved merge. SMTP setup is deferred. No production redeployment or database mutation was performed during this verification pass.

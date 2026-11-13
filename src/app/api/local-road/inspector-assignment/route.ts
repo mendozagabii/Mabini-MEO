@@ -3,10 +3,11 @@
 import { NextResponse } from 'next/server';
 import { requireRole, withRefresh } from '@/lib/api';
 // @mine — step 6: email 5, Head Engineer → the assigned inspector.
-import { notifyWorkflow } from '@/lib/notifications';
+import { actionNote, notifyWorkflow } from '@/lib/notifications';
 import {
   addActivityLog, findInspectorProfile, listRoads, setProjectInspector,
 } from '@/lib/supabase-data';
+import { hasPassedValidation, type ValidationProject } from '@/lib/project-validation-workflow';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,12 @@ export async function POST(request: Request) {
   try {
     const project = (await listRoads(auth.db, auth.admin)).find((record) => record.id === projectId);
     if (!project) return NextResponse.json({ message: 'Project not found.' }, { status: 404 });
+
+    // @mine — the officer's flow: an inspector is assigned only after the project has
+    // been validated. Clearing an assignment is always allowed.
+    if (inspectorId && !hasPassedValidation(project as unknown as ValidationProject)) {
+      return NextResponse.json({ message: 'This project has not been validated yet, so an inspector cannot be assigned.' }, { status: 409 });
+    }
 
     const inspector = inspectorId ? await findInspectorProfile(auth.admin, inspectorId) : null;
     if (inspectorId && !inspector) {
@@ -44,6 +51,7 @@ export async function POST(request: Request) {
         kind: 'inspector-assigned',
         projectName: String(project.projectName || project.name || ''),
         inspectorId: inspector.id,
+        note: actionNote(auth.profile),
       });
     }
 

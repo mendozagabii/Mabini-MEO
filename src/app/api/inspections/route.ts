@@ -4,7 +4,7 @@ import { hasFourDigitYear, addCalendarDays, anniversaryMinusDays, INSPECTION_DAY
 import { NextResponse } from 'next/server';
 import { requireAuth, requireRole, unauthorized, withRefresh } from '@/lib/api';
 // @mine — step 6: email 6, Inspector → Encoder, so the repair can be scheduled.
-import { notifyWorkflow } from '@/lib/notifications';
+import { actionNote, notifyWorkflow } from '@/lib/notifications';
 import {
   addActivityLog, archiveInspection, listArchivedInspections, listInspections, listRoads, listMaintenance, listArchivedMaintenance,
   permanentlyDeleteInspection, restoreInspection, saveInspection, saveRoad, type StoredRecord,
@@ -110,7 +110,11 @@ export async function POST(request: Request) {
     await addActivityLog(auth.admin, { userId: auth.userId, user: auth.profile.username, action: 'Inspection Created', details: `Created inspection ${inspection.id}` });
     await refreshRoadCondition(auth, road.id);
     // Email 6 — the Head Engineer schedules the repair next, the encoder is told it is done.
-    await notifyWorkflow(auth.admin, { kind: 'inspection-recorded', projectName: String(road.projectName || road.name || '') });
+    await notifyWorkflow(auth.admin, {
+      kind: 'inspection-recorded',
+      projectName: String(road.projectName || road.name || ''),
+      note: actionNote(auth.profile),
+    });
     return withRefresh(NextResponse.json({ success: true, data: inspection }), auth);
   } catch (error) {
     console.error('Failed to create inspection.', error);

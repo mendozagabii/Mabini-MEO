@@ -1187,6 +1187,31 @@ export async function addActivityLog(
   }
 }
 
+/** Full reminder history only; the UI's newest-500 log limit must not affect dedupe. */
+export async function listValidationReminderLogs(admin: SupabaseClient): Promise<Array<{ action: string; details: string }>> {
+  const logs: Array<{ action: string; details: string }> = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await admin.from('activity_logs').select('id, action, details')
+      .eq('action', 'Validation Reminder Sent').order('id').range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    for (const row of data ?? []) logs.push({
+      action: row.action,
+      details: typeof row.details === 'string' ? row.details : str((row.details as Joined)?.message),
+    });
+    if ((data ?? []).length < pageSize) return logs;
+  }
+}
+
+/** Reminder markers are correctness-critical, unlike best-effort UI activity logging. */
+export async function recordValidationReminder(admin: SupabaseClient, details: string): Promise<void> {
+  const { error } = await admin.from('activity_logs').insert({
+    user_id: null, user_name: 'system', action: 'Validation Reminder Sent',
+    entity_type: 'app', details: { message: details },
+  });
+  if (error) throw error;
+}
+
 export async function listActivityLogs(admin: SupabaseClient): Promise<Array<{ id: string; user: string; action: string; timestamp: string; details: string }>> {
   const { data, error } = await admin.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(500);
   if (error) throw error;

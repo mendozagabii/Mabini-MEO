@@ -732,7 +732,7 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   });
   const item = { id: 'p', name: 'Road', projectName: 'Poblacion Road', location: 'Anilao East', barangay: 'Anilao East',
     contractedAmount: '1250000', actualCompletionDate: '2025-03-31', dateBuilt: '2020-01-01', condition: 'Good',
-    annualValidationEntries: [{ year: 2026, dueDate: '2026-03-01', result: 'Pending', remarks: '' }] };
+    annualValidationEntries: [{ year: 2026, dueDate: '2026-03-01', result: 'Validated', remarks: 'Complete' }] };
   const props = { data: [item], inspectors: [{ id: 'i1', name: 'Juan Dela Cruz' }], onAssignInspector() {}, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} };
 
   await reset();
@@ -747,6 +747,16 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   assert.match(select.textContent, /Not assigned/);
   assert.match(select.textContent, /Juan Dela Cruz/);
   assert.equal(container.querySelector('[aria-label="Delete Poblacion Road"]') !== null, true);
+  assert.equal(select.disabled, false);
+
+  // @mine — the officer's flow: a project that is not validated yet cannot be assigned.
+  await reset();
+  const pendingItem = { ...item, annualValidationEntries: [{ year: 2026, dueDate: '2026-03-01', result: 'Pending', remarks: '' }] };
+  await act(async () => root.render(React.createElement(LocalRoadList, { ...props, data: [pendingItem], userRole: 'Head Engineer' })));
+  const pendingSelect = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
+  assert.ok(pendingSelect);
+  assert.equal(pendingSelect.disabled, true);
+  assert.match(pendingSelect.textContent, /Awaiting validation/);
 
   // task 13: both project lists filter by completion date instead of location
   for (const userRole of ['Head Engineer', 'Staff - Encoder']) {

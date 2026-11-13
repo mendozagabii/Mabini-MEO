@@ -43,6 +43,29 @@ const RECIPIENT_ROLES: Record<Exclude<WorkflowEmailKind, 'inspector-assigned'>, 
   validated: ['head_engineer'],
 };
 
+/**
+ * @mine — the envelope is always the office mailbox, so the real actor is named at the
+ * top of the body (that is also what Gmail shows in the inbox preview). The officer's
+ * flow, 2026-11-12.
+ */
+export type MailActor = { name?: string; role?: string; email?: string };
+
+export function actionNote(actor?: MailActor): string {
+  if (!actor) return '';
+  const name = String(actor.name ?? '').trim();
+  const role = String(actor.role ?? '').trim();
+  const email = String(actor.email ?? '').trim();
+  const who = role ? `${name} (${role})` : name;
+  if (!who) return '';
+  return `Action by: ${who}${email ? ` \u00b7 ${email}` : ''}`;
+}
+
+/** @mine — the line an automated message shows instead of a person's name. */
+export function automaticNote(subject: string): string {
+  const text = String(subject ?? '').trim();
+  return text ? `Sent automatically \u00b7 ${text}` : 'Sent automatically by the system';
+}
+
 const PARAGRAPH =
   'The project details have been successfully submitted, updated, or recorded in the system. Kindly review the details and take the necessary action.';
 
@@ -80,15 +103,24 @@ export function notificationSubject(projectName: string, kind: WorkflowEmailKind
   return `[${String(projectName).trim()}] – ${WORKFLOW_EMAIL_HEADLINES[kind]}`;
 }
 
-/** @mine — the plain-text body: greeting, paragraph, headline, footer. */
-export function notificationText(projectName: string): string {
-  return ['Good day!', '', PARAGRAPH, '', String(projectName).trim(), '', ...FOOTER_LINES].join('\n');
+/** @mine — the plain-text body: who acted, greeting, paragraph, headline, footer. */
+export function notificationText(projectName: string, note = ''): string {
+  const heading = String(note ?? '').trim();
+  return [
+    ...(heading ? [heading, ''] : []),
+    'Good day!', '', PARAGRAPH, '', String(projectName).trim(), '', ...FOOTER_LINES,
+  ].join('\n');
 }
 
 /** @mine — the same message in the mail shell the office already sees for a password reset. */
-export function notificationHtml(projectName: string): string {
+export function notificationHtml(projectName: string, note = ''): string {
   const name = String(projectName).trim()
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const heading = String(note ?? '').trim()
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const headingRow = heading
+    ? `\n          <p style="margin:0 0 16px;color:#64748b;font-size:12px;line-height:1.6;">${heading}</p>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -102,7 +134,7 @@ export function notificationHtml(projectName: string): string {
           <p style="margin:2px 0 0;color:#93c5fd;font-size:11px;">Local Road Management System (WBLRMS)</p>
         </td></tr>
         <tr><td style="padding:36px 40px 8px;">
-          <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:bold;">Notification</p>
+          <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:bold;">Notification</p>${headingRow}
           <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6;">Good day!</p>
           <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6;">${PARAGRAPH}</p>
           <p style="margin:0 0 8px;color:#0f172a;font-size:16px;font-weight:bold;">${name}</p>
@@ -191,7 +223,7 @@ export type NotificationResult = {
  */
 export async function notifyWorkflow(
   db: Db,
-  options: { kind: WorkflowEmailKind; projectName: string; inspectorId?: string },
+  options: { kind: WorkflowEmailKind; projectName: string; inspectorId?: string; note?: string },
 ): Promise<NotificationResult> {
   const projectName = String(options.projectName ?? '').trim();
   if (!projectName) return { sent: 0, recipients: [], skipped: 'no-project' };
@@ -207,8 +239,9 @@ export async function notifyWorkflow(
 
     const sender = senderOverride ?? await smtpSender(settings as MailSettings);
     const subject = notificationSubject(projectName, options.kind);
-    const text = notificationText(projectName);
-    const html = notificationHtml(projectName);
+    const note = String(options.note ?? '').trim();
+    const text = notificationText(projectName, note);
+    const html = notificationHtml(projectName, note);
     const from = (settings?.from ?? DEFAULT_MAIL_FROM);
 
     let sent = 0;
