@@ -50,6 +50,7 @@ function mockDb(options = {}) {
 }
 const dataModule = load('src/lib/supabase-data.ts', {
   '@/lib/attachment-validation': attachment,
+  '@/lib/project-form-validation': load('src/lib/project-form-validation.ts'),
   '@/lib/supabase': { ROLE_FROM_DB: {}, ROLE_TO_DB: {} },
 });
 const payload = { id: '', projectName: 'Road project', roadName: 'Road', location: 'Town', barangay: 'Town', projectCategory: 'National Road', attachments: [staged] };

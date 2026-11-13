@@ -78,3 +78,40 @@ consistency, update the subjects of the built-in templates to:
 
 For their bodies, you can reuse the same header/footer shell above and swap the
 middle text + button label, keeping the `{{ .ConfirmationURL }}` link.
+
+---
+
+## 3. The six workflow emails (built — `src/lib/notifications.ts`)
+
+Sent by the system itself through the office mailbox (nodemailer, SMTP). They are **off** until
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` are set in the hosting
+environment; until then every workflow keeps working and simply sends nothing.
+
+All six share one shell — the same office header, a bold **Notification**, the paragraph below,
+the project name as the headline, and the same footer:
+
+> Good day!
+>
+> The project details have been successfully submitted, updated, or recorded in the system. Kindly review the details and take the necessary action.
+>
+> **[Project name]**
+>
+> Office of the Municipal Engineer · Mabini, Batangas
+> This is an automated message. Please do not reply to this email.
+
+| # | Sent when | From → To | Subject |
+|---|---|---|---|
+| 1 | Encoder creates a project | Encoder → every active Validator | `[Project] – For Validation` |
+| 2 | Validator returns it for revision | Validator → every active Encoder | `[Project] – For Revision` |
+| 3 | Encoder saves a returned project with changes | Encoder → every active Validator | `[Project] – Project Information Updated` |
+| 4 | Validator approves it | Validator → every active Head Engineer | `[Project] – Validated` |
+| 5 | Head Engineer assigns an inspector | Head Engineer → that Inspector | `[Project] – Inspector Assigned` |
+| 6 | Inspector saves an inspection | Inspector → every active Encoder | `[Project] – Inspection Recorded` |
+
+Notes that decide behaviour:
+
+- **`[Project]` is the project name**, not the word "Project".
+- One message per recipient, so no address is shown to anybody else.
+- **The Head Engineer is never copied on emails 1–3** (answer 6). Email 4 goes to the Head Engineer because that is its purpose.
+- Clearing an inspector sends no email; an ordinary edit of a project that was never returned sends no email.
+- Inactive accounts are skipped; a failing mailbox is logged and never blocks or fails the action that triggered it.

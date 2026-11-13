@@ -78,3 +78,23 @@ test('calendar month and day minimums use real UTC dates, including leap years a
   assert.equal(addCalendarDays('2025-12-29',7),'2026-01-05');
   assert.equal(addCalendarMonths('',11),null);
 });
+
+test('annual offsets are exact days before the anniversary, every year, clamping month ends', () => {
+  const {anniversaryMinusDays, VALIDATION_DAYS_BEFORE, INSPECTION_DAYS_BEFORE} = load('src/lib/project-form-validation.ts');
+  assert.equal(VALIDATION_DAYS_BEFORE, 30);
+  assert.equal(INSPECTION_DAYS_BEFORE, 29);
+  // The worked example from the review sheet: completed 11 Nov 2026, first validation 12 Oct 2027.
+  assert.equal(anniversaryMinusDays('2026-11-11', 2027, VALIDATION_DAYS_BEFORE), '2027-10-12');
+  assert.equal(anniversaryMinusDays('2026-11-11', 2027, INSPECTION_DAYS_BEFORE), '2027-10-13');
+  // Same offsets in later years, not just the first.
+  assert.equal(anniversaryMinusDays('2026-11-11', 2029, VALIDATION_DAYS_BEFORE), '2029-10-12');
+  // "completion + 11 months" drifted: 31 January gave 31 days, an exact offset gives 30.
+  assert.equal(anniversaryMinusDays('2027-01-31', 2028, 30), '2028-01-01');
+  // Month ends and leap years clamp instead of rolling into the next month.
+  assert.equal(anniversaryMinusDays('2024-02-29', 2025, 30), '2025-01-29');
+  assert.equal(anniversaryMinusDays('2026-03-01', 2027, 30), '2027-01-30');
+  // Rejects bad input instead of returning a wrong date.
+  assert.equal(anniversaryMinusDays('1999-12-31', 2020, 30), null);
+  assert.equal(anniversaryMinusDays('2026-11-11', 1990, 30), null);
+  assert.equal(anniversaryMinusDays('', 2027, 30), null);
+});

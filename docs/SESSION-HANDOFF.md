@@ -4,6 +4,29 @@
 
 # ⚠️ READ THIS FIRST — session handoff
 
+> **2026-11-12 — the plan is finished on `arena/0da75355-mabini-meo` (PR #18, open):**
+> Steps 1–8 built; step 9 built except the column drop. Tasks 11–16 built.
+>
+> **What a new session must know before touching anything:**
+> 1. **`20261116_drop_retired_project_fields.sql` is written and NOT applied** (it drops
+>    `projects.completion_percentage`, `projects.adjusted_project_cost` and
+>    `contractors.pcab_license_no`, after rebuilding `v_project_overview`). The CSV the office
+>    asked for is already kept: `exports/retired-project-fields-2026-11-12.csv` in the
+>    workspace (outside git), and Head Engineer → Project Management → *Retired fields (CSV)*
+>    produces it again. **Apply only on an explicit go-ahead.**
+> 2. **The 30-day purge deletes nothing yet.** `supabase/migrations/20261115_project_locations.sql`,
+>    `20261114_project_inspector_assignment.sql` are applied; the purge needs `RETENTION_LIVE=1`
+>    **and** `CRON_SECRET` in Vercel. Report-only is the current state; nothing was due on
+>    2026-11-12.
+> 3. **The six workflow emails are built and silent** until `SMTP_HOST`, `SMTP_PORT`,
+>    `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` exist in Vercel. `src/lib/notifications.ts`.
+> 4. **`vercel.json` must stay plain JSON** — a `"//"` comment key fails Vercel's schema and
+>    errors the deployment (it did, twice, on 2026-11-12). The cron entry is fine.
+> 5. **Dependencies were patched** on 2026-11-12 (`next` 14.2.35, `postcss` 8.5.32, `sharp`
+>    0.35.5, `react-router` 7.18.5). The remaining `npm audit` findings on `next` have **no
+>    14.x fix**; see `docs/SECURITY-NOTES.md` — that upgrade is its own task, not a stray commit.
+> 6. `20261110_staff_archive_permissions.sql` is **still unapplied** (0 `Staff:%` policies).
+
 > **2026-11-11 follow-up — inspection condition assessment (owner-approved):**
 > The owner asked for remarks and attachments underneath **each** category of *Local Road
 > Condition Assessment* (add/edit inspection and the inspection details view), plus four new
@@ -248,3 +271,26 @@ Redoing any of these will conflict with what is already live.
 3. `MY-CHANGES.md` entry in the same commit; `scripts/check-changelog.sh` passes.
 4. Pushed to the session branch, PR opened (or updated), and the PR body states **what was verified and how**.
 5. Left unmerged until the owner says "merge".
+
+### Email verification follow-up
+- 150/150 tests and production build pass on the working tree.
+- New `tests/validation-reminders.test.cjs`: window boundary, project/year dedupe, exclusion rules, latest-decision assignment, cron auth, successful marking, skipped delivery, fail-closed history reads.
+- Reminder logs now use paginated filtered history, not the newest 500 UI rows.
+- See WORKFLOW-DECISIONS.md for delivery/concurrency limitations. SMTP remains deferred; PR merge and destructive drop remain on hold.
+- Changes are saved locally; deployment has not been performed by this verification pass.
+
+### User-reported preview regression batch
+- Removed retired-fields CSV button; export endpoint/backup and drop migration retained, no schema changes.
+- Project GET filters both current/archived records for Inspector on the server, with private no-store responses. Login/logout clear records; workspace loading gate and retry state prevent stale initial content.
+- Returned forms reject unchanged initial values. Server compares canonical fields, numeric amounts and all location lines, ignoring derived completion-date aliases. App now preserves locations in save payload.
+- Inspector list refreshes on tab/focus, excludes inactive accounts and uses full name when available. Specific missing real accounts still require a live retest; not confirmed as a data issue.
+- New inspection save returns non-blocking notification warning and writes delivery outcome to activity log. Secondary condition-refresh failure cannot suppress notification. SMTP transport has finite connection/greeting/socket timeouts. Editing still does not notify.
+- Removed artificial three-second project-save delay. Existing form saving guards remain.
+- 153 tests and production build pass. SMTP inbox delivery and production latency are NOT verified. Owner retest required. No merge, purge test, or destructive migration.
+
+### Scheduled inspection first-result email fix
+- User logs showed Inspection Updated, not Inspection Created: annual scheduled placeholders already exist before first result entry.
+- PUT now sends inspection-recorded only when the server-loaded existing row isScheduledAnnualFollowUp=true; later edits remain email-free. Client-supplied flags cannot force a resend. POST behavior is unchanged.
+- Shared delivery warning/logging for both first-record paths; PUT UI displays delivery warnings too.
+- Regression covers failed save/no email, first scheduled submission/one email, subsequent edit with forged scheduled flag/no email. 154 tests and production build pass.
+- No retroactive messages sent for previously filled test inspections. No merge or database migration. Live inbox retest remains necessary with an unfilled scheduled inspection.

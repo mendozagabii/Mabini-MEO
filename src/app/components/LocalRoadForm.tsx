@@ -19,6 +19,7 @@ interface ProjectAttachment {
 
 interface LocalRoad {
   id: string;
+  annualValidationEntries?: Array<{ year: number; dueDate: string; result: 'Pending' | 'Validated' | 'Return for Revision'; remarks: string; validatedAt?: string }>;
   name: string;
   type: string;
   location: string;
@@ -28,6 +29,8 @@ interface LocalRoad {
   projectName?: string;
   projectCategory?: string;
   projectDescription?: string;
+  // @mine — task 12: up to five free-text coverage locations.
+  locations?: string[];
   dateStarted?: string;
   targetCompletionDate?: string;
   noOfExtensions?: string;
@@ -40,13 +43,10 @@ interface LocalRoad {
   contractorName?: string;
   contractorAddress?: string;
   contactInformation?: string;
-  pcadLicenseNo?: string;
   sourceOfFunds?: string;
   appropriation?: string;
   contractedAmount?: string;
-  adjustProjectCost?: string;
   completionDate?: string;
-  completionPercentage?: string;
   turnoverDate?: string;
   attachments?: ProjectAttachment[];
 }
@@ -55,7 +55,8 @@ interface ProjectFormData {
   projectName: string;
   projectCategory: string;
   projectDescription: string;
-  location: string;
+  // @mine — task 12: one free-text line per coverage location (at most five).
+  locations: string[];
   dateStarted: string;
   targetCompletionDate: string;
   noOfExtensions: string;
@@ -103,7 +104,9 @@ const getInitialFormData = (road?: LocalRoad | null): ProjectFormData => ({
   projectName: road?.projectName || road?.name || '',
   projectCategory: road?.projectCategory || road?.type || '',
   projectDescription: road?.projectDescription || road?.description || '',
-  location: road?.location || '',
+  // @mine — task 12: prefer the stored coverage lines; a legacy single location
+  // becomes the first line so old records keep showing everything they had.
+  locations: road?.locations?.length ? [...road.locations] : [road?.location || ''],
   dateStarted: road?.dateStarted || road?.dateBuilt || '',
   targetCompletionDate: road?.targetCompletionDate || '',
   noOfExtensions: road?.noOfExtensions || '',
@@ -163,14 +166,25 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
     setActiveFormTab('project');
   }, [editId]);
 
-  // Auto-update roadName when location changes
+  // Auto-update roadName when the first coverage location changes
+  // @mine — task 12: "Location" is now up to five lines, so the road name follows the first.
+  const primaryLocation = formData.locations[0] ?? '';
   useEffect(() => {
     if (item) return;
     setFormData(prev => ({
       ...prev,
-      roadName: prev.location,
+      roadName: prev.locations[0] ?? '',
     }));
-  }, [formData.location, item]);
+  }, [primaryLocation, item]);
+
+  // @mine — task 12: the five coverage lines are edited in place; blanks are dropped on save.
+  const setLocationLine = (index: number, value: string) =>
+    setFormData(prev => ({
+      ...prev,
+      locations: prev.locations.map((line, position) => (position === index ? value : line)),
+    }));
+  const addLocationLine = () =>
+    setFormData(prev => (prev.locations.length >= 5 ? prev : { ...prev, locations: [...prev.locations, ''] }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,6 +213,16 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
       return;
     }
 
+    const returned = item?.annualValidationEntries?.some(entry => entry.result === 'Return for Revision');
+    const normalizeForm = (value: ProjectFormData) => JSON.stringify({ ...value,
+      locations: value.locations.map(line => line.trim()).filter(Boolean),
+      appropriation: value.appropriation.replace(/,/g, ''), contractedAmount: value.contractedAmount.replace(/,/g, ''),
+      attachments: value.attachments.map(file => file.name),
+    }, (_key, value) => typeof value === 'string' ? value.trim() : value);
+    if (returned && normalizeForm(formData) === normalizeForm(getInitialFormData(item))) {
+      setAttachmentNotice('Change at least one project detail before returning this project to the validator.');
+      return;
+    }
     if (submittingRef.current) return;
     submittingRef.current = true;
     setAttachmentNotice('');
@@ -226,10 +250,14 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
         uploadedAttachments.push({ name: file.name, type: upload.type, size: file.size, dataUrl: '', category: 'Turnover Certificate', storagePath: upload.path, staged: true });
       }
 
+      // @mine — task 12: up to five trimmed, non-blank coverage lines.
+      const coverageLocations = formData.locations.map(line => line.trim()).filter(Boolean).slice(0, 5);
       const localRoadData = {
         name: formData.projectName,
         type: formData.projectCategory,
-        location: formData.location,
+        // `location` stays the single-value field other screens read; the lines are the new truth.
+        location: coverageLocations[0] ?? '',
+        locations: coverageLocations,
         dateBuilt: formData.dateStarted,
         dateStarted: formData.dateStarted,
         condition: 'Good',
@@ -397,7 +425,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Project Information */}
           <section ref={projectSectionRef} className="scroll-mt-4 border-b pb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Information</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -475,15 +503,35 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Location *
               </label>
-              <AutoGrowTextarea
-                data-field="Location"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                rows={2}
-                className="w-full resize-y px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
-                aria-label="Location"
-                required
-              />
+              {/* @mine — task 12: one line per coverage location, up to five. */}
+              <p className="mb-2 text-xs text-gray-500">
+                One line per location, up to five. Example: Sitio Dao, Anilao East, Mabini, Batangas
+              </p>
+              <div className="space-y-2">
+                {formData.locations.map((line, index) => (
+                  <input
+                    key={index}
+                    type="text"
+                    data-field={index === 0 ? 'Location' : `Location ${index + 1}`}
+                    value={line}
+                    maxLength={500}
+                    onChange={(e) => setLocationLine(index, e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0ea5e9] focus:border-transparent text-gray-900"
+                    placeholder={index === 0 ? 'Sitio Dao, Anilao East, Mabini, Batangas' : 'Another coverage location'}
+                    aria-label={index === 0 ? 'Location' : `Location ${index + 1}`}
+                    required={index === 0}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addLocationLine}
+                disabled={formData.locations.length >= 5}
+                data-field="Add Location"
+                className="mt-2 rounded-lg border border-[#0ea5e9] px-3 py-2 text-sm font-medium text-[#0ea5e9] transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
+              >
+                {formData.locations.length >= 5 ? 'Five locations is the maximum' : 'Add location'}
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -550,7 +598,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Road Information */}
           <section ref={roadSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Road Information</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -625,7 +673,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Contractor Information */}
           <section ref={contractorSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Contractor Information</h3>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Contractor Name *
@@ -672,7 +720,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Financial Information */}
           <section ref={financialSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Information</h3>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Source of Funds *
@@ -728,7 +776,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
           {/* Completion and Turnover Information */}
           <section ref={turnoverSectionRef} className="scroll-mt-4 border-b pb-6 pt-5">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Completion and Turnover Information</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -765,7 +813,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Attachment * {formData.attachments.length > 0 && `(${formData.attachments.length} file${formData.attachments.length > 1 ? 's' : ''} selected)`}
               </label>
-              
+
               {item?.attachments?.filter(attachment => attachment.category === 'Turnover Certificate').map((attachment, index) => (
                 <p key={`${attachment.storagePath || attachment.name}-${index}`} className="mb-2 text-sm text-gray-600">Existing attachment: {attachment.name}</p>
               ))}
@@ -795,7 +843,7 @@ export function LocalRoadForm({ item, editId, onSave, onClose }: LocalRoadFormPr
                   + Add More Files
                 </button>
               )}
-              
+
               <input
                 ref={attachmentsInputRef}
                 type="file"

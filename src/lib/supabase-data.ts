@@ -21,6 +21,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ROLE_FROM_DB, ROLE_TO_DB } from '@/lib/supabase';
 import { attachmentError, attachmentMime, matchesAttachmentSignature } from '@/lib/attachment-validation';
+// @mine — shared annual offsets (WORKFLOW-DECISIONS Q15/Q16).
+import { anniversaryMinusDays, VALIDATION_DAYS_BEFORE, INSPECTION_DAYS_BEFORE } from '@/lib/project-form-validation';
 
 export type StoredRecord = Record<string, unknown> & { id: string };
 
@@ -38,6 +40,12 @@ type Joined = Record<string, any>; // eslint-disable-line @typescript-eslint/no-
 function mapProject(p: Joined): StoredRecord {
   const road = (p.roads ?? {}) as Joined;
   const contractor = (p.contractors ?? {}) as Joined;
+  // @mine — task 12: up to five free-text coverage locations, in their own order.
+  const coverage = ((p.project_locations ?? []) as Joined[])
+    .slice()
+    .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
+    .map((row) => str(row.label))
+    .filter((label) => label !== '');
   const validation =
     p.validation_status === 'approved' ? 'Validated' : p.validation_status === 'rejected' ? 'Return for Revision' : undefined;
   return {
@@ -48,8 +56,13 @@ function mapProject(p: Joined): StoredRecord {
     projectName: p.project_name ?? '',
     type: p.project_categories?.name ?? p.category_other ?? '',
     projectCategory: p.project_categories?.name ?? p.category_other ?? '',
-    location: p.barangays?.name ?? '',
+    // @mine — task 12: the coverage lines read as one box with one line per location,
+    // so every screen that already shows `location` keeps working unchanged.
+    location: coverage.length ? coverage.join('\n') : (p.barangays?.name ?? ''),
+    locations: coverage,
     barangay: p.barangays?.name ?? '',
+    // @mine — the single inspector assigned by the Head Engineer (WORKFLOW-DECISIONS Q3).
+    inspectorId: p.inspector_id ?? '',
     dateBuilt: str(road.date_built),
     condition: cap(road.current_condition) || 'Good',
     lastInspection: str(road.last_inspection_date) || undefined,
@@ -64,13 +77,10 @@ function mapProject(p: Joined): StoredRecord {
     contractorName: contractor.name ?? '',
     contractorAddress: contractor.address ?? '',
     contactInformation: contractor.contact_information ?? '',
-    pcadLicenseNo: contractor.pcab_license_no ?? '',
     sourceOfFunds: p.source_of_funds ?? '',
     appropriation: numStr(p.appropriation),
     contractedAmount: numStr(p.contracted_amount),
-    adjustProjectCost: numStr(p.adjusted_project_cost),
     completionDate: str(p.completion_date),
-    completionPercentage: numStr(p.completion_percentage ?? 0),
     turnoverDate: str(p.turnover_date),
     projectStatus: p.status ?? 'planned',
     ...(validation ? { validationResult: validation } : {}),
@@ -85,7 +95,7 @@ function mapProject(p: Joined): StoredRecord {
 }
 
 const PROJECT_SELECT =
-  '*, roads!projects_road_id_fkey(*), barangays!projects_barangay_id_fkey(name), project_categories(name), contractors!projects_contractor_id_fkey(*)';
+  '*, roads!projects_road_id_fkey(*), barangays!projects_barangay_id_fkey(name), project_categories(name), contractors!projects_contractor_id_fkey(*), project_locations(position, label)';
 
 /* --------------------- @mine: attachments (Supabase Storage) --------------------- */
 
@@ -255,19 +265,13 @@ const ANNUAL_RESULT_FROM_DB: Record<string, string> = {
   approved: 'Validated', rejected: 'Return for Revision', pending: 'Pending',
 };
 
-function anniversaryDueDate(completionIso: string, year: number, daysBefore = 30): string | null {
-  const d = new Date(`${completionIso.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  const due = new Date(Date.UTC(year, d.getUTCMonth(), d.getUTCDate()));
-  due.setUTCDate(due.getUTCDate() - daysBefore);
-  return due.toISOString().slice(0, 10);
-}
-
 /**
  * @mine — Port of the old SQLite syncAnnualFollowUps(): for each completed,
- * non-archived project, make sure a pending annual_validation_entries row and
- * a scheduled annual follow-up inspection exist for every due year
- * (inspection: anniversary − 30 days; first validation: anniversary − 29 days).
+ * non-archived project, make sure a pending annual_validation_entries row exists
+ * from the day its validation window opens (anniversary − 30 days) and a
+ * scheduled annual follow-up inspection exists from its own date
+ * (anniversary − 29 days). Both offsets are the same every year, including the
+ * first (WORKFLOW-DECISIONS Q15/Q16/Q18).
  * Best-effort; writes go through `admin`
  * when provided so read-only roles still see generated rows.
  */
@@ -288,10 +292,12 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     if (!completed) continue;
     const completionYear = Number(completed.slice(0, 4));
     if (!Number.isInteger(completionYear)) continue;
-    const dueYears: Array<{ year: number; dueDate: string }> = [];
+    const dueYears: Array<{ year: number; validationDue: string; inspectionDue: string }> = [];
     for (let year = completionYear + 1; year <= currentYear + 1; year += 1) {
-      const dueDate = anniversaryDueDate(completed, year);
-      if (dueDate && dueDate <= today) dueYears.push({ year, dueDate });
+      const validationDue = anniversaryMinusDays(completed, year, VALIDATION_DAYS_BEFORE);
+      const inspectionDue = anniversaryMinusDays(completed, year, INSPECTION_DAYS_BEFORE);
+      // The project enters the yearly cycle as soon as its validation window opens.
+      if (validationDue && inspectionDue && validationDue <= today) dueYears.push({ year, validationDue, inspectionDue });
     }
     if (!dueYears.length) continue;
 
@@ -303,22 +309,22 @@ export async function ensureAnnualFollowUps(db: SupabaseClient, admin?: Supabase
     const haveEntries = new Set((entries ?? []).map((e: Joined) => e.year));
     const haveFollowUps = new Set((followUps ?? []).map((e: Joined) => e.annual_follow_up_year));
 
-    for (const { year, dueDate } of dueYears) {
-      const validationDueDate = year === completionYear + 1 ? anniversaryDueDate(completed, year, 29) : dueDate;
-      if (validationDueDate && validationDueDate <= today && !haveEntries.has(year)) {
+    for (const { year, validationDue, inspectionDue } of dueYears) {
+      if (!haveEntries.has(year)) {
         const { error: insertError } = await writer.from('annual_validation_entries')
-          .upsert({ project_id: project.id, year, due_date: validationDueDate, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
+          .upsert({ project_id: project.id, year, due_date: validationDue, result: 'pending' }, { onConflict: 'project_id,year', ignoreDuplicates: true });
         if (insertError) throw insertError;
       }
-      if (!haveFollowUps.has(year)) {
+      // The inspection itself only appears once its own date is reached.
+      if (!haveFollowUps.has(year) && inspectionDue <= today) {
         await writer.from('inspections')
           .insert({
             project_id: project.id,
-            inspection_date: dueDate,
+            inspection_date: inspectionDue,
             inspection_type: 'follow_up',
             annual_follow_up_year: year,
             validation_status: 'pending',
-            remarks: `Annual follow-up inspection due by ${dueDate}.`,
+            remarks: `Annual follow-up inspection due by ${inspectionDue}.`,
           })
           .then(undefined, () => undefined);
       }
@@ -450,9 +456,6 @@ function deriveProjectStatus(rec: StoredRecord): string {
   if (['planned', 'on_track', 'delayed', 'completed', 'turned_over'].includes(explicit)) return explicit;
   if (str(rec.turnoverDate)) return 'turned_over';
   if (str(rec.actualCompletionDate)) return 'completed';
-  const pct = Number(rec.completionPercentage ?? 0);
-  if (pct >= 100) return 'completed';
-  if (pct > 0) return 'on_track';
   return 'planned';
 }
 
@@ -535,8 +538,30 @@ export async function saveRoad(db: SupabaseClient, rec: StoredRecord, userId: st
     projectId = data.id as string;
   }
 
-  // The project already exists here; report attachment failures without inviting a duplicate create.
+  // @mine — task 12: the coverage locations are replaced as a set on every save, so a
+  // removed line really disappears. Best-effort like the attachments below: the project
+  // itself is already committed, so a failure here warns instead of failing the save.
   let attachmentWarning = '';
+  // Only a caller that actually sent the list may replace it — a partial update (a
+  // validation result, an inspector assignment) must never wipe the stored lines.
+  if (Array.isArray(rec.locations)) {
+    const locations = (rec.locations as unknown[]).map((label) => String(label ?? '').trim()).filter(Boolean).slice(0, 5);
+    try {
+      const { error: clearError } = await db.from('project_locations').delete().eq('project_id', projectId);
+      if (clearError) throw clearError;
+      if (locations.length) {
+        const { error: insertError } = await db.from('project_locations').insert(
+          locations.map((label, index) => ({ project_id: projectId, position: index + 1, label })),
+        );
+        if (insertError) throw insertError;
+      }
+    } catch (error) {
+      console.error('Project saved but its locations could not be stored.', error);
+      attachmentWarning = 'The project was saved, but its locations could not be updated. Please edit the project and try again.';
+    }
+  }
+
+  // The project already exists here; report attachment failures without inviting a duplicate create.
   const linkedRows: Joined[] = [];
   for (const attachment of stagedAttachments) {
     const { error } = await db.from('attachments').insert({
@@ -942,10 +967,206 @@ export async function listUsers(admin: SupabaseClient): Promise<AppUser[]> {
   if (error) throw error;
   return (data ?? []).map(mapProfile);
 }
+/** @mine — the inspectors a Head Engineer may assign (WORKFLOW-DECISIONS Q2/Q3). */
+export async function listInspectorOptions(admin: SupabaseClient): Promise<Array<{ id: string; name: string }>> {
+  const { data, error } = await admin.from('profiles').select('id, username, role, status, full_name')
+    .is('archived_at', null).eq('role', ROLE_TO_DB['Staff - Inspector']).order('username');
+  if (error) throw error;
+  return (data ?? []).filter((row: Joined) => row.status !== 'inactive').map((row: Joined) => ({ id: String(row.id), name: String(row.full_name || row.username || row.id) }));
+}
+
+/** @mine — assign, reassign or clear the single inspector of a project. */
+export async function setProjectInspector(db: SupabaseClient, projectId: string, inspectorId: string | null): Promise<void> {
+  const { error } = await db.from('projects').update({ inspector_id: inspectorId }).eq('id', projectId);
+  if (error) throw error;
+}
+
+/** @mine — an assignable inspector must exist, be active and hold the Inspector role. */
+export async function findInspectorProfile(admin: SupabaseClient, inspectorId: string): Promise<{ id: string; name: string } | null> {
+  const { data, error } = await admin.from('profiles').select('id, username, role, status, full_name')
+    .eq('id', inspectorId).is('archived_at', null).maybeSingle();
+  if (error) throw error;
+  if (!data || data.status === 'inactive' || data.role !== ROLE_TO_DB['Staff - Inspector']) return null;
+  return { id: String(data.id), name: String(data.username ?? data.id) };
+}
+
 export async function listArchivedUsers(admin: SupabaseClient): Promise<AppUser[]> {
   const { data, error } = await admin.from('profiles').select('*').not('archived_at', 'is', null).order('archived_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapProfile);
+}
+
+/* @mine — step 8: the 30-day archive retention (WORKFLOW-REVIEW Q26 / B5a). */
+
+export type RetentionRecord = { id: string; label: string; archivedAt: string };
+
+export type RetentionReport = {
+  /** Anything archived at or before this moment is due. */
+  cutoff: string;
+  projects: RetentionRecord[];
+  inspections: RetentionRecord[];
+  maintenance: RetentionRecord[];
+  /** Archived staff accounts — reported for visibility, never deleted by the purge. */
+  accounts: RetentionRecord[];
+  /** Every stored file that goes with the records above. */
+  files: string[];
+};
+
+export type RetentionRun = {
+  report: RetentionReport;
+  deleted: { projects: number; inspections: number; maintenance: number; files: number };
+  errors: string[];
+};
+
+/**
+ * @mine — what the 30-day rule would delete right now. Read-only: this is the
+ * report-only mode the plan asks for, and the same list the live run then uses.
+ */
+export async function collectRetentionReport(admin: SupabaseClient, cutoff: string = new Date().toISOString()): Promise<RetentionReport> {
+  const dueRows = async (table: string, columns: string): Promise<Joined[]> => {
+    const { data, error } = await admin.from(table).select(columns).not('archived_at', 'is', null).lte('archived_at', cutoff);
+    if (error) throw error;
+    return (data ?? []) as Joined[];
+  };
+
+  const [projectRows, inspectionRows, maintenanceRows, accountRows] = await Promise.all([
+    dueRows('projects', 'id, project_name, archived_at'),
+    dueRows('inspections', 'id, inspection_date, project_id, archived_at'),
+    dueRows('maintenance_records', 'id, scheduled_date, maintenance_type, project_id, archived_at'),
+    dueRows('profiles', 'id, full_name, name, archived_at'),
+  ]);
+
+  const projects = projectRows.map((row) => ({
+    id: String(row.id), label: str(row.project_name) || 'Unnamed project', archivedAt: str(row.archived_at),
+  }));
+  const projectIds = projects.map((row) => row.id);
+
+  // A due project takes its inspections and maintenance with it, so their files go too.
+  const childRows = async (table: string, columns: string): Promise<Joined[]> => {
+    if (!projectIds.length) return [];
+    const { data, error } = await admin.from(table).select(columns).in('project_id', projectIds);
+    if (error) throw error;
+    return (data ?? []) as Joined[];
+  };
+  const [projectInspections, projectMaintenance] = await Promise.all([
+    childRows('inspections', 'id'),
+    childRows('maintenance_records', 'id'),
+  ]);
+
+  const inspections = mergeRetentionRecords(
+    inspectionRows.map((row) => ({
+      id: String(row.id),
+      label: `Inspection ${str(row.inspection_date) || '(no date)'}`,
+      archivedAt: str(row.archived_at),
+    })),
+  );
+  const maintenance = mergeRetentionRecords(
+    maintenanceRows.map((row) => ({
+      id: String(row.id),
+      label: `${cap(str(row.maintenance_type)) || 'Maintenance'} ${str(row.scheduled_date) || ''}`.trim(),
+      archivedAt: str(row.archived_at),
+    })),
+  );
+
+  const inspectionIds = mergeIds(inspections, projectInspections.map((row) => str(row.id)));
+  const maintenanceIds = mergeIds(maintenance, projectMaintenance.map((row) => str(row.id)));
+
+  const filesFor = async (column: string, ids: string[]): Promise<string[]> => {
+    if (!ids.length) return [];
+    const { data, error } = await admin.from('attachments').select('storage_path').in(column, ids);
+    if (error) throw error;
+    return (data ?? []).map((row: Joined) => str(row.storage_path)).filter(Boolean);
+  };
+  const fileLists = await Promise.all([
+    filesFor('project_id', projectIds),
+    filesFor('inspection_id', inspectionIds),
+    filesFor('maintenance_id', maintenanceIds),
+  ]);
+
+  return {
+    cutoff,
+    projects,
+    inspections,
+    maintenance,
+    accounts: accountRows.map((row) => ({
+      id: String(row.id), label: str(row.full_name) || str(row.name) || 'Unnamed account', archivedAt: str(row.archived_at),
+    })),
+    files: uniqueStrings(fileLists.reduce<string[]>((all, list) => all.concat(list), [])),
+  };
+}
+
+/** @mine — de-duplicated list without spreading a Set (which the test harness down-levels). */
+function uniqueStrings(values: string[]): string[] {
+  const result: string[] = [];
+  for (const value of values) if (value && result.indexOf(value) === -1) result.push(value);
+  return result;
+}
+
+/** @mine — one entry per id, keeping the first. */
+function mergeRetentionRecords(records: RetentionRecord[]): RetentionRecord[] {
+  const seen: string[] = [];
+  const result: RetentionRecord[] = [];
+  for (const record of records) {
+    if (!record.id || seen.indexOf(record.id) !== -1) continue;
+    seen.push(record.id);
+    result.push(record);
+  }
+  return result;
+}
+
+/** @mine — ids from the due rows plus the children of due projects, without repeats. */
+function mergeIds(records: RetentionRecord[], extra: string[]): string[] {
+  const ids = records.map((record) => record.id);
+  for (const id of extra) if (id && ids.indexOf(id) === -1) ids.push(id);
+  return ids;
+}
+
+/**
+ * @mine — delete what the report lists: the stored files first (a deleted row would
+ * leave a file nobody can find), then the rows, children before their project.
+ * Only rows that are still archived and still past the cutoff are touched, so a
+ * record restored in between survives.
+ */
+export async function purgeExpiredRecords(admin: SupabaseClient, cutoff: string = new Date().toISOString()): Promise<RetentionRun> {
+  const report = await collectRetentionReport(admin, cutoff);
+  const deleted = { projects: 0, inspections: 0, maintenance: 0, files: 0 };
+  const errors: string[] = [];
+
+  for (let index = 0; index < report.files.length; index += 100) {
+    const batch = report.files.slice(index, index + 100);
+    try {
+      const { error } = await admin.storage.from(ATTACHMENT_BUCKET).remove(batch);
+      if (error) throw error;
+      deleted.files += batch.length;
+    } catch (error) {
+      errors.push(`Could not remove ${batch.length} stored file(s).`);
+      console.error('Archive purge could not remove stored files.', error);
+    }
+  }
+
+  const targets: Array<[string, string[], keyof typeof deleted]> = [
+    ['maintenance_records', report.maintenance.map((row) => row.id), 'maintenance'],
+    ['inspections', report.inspections.map((row) => row.id), 'inspections'],
+    ['projects', report.projects.map((row) => row.id), 'projects'],
+  ];
+  for (const [table, ids, key] of targets) {
+    if (!ids.length) continue;
+    try {
+      const { error, count } = await admin
+        .from(table)
+        .delete({ count: 'exact' })
+        .in('id', ids)
+        .not('archived_at', 'is', null)
+        .lte('archived_at', report.cutoff);
+      if (error) throw error;
+      deleted[key] += count ?? 0;
+    } catch (error) {
+      errors.push(`Could not delete ${ids.length} archived ${table} record(s).`);
+      console.error(`Archive purge could not delete ${table}.`, error);
+    }
+  }
+
+  return { report, deleted, errors };
 }
 
 export async function addActivityLog(
@@ -964,6 +1185,31 @@ export async function addActivityLog(
   } catch (error) {
     console.error('Could not write the activity log entry.', error);
   }
+}
+
+/** Full reminder history only; the UI's newest-500 log limit must not affect dedupe. */
+export async function listValidationReminderLogs(admin: SupabaseClient): Promise<Array<{ action: string; details: string }>> {
+  const logs: Array<{ action: string; details: string }> = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await admin.from('activity_logs').select('id, action, details')
+      .eq('action', 'Validation Reminder Sent').order('id').range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    for (const row of data ?? []) logs.push({
+      action: row.action,
+      details: typeof row.details === 'string' ? row.details : str((row.details as Joined)?.message),
+    });
+    if ((data ?? []).length < pageSize) return logs;
+  }
+}
+
+/** Reminder markers are correctness-critical, unlike best-effort UI activity logging. */
+export async function recordValidationReminder(admin: SupabaseClient, details: string): Promise<void> {
+  const { error } = await admin.from('activity_logs').insert({
+    user_id: null, user_name: 'system', action: 'Validation Reminder Sent',
+    entity_type: 'app', details: { message: details },
+  });
+  if (error) throw error;
 }
 
 export async function listActivityLogs(admin: SupabaseClient): Promise<Array<{ id: string; user: string; action: string; timestamp: string; details: string }>> {

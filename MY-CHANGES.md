@@ -78,6 +78,167 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-12 — [mine] Record the finished state in the session handoff
+- **Type:** Docs
+- **Files:** `docs/SESSION-HANDOFF.md` (modified)
+- **What & why:** A new session must not apply the column drop, flip the purge switch or set mailbox variables on its own, and it must know that vercel.json cannot carry comments and that the remaining Next advisories need their own task.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Patch the dependency advisories, and fix the vercel.json that blocked two deployments
+- **Type:** Config
+- **Files:** `.env.example` (modified), `MY-CHANGES.md` (modified), `docs/EMAIL-TEMPLATES.md` (modified), `next.config.js` (modified), `package-lock.json` (modified), `package.json` (modified), `src/app/App.tsx` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/api/local-road/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/lib/local-database.ts` (modified), `src/lib/project-form-validation.ts` (modified), `src/lib/project-validation-workflow.ts` (modified), `src/lib/supabase-data.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-purpose.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/project-form.test.cjs` (modified), `tests/project-upload.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified), `docs/SECURITY-NOTES.md` (new), `docs/WORKFLOW-DECISIONS.md` (new), `docs/WORKFLOW-REVIEW.md` (new), `src/app/api/local-road/inspector-assignment/` (new), `src/app/api/local-road/inspectors/` (new), `src/app/api/local-road/retired-fields-export/` (new), `src/app/api/retention/` (new), `src/lib/notifications.ts` (new), `src/lib/retention.ts` (new), `src/lib/retired-fields.ts` (new), `supabase/migrations/20261114_project_inspector_assignment.sql` (new), `supabase/migrations/20261115_project_locations.sql` (new), `supabase/migrations/20261116_drop_retired_project_fields.sql` (new), `tests/inspector-assignment.test.cjs` (new), `tests/notifications.test.cjs` (new), `tests/retention.test.cjs` (new), `tests/retired-fields.test.cjs` (new), `tests/workflow-emails.test.cjs` (new), `vercel.json` (new)
+- **What & why:** next, postcss, sharp, react-router and eslint-config-next are on their newest safe versions, the image optimizer's AVIF and SVG paths are switched off, and docs/SECURITY-NOTES.md records what is left and why it needs a separate Next 15/16 task. The vercel.json comment key that Vercel rejects (it failed the step 8 and step 9 previews) is removed, so the branch deploys again.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Record the step 9 commit in the plan
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The step table now names the commit that carries the export and the hidden fields, and keeps the drop marked as not applied.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Retired fields exported, hidden everywhere, drop written but not applied (step 9)
+- **Type:** Modified
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/App.tsx` (modified), `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/supabase-data.ts` (modified), `src/app/api/local-road/retired-fields-export/` (new), `src/lib/retired-fields.ts` (new), `supabase/migrations/20261116_drop_retired_project_fields.sql` (new), `tests/retired-fields.test.cjs` (new)
+- **What & why:** The office asked to remove PCAB License No., Completion Percentage (both places) and Actual Project Cost, keeping Amount Contracted, with the order export then hide then drop. The Head Engineer now downloads those values as CSV from the project screen (all 17 projects, archived ones included, straight from the database), the last two boxes are gone from the project detail for every role, and the app no longer reads or compares the columns. The drop is written in its own migration and deliberately not applied, because it cannot be undone.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Record the step 8 commit in the plan
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The step table cited a placeholder for step 8; it now names the commit that carries the purge.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Automatic 30-day deletion of archived records (step 8)
+- **Type:** Added
+- **Files:** `.env.example` (modified), `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `src/app/api/retention/` (new), `src/lib/retention.ts` (new), `tests/retention.test.cjs` (new), `vercel.json` (new)
+- **What & why:** The Archive screen has always promised that archived records are kept 30 days and then deleted, but nothing performed it. A daily job now exists: it works out what is past its 30 days, removes the stored files first and then the records (a due project takes its inspections and maintenance with it), and shows each archived row its exact deletion date. It deletes nothing until RETENTION_LIVE=1 is set in the hosting environment, so today's behaviour is unchanged and the live run waits for the office's go-ahead.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Point step 6 at the shipped commit
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The step table cited a placeholder for step 6; it now names the commit that carries the six emails.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] The six workflow emails (step 6), sent only once the mailbox exists
+- **Type:** Added
+- **Files:** `.env.example` (modified), `docs/EMAIL-TEMPLATES.md` (modified), `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/api/local-road/inspector-assignment/route.ts` (modified), `src/app/api/local-road/route.ts` (modified), `tests/inspector-assignment.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified), `src/lib/notifications.ts` (new), `tests/notifications.test.cjs` (new), `tests/workflow-emails.test.cjs` (new)
+- **What & why:** The office asked to be told by email at each step instead of finding out by opening the system. All six emails now exist and fire from their actions, with the office header, one paragraph, the project name and the footer; the Head Engineer is not copied on emails 1-3. Sending stays off until the office sets the mailbox in the hosting environment, so nothing changes for users until then and a failing mailbox can never break a save.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Point task 12 at the shipped commit
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The docs table cited the pre-amend hash for task 12; corrected to the commit that actually carries it.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Coverage locations: five free-text lines per project (task 12)
+- **Type:** Added
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadForm.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/project-form-validation.ts` (modified), `src/lib/supabase-data.ts` (modified), `tests/project-form.test.cjs` (modified), `supabase/migrations/20261115_project_locations.sql` (new)
+- **What & why:** The office asked for up to five coverage locations per project, each a long free-text line, instead of one Location box. They are stored in a new project_locations table, edited as one line per input in the form, and shown and printed as one box with one line per location, with Road Network ID No. and Road Name now on separate rows. Barangay stays a single required value, so the lists and filters are unchanged.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Print the inspection and maintenance overviews, all records or one year, and match the maintenance table to the inspection one
+- **Type:** Feature
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Bulk delivery of step 7 with task 14 (WORKFLOW-DECISIONS Q24). Inspection overview: the table header now carries, beside Findings and only for Admin and Head Engineer, an all-years / one-year selector and a Print button; printing builds one section per completed record with the four summary columns (Date of Inspection, Amount Contracted, Findings / Remarks) and hands them to the existing PrintDocument, while pending follow-ups are skipped because nothing has been recorded yet. Maintenance overview: the same selector and Print button beside Remarks with the same role gate, printing Project Name, Maintenance Date, Status and Remarks. The maintenance table was also aligned with the inspection one (rounded-xl container, semibold slate headers, blue-700 project name) so the two overviews read the same. Both header cells and the empty-state column span only exist for the roles that can print, so the tables keep four columns for everyone else. Took the opportunity to print the findings exactly as the screen shows them (Q20/B4). Tests: a new test drives the inspection overview print in both modes (all records excluding pending, then a single year) and asserts the section titles and field labels; the two existing overview tests now also assert the fifth header and the print controls appear only for the Head Engineer. tsc clean, 114/114 tests pass, next build succeeds.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Mark steps 4-5 and tasks 11-13 as built
+- **Type:** Docs
+- **Files:** `MY-CHANGES.md` (modified), `docs/WORKFLOW-DECISIONS.md` (modified), `src/app/App.tsx` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `src/app/api/local-road/inspector-assignment/` (new), `src/app/api/local-road/inspectors/` (new), `supabase/migrations/20261114_project_inspector_assignment.sql` (new), `tests/inspector-assignment.test.cjs` (new)
+- **What & why:** Updated the plan in docs/WORKFLOW-DECISIONS.md: steps 4 and 5 and tasks 11 and 13 are marked done, the header states that steps 1-5 are built with the six emails next, and the inspector column is recorded as applied to the database. Documentation only.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Assign one inspector per project, list projects as a table, filter by completion date, and scope the inspector's work
+- **Type:** Feature
+- **Files:** `src/app/App.tsx` (modified), `src/app/api/inspections/route.ts` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/supabase-data.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `src/app/api/local-road/inspector-assignment/` (new), `src/app/api/local-road/inspectors/` (new), `supabase/migrations/20261114_project_inspector_assignment.sql` (new), `tests/inspector-assignment.test.cjs` (new)
+- **What & why:** Bulk delivery of step 4 with task 11, task 13 and step 5 (WORKFLOW-DECISIONS Q2/Q3/Q7/Q8/Q9). Database: new migration supabase/migrations/20261114_project_inspector_assignment.sql adds a nullable projects.inspector_id referencing profiles plus an index; it was applied to the WBLRMS project (jowcyoziuqzoezxboffx) and verified as uuid, nullable. Data layer: mapProject exposes inspectorId, listInspectorOptions/findInspectorProfile restrict the candidates to active accounts holding the Inspector role, and setProjectInspector writes the single assignment. API: GET /api/local-road/inspectors is Head Engineer only, POST /api/local-road/inspector-assignment assigns, reassigns or clears the inspector with an activity-log entry ('Inspector Assigned' / 'Inspector Unassigned') and refuses unknown projects (404) and non-inspector accounts (400). Step 5: the inspections list now returns only the inspections of projects assigned to the signed-in inspector, and recording or editing is refused with 403 'This project is not assigned to you.' for any project that is not theirs; every other role keeps the full list. Task 11: the Head Engineer's project management is a table with Project Name, Location, Contract Amount, Completion Date and an Inspector dropdown per row, clickable rows opening the details, with the existing delete control kept in a trailing cell. Task 13: both project lists (Head Engineer and Encoder) filter by completion date instead of location, matching the maintenance filter; the validator and inspector views keep their existing filter. The inspector list is loaded by App.tsx once the Head Engineer session is known. Tests: new tests/inspector-assignment.test.cjs covers the Inspector-role filter, assign/reassign/clear with logging, refusal for other roles, unknown projects and non-inspector accounts, the read-only inspector list, the assignment-scoped inspection list and the 403 on recording for a project that is not theirs; a component test covers the five table columns, the dropdown, the delete control and the date filter for both roles. Existing inspector tests now mock the assigned project. tsc clean, 113/113 tests pass, next build succeeds.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Mark steps 1-3 and tasks 15-16 as built
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** Brought the plan table in docs/WORKFLOW-DECISIONS.md up to date: steps 1, 2 and 3 are marked done with their commit references (3c31d07, c7fb4ee) and tasks 15 and 16 likewise, and the header now states that all 27 items are decided with step 4 next. Documentation only.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] A validated project is locked, a returned project must change, and the lists show project name and barangay
+- **Type:** Feature
+- **Files:** `src/app/api/local-road/route.ts` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/lib/project-validation-workflow.ts` (modified), `tests/project-form.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified)
+- **What & why:** Bulk delivery of steps 2 and 3 plus tasks 15 and 16 of the agreed plan. Step 3 (WORKFLOW-DECISIONS Q4/B3): added isValidationLocked() to src/lib/project-validation-workflow.ts, which reports the validated year while it is the newest annual decision; the encoder's project PATCH in src/app/api/local-road/route.ts now refuses with 409 and an explanation when the project is locked, and the lock lifts the moment a newer annual entry exists, which is exactly when the next yearly validation opens. Step 2 (Q5): a project sent back for revision could be re-submitted untouched; the same route now compares the fields the encoder actually submitted against the stored project plus the attachment set by identity, and refuses with 400 when nothing changed, ignoring whitespace and number formatting. In LocalRoadList.tsx the encoder's edit control is replaced by a Validated badge with a tooltip for locked projects, so the interface explains the rule before the server has to. Task 15: the project list, the validation table and the maintenance list now read the barangay from road information (barangay first, free-text location only as a fallback), so the planned split of Location into five free-text lines will not change what those lists show. Task 16: the validation table column is headed Project Name and shows projectName instead of the road name. Tests: two route tests (locked project rejected with the year, unlocked by a newer entry; unchanged and cosmetically changed re-submissions rejected, a real change accepted) and two component tests (project name and barangay in both lists with the free-text location never shown, Validated badge replacing the edit control). tsc clean, 106/106 tests pass, next build succeeds.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Correct the task range in the new-requirements section
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** The heading of section 7 in docs/WORKFLOW-DECISIONS.md said the new UI requirements were recorded as tasks 11-18, but the table lists six items numbered 11-16. Corrected the range so the numbering matches the rows; no other content changed.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Record the new UI requirements as tasks 11-18
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** Owner sent six further UI requirements with the instruction to implement them. Added section 7 to docs/WORKFLOW-DECISIONS.md: the Head Engineer project table with the per-row inspector dropdown (the dropdown is the assignment UI, so it ships with step 4), the five free-text project locations with the one-box display and the road network ID / road name on separate rows, the location filter becoming a date filter in both project lists, the maintenance overview matching the inspection overview with header print buttons restricted to the Head Engineer, lists showing the barangay, and the validation table showing the project name. Recorded the design note that location and barangay are the same value today and must be split for these to work, with the two details to confirm when that task starts, and mapped each requirement onto the existing ten-step plan. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Validation opens 30 days and inspection 29 days before the anniversary, every year
+- **Type:** Fix
+- **Files:** `src/app/api/inspections/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/lib/local-database.ts` (modified), `src/lib/project-form-validation.ts` (modified), `src/lib/project-validation-workflow.ts` (modified), `src/lib/supabase-data.ts` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-purpose.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/project-upload.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified)
+- **What & why:** WORKFLOW-DECISIONS Q15/Q16/Q18 (owner answers of 2026-11-12): the specification said the validation window opens 30 days before the anniversary and an inspection may be dated from 29 days before it, every year, but the code had them swapped and treated the first year specially. Added VALIDATION_DAYS_BEFORE / INSPECTION_DAYS_BEFORE and anniversaryMinusDays() to src/lib/project-form-validation.ts, which shifts an anniversary back by exact days and clamps month-end completions instead of rolling into the next month. ensureAnnualFollowUps() now opens the annual validation entry on the anniversary minus 30 for every year (the first-year minus-29 exception is gone) and creates the scheduled follow-up inspection on its own date, anniversary minus 29, only once that date is reached; previously both used the same day. project-validation-workflow.ts, which decides the validation task shown in the UI, now uses the same 30-day window for every year. The inspections API replaced its 'completion date + 11 months' minimum with the exact anniversary minus 29 days, taken from the record's own follow-up year when there is one, so the bound no longer drifts between 28 and 31 days depending on the month; InspectionModule.tsx mirrors it in the form validation and in the date input's min attribute, and keeps the record's follow-up year when editing. The dead local-database.ts copy of the rule was aligned so it cannot be copied back by mistake. Tests: two existing expectations rewritten for the new window, one inspection test moved from the eleven-month rule to the 29-day rule, a component test for the date input minimum, a new test covering anniversaryMinusDays (the worked example 11 Nov 2026 to 12 Oct 2027, later years, 31-day months, leap-day clamping, rejected input) and a rewritten generator test proving the validation opens a day before its inspection. tsc clean, 102/102 tests pass, next build succeeds.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Record the B1-B7 answers and the planned execution order
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-DECISIONS.md` (modified)
+- **What & why:** Owner answered the seven follow-up questions. Updated docs/WORKFLOW-DECISIONS.md to revision 2: Q6 is recorded as reversed by B1 (maintenance cannot exist without an inspection, which is what the code already does, so no work); one inspector per project; the validation lock releases when the next yearly validation opens; the Findings column shows what the inspection actually recorded rather than invented text; option (a) accepted for the print-versus-purge conflict, so the 30-day deletion stands and printing only covers surviving records; Q27 clarified as coverage of the project (up to 5 barangays, one inspection per project). Added the single item still open: what B6 actually names — PCAB belongs to the contractor record and was not mentioned, Completion Percentage exists both on the project and on each progress entry, and Actual Project Cost is adjusted_project_cost while Amount contracted must stay. Added the planned ten-step execution order with the database change and blocker for each, and noted that the unapplied staff-archive migration and the storage files must be handled before the purge job. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Record the workflow review decisions and the seven open questions
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (modified), `docs/WORKFLOW-DECISIONS.md` (new)
+- **What & why:** Owner answered the 27-item checklist, stating that unanswered items stand as proposed. Added docs/WORKFLOW-DECISIONS.md: the reading rule, a 27-row decision table with answer, source (stated vs default), build consequence and status; seven blocking clarifications, each naming the conflict with the current code and a recommendation — maintenance without an inspection (B1), one vs several inspectors per project (B2), the lock after validation that would break the yearly update (B3), what the Findings column shows for older records saved before remarks were mandatory (B4), the contradiction between printable per-year reports and 30-day deletion (B5), the irreversible column drop (B6) and the scope of five locations per project (B7); the eleven defaults applied so a wrong one is easy to spot; an exact delta table against today's code — including that the earliest inspection date is currently completion plus 11 months rather than 29 days; and the implied build order. Also pointed section 10 of docs/WORKFLOW-REVIEW.md at the new file. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Rewrite the workflow review sheet in plain language with a dependency map
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (modified)
+- **What & why:** Owner asked for the sheet to be easier to understand and to show which items relate to one another. Rewrote docs/WORKFLOW-REVIEW.md as version 2.0: plain sentences and a reading guide with a section-to-reader table; status shown as words (DONE / DECIDE / TO BUILD) instead of symbols; every role now opens with a Now/After line; the flow merged into one section with the diagram followed by the 12-step table; new section 8 groups the 27 questions into six clusters (assignment, the chained dates, evidence volume, the emails as the flow, the print-versus-archive conflict, and the standalone cleanup items), with a dependency diagram per cluster, an explicit conflict between Q24 and Q26, a shortest-path table of what unblocks what, and cross-references on each question. Some earlier points were refined: assigning and seeing-only-assigned are one job, and the in-system bell is an alternative to email rather than an addition. Question numbering 1-27 kept unchanged. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Per-role change list for the workflow review sheet
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (modified)
+- **What & why:** Owner asked, in addition to the workflow explanation, for the list of what will be adjusted for each role. Added section 8 to docs/WORKFLOW-REVIEW.md with four per-role tables (Head Engineer, Encoder, Inspector, Validator) plus a system-wide table: each row states the adjustment, where the user will see it, why it changes and its status (in place / needs a decision / to be built), with a one-line net effect per role. Later sections renumbered to 9-11 and the cross-references updated. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-12 — [mine] Workflow review sheet for the project team
+- **Type:** Docs
+- **Files:** `docs/WORKFLOW-REVIEW.md` (new)
+- **What & why:** Owner asked for a plain-language document to send to their students so the end-to-end flow can be checked before the remaining workflow features are built. New docs/WORKFLOW-REVIEW.md explains the system, the four roles, Workflow A (with return for revision) and B, each step with its current status, the six proposed notification emails, the date rules (including the 29/30-day conflict), the inspection summary and assessment specifications, the known gaps the team should not re-report, and a 27-item checklist with the priority answers listed at the end. Documentation only; no code, no database change.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-10 — [mine] Start validation at the first anniversary
 
 - Remove initial validation. Projects become eligible 30 days before the first anniversary of Actual Completion Date, then before later anniversaries; annual entries no longer depend on a legacy initial approval. Legacy initial decisions remain in the database but no longer produce tasks or revision badges.

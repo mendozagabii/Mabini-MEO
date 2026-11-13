@@ -10,13 +10,11 @@ const mod = new Module(filename, module);
 mod.filename = filename;
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, filename);
 
-test('project save delay lasts at least three seconds', async (t) => {
+test('project save adds no artificial waiting', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let finished = false;
   const promise = mod.exports.startProjectSaveDelay().then(() => { finished = true; });
-  assert.equal(mod.exports.PROJECT_SAVE_MINIMUM_MS, 3000);
-  t.mock.timers.tick(2999); await Promise.resolve();
-  assert.equal(finished, false);
-  t.mock.timers.tick(1); await promise;
+  assert.equal(mod.exports.PROJECT_SAVE_MINIMUM_MS, 0);
+  t.mock.timers.tick(0); await promise;
   assert.equal(finished, true);
 });

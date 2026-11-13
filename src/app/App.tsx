@@ -33,6 +33,7 @@ interface LocalRoad {
   name: string;
   type: string;
   location: string;
+  locations?: string[];
   dateBuilt: string;
   condition: string;
   lastInspection?: string;
@@ -51,13 +52,10 @@ interface LocalRoad {
   contractorName?: string;
   contractorAddress?: string;
   contactInformation?: string;
-  pcadLicenseNo?: string;
   sourceOfFunds?: string;
   appropriation?: string;
   contractedAmount?: string;
-  adjustProjectCost?: string;
   completionDate?: string;
-  completionPercentage?: string;
   turnoverDate?: string;
   attachments?: ProjectAttachment[];
   validationResult?: 'Validated' | 'Return for Revision';
@@ -154,12 +152,15 @@ export default function App() {
   const [editingLocalRoad, setEditingLocalRoad] = useState<LocalRoad | null>(null);
 
   const [localRoadData, setLocalRoadData] = useState<LocalRoad[]>([]);
+  // @mine — task 11: the inspectors the Head Engineer can assign.
+  const [inspectors, setInspectors] = useState<Array<{ id: string; name: string }>>([]);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<Maintenance[]>([]);
   const [scheduledInspectionIds, setScheduledInspectionIds] = useState<string[]>([]);
   const [scheduledArchivedInspections, setScheduledArchivedInspections] = useState<any[]>([]);
   const [aiRecommendations, setAiRecommendations] = useState<PredictionResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const [idleCountdown, setIdleCountdown] = useState(0);
   // @mine — set when an authenticated call answers 401 (see lib/session-expiry).
@@ -218,17 +219,37 @@ export default function App() {
     };
   }, []);
 
+  // @mine — task 11: the assignment dropdown needs the registered inspectors.
+  useEffect(() => {
+    if (!isLoggedIn || userRole !== 'Head Engineer') return;
+    let active = true;
+    const refreshInspectors = async () => {
+      try {
+        const response = await fetch('/api/local-road/inspectors', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+        const payload = await response.json();
+        if (active && Array.isArray(payload.data)) setInspectors(payload.data);
+      } catch (error) { console.error('Failed to load inspectors.', error); }
+    };
+    void refreshInspectors();
+    window.addEventListener('focus', refreshInspectors);
+    return () => { active = false; window.removeEventListener('focus', refreshInspectors); };
+    // Refresh accounts added since login when returning to this window/module.
+  }, [isLoggedIn, userRole, activeTab]);
+
   useEffect(() => {
     if (!isLoggedIn) return;
     let active = true;
     let generation = 0;
     const refreshRecords = async () => {
       const current = ++generation;
+      let failed = false;
       const load = async (url: string, apply: (data: any[]) => void) => {
         try {
           const records = await loadRecords(url);
           if (active && current === generation) apply(records);
         } catch (error) {
+          failed = true;
           // Never erase a successful project save because another module failed to refresh.
           console.error(`Failed to load ${url}; keeping existing records.`, error);
         }
@@ -243,11 +264,12 @@ export default function App() {
             const payload = await response.json();
             if (!Array.isArray(payload.data) || !Array.isArray(payload.scheduledInspectionIds)) throw new Error('Invalid maintenance response.');
             if (active && current === generation) { setMaintenanceRecords(payload.data); setScheduledInspectionIds(payload.scheduledInspectionIds); setScheduledArchivedInspections(payload.scheduledArchivedInspections || []); }
-          } catch (error) { console.error('Failed to load maintenance records.', error); }
+          } catch (error) { failed = true; console.error('Failed to load maintenance records.', error); }
         })(),
       ]);
-      if (active && current === generation) setLoading(false);
+      if (active && current === generation) { setLoadError(failed ? 'Some records could not be loaded. Retry before continuing.' : ''); setLoading(false); }
     };
+
     setLoading(true);
     void refreshRecords();
     const onChange = () => { void refreshRecords(); };
@@ -311,6 +333,7 @@ export default function App() {
   }, []);
 
   const handleLogin = (role: string, username: string, email: string) => {
+    setLoading(true); setLocalRoadData([]); setInspections([]); setMaintenanceRecords([]);
     setUserRole(role);
     setUserName(username);
     setUserEmail(email);
@@ -330,6 +353,7 @@ export default function App() {
     }).catch((error: unknown) => {
       console.error('Failed to record logout activity.', error);
     });
+    setLocalRoadData([]); setInspections([]); setMaintenanceRecords([]); setInspectors([]); setLoading(true);
     setIsLoggedIn(false);
     setUserRole('');
     setUserName('');
@@ -386,6 +410,7 @@ export default function App() {
       name: data.name || data.projectName || '',
       type: data.type || data.projectCategory || '',
       location: data.location || '',
+      locations: data.locations,
       dateBuilt: data.dateBuilt || '',
       dateStarted: data.dateStarted || data.dateBuilt || '',
       condition: data.condition || 'Good',
@@ -458,6 +483,24 @@ export default function App() {
       });
   };
 
+  const handleAssignInspector = async (projectId: string, inspectorId: string) => {
+    try {
+      const response = await fetch('/api/local-road/inspector-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, inspectorId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.message || 'Unable to assign this inspector.');
+      const saved = payload.data as LocalRoad;
+      setLocalRoadData((previous) => previous.map((item) => (item.id === projectId ? saved : item)));
+      window.dispatchEvent(new Event('local-road-records-changed'));
+    } catch (error) {
+      console.error('Failed to assign the inspector.', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to assign this inspector.');
+    }
+  };
+
   const handleSaveValidation = async (
     id: string,
     result: 'Validated' | 'Return for Revision',
@@ -501,6 +544,7 @@ export default function App() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || 'Unable to save inspection.');
+      if (payload.notificationWarning) window.alert(payload.notificationWarning);
       const newInspection = payload.data as Inspection;
       setInspections((prev) => [...prev, newInspection]);
 
@@ -533,6 +577,7 @@ export default function App() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.message || 'Unable to update inspection.');
+      if (payload.notificationWarning) window.alert(payload.notificationWarning);
 
       setInspections((prev) => prev.map((item) => item.id === inspection.id ? payload.data : item));
       setLocalRoadData((prev) => prev.map((road) => {
@@ -656,6 +701,19 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  if (loadError) {
+    return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#E3EEF9]">
+      <p>{loadError}</p><button className="rounded bg-blue-800 px-5 py-2 text-white" onClick={() => { setLoadError(''); setLoading(true); window.dispatchEvent(new Event('local-road-records-changed')); }}>Retry loading</button>
+      <button onClick={handleLogout}>Sign out</button>
+    </div>;
+  }
+  if (loading) {
+    return <div role="status" aria-live="polite" className="flex min-h-screen items-center justify-center bg-[#E3EEF9] text-[#1e3a5f]">
+      <div className="text-center"><div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-700" />
+      <p className="font-semibold">Loading your workspace…</p><p className="text-sm">Fetching your permitted projects and records.</p></div>
+    </div>;
+  }
+
   return (
     <div className="flex h-screen bg-[#1a1d3f] overflow-hidden">
       <Sidebar
@@ -691,6 +749,8 @@ export default function App() {
                   onDelete={handleDeleteLocalRoad}
                   currentUser={userName}
                   userRole={userRole}
+                  inspectors={inspectors}
+                  onAssignInspector={handleAssignInspector}
                 />
               )}
               {activeTab === 'inspection-management' && hasAccess('inspection-management') && (

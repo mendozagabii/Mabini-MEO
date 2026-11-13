@@ -315,7 +315,8 @@ export function syncAnnualFollowUps(today = new Date()): void {
         }
 
         const validationDueDate = new Date(anniversaryDate);
-        validationDueDate.setUTCDate(validationDueDate.getUTCDate() - (year === completionDate.getUTCFullYear() + 1 ? 29 : 30));
+        // @mine — 30 days before every anniversary, the first included (WORKFLOW-DECISIONS Q15).
+        validationDueDate.setUTCDate(validationDueDate.getUTCDate() - 30);
         const validationDueDateText = formatDateOnly(validationDueDate);
         if (validationDueDateText <= todayText && !validationEntries.some((entry) => entry.year === year)) {
           validationEntries.push({
