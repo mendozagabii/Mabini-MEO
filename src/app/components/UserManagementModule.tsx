@@ -66,14 +66,13 @@ interface ArchivedRecord {
 const AVAILABLE_ROLES = ['Head Engineer', 'Staff - Encoder', 'Staff - Inspector', 'Staff - Validator'] as const;
 
 const getRoleDisplayName = (role: string) => {
-  const displayNames: Record<string, string> = {
-    Admin: 'Head Engineer',
-    Encoder: 'Staff - Encoder',
-    Inspector: 'Staff - Inspector',
-    Validator: 'Staff - Validator',
+  const aliases: Record<string, string> = {
+    'admin': 'Head Engineer', 'head engineer': 'Head Engineer', 'head_engineer': 'Head Engineer',
+    'encoder': 'Staff - Encoder', 'staff_encoder': 'Staff - Encoder', 'staff - encoder': 'Staff - Encoder',
+    'inspector': 'Staff - Inspector', 'staff_inspector': 'Staff - Inspector', 'staff - inspector': 'Staff - Inspector',
+    'validator': 'Staff - Validator', 'staff_validator': 'Staff - Validator', 'staff - validator': 'Staff - Validator',
   };
-
-  return displayNames[role] ?? role;
+  return aliases[role.trim().toLowerCase()] ?? role;
 };
 
 const getNextEmployeeId = (userList: UserData[]) => {
@@ -338,7 +337,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
     archivedMaintenance.length;
   const getAccountRole = (role: string) => role.replace(/^Staff\s*-\s*/i, '').toLowerCase();
   const activityRoleGroups = [
-    { role: 'Admin', accounts: activityAccounts.filter((user) => ['admin', 'head engineer'].includes(user.role.toLowerCase())) },
+    { role: 'Admin', accounts: activityAccounts.filter((user) => getRoleDisplayName(user.role) === 'Head Engineer') },
     { role: 'Encoder', accounts: activityAccounts.filter((user) => getAccountRole(user.role) === 'encoder') },
     { role: 'Inspector', accounts: activityAccounts.filter((user) => getAccountRole(user.role) === 'inspector') },
     { role: 'Validator', accounts: activityAccounts.filter((user) => getAccountRole(user.role) === 'validator') },
@@ -788,7 +787,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
   const filteredUsers = users.filter((user) => {
     const term = search.trim().toLowerCase();
-    const normalizedRole = user.role === 'Admin' ? 'Head Engineer' : user.role.startsWith('Staff - ') ? user.role : `Staff - ${user.role}`;
+    const normalizedRole = getRoleDisplayName(user.role);
     if (userRoleFilter !== 'All Roles' && normalizedRole !== userRoleFilter) return false;
     if (userStatusFilter !== 'All Status' && user.status !== userStatusFilter) return false;
     if (!term) return true;
@@ -1020,9 +1019,9 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
             <div className="flex flex-wrap items-center justify-end gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button type="button" aria-label="Filter by user" className="inline-flex min-w-44 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{selectedActivityAccount?.name || 'All Users'}<ChevronDown className="h-4 w-4" /></button>
+                  <button type="button" aria-label="Filter by user" title={selectedActivityAccount?.name || 'All Users'} className="inline-flex w-40 max-w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700"><span className="min-w-0 truncate">{selectedActivityAccount?.name || 'All Users'}</span><ChevronDown className="h-4 w-4 shrink-0" /></button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="z-[9999] min-w-52 rounded-[22px] border-blue-100 bg-white p-2 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
+                <DropdownMenuContent align="start" className="z-[9999] w-[var(--radix-dropdown-menu-trigger-width)] min-w-0 rounded-[22px] border-blue-100 bg-white p-2 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
                   <DropdownMenuItem onSelect={() => setActivityUserFilter('All Users')} className={`justify-between rounded-2xl px-4 py-3 text-xs ${activityUserFilter === 'All Users' ? 'bg-blue-600 text-white focus:bg-blue-600 focus:text-white' : 'focus:bg-blue-50'}`}>All Users {activityUserFilter === 'All Users' && <Check className="h-4 w-4 text-white" />}</DropdownMenuItem>
                   {activityRoleGroups.map(({role, accounts}) => <DropdownMenuSub key={role}>
                     <DropdownMenuSubTrigger className="rounded-2xl px-4 py-3 text-xs focus:bg-blue-50 focus:text-blue-700">{role}</DropdownMenuSubTrigger>

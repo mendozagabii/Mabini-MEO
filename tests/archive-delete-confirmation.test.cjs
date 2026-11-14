@@ -22,7 +22,7 @@ const select = {
 const filename = path.resolve(__dirname, '../src/app/components/UserManagementModule.tsx');
 const mod = new Module(filename, module); mod.filename = filename; mod.paths = Module._nodeModulePaths(path.dirname(filename));
 const orig = mod.require.bind(mod);
-mod.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options}) => React.createElement('select', {'aria-label':label,value,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: () => Dummy}) : name === '@/lib/retention' ? { purgeScheduleLabel: () => 'Deletes on 2026-12-01 (20 days left)' } : orig(name);
+mod.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options}) => React.createElement('select', {'aria-label':label,value,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: (_target, key) => key === 'DropdownMenuContent' ? ({children,className}) => React.createElement('div', {'data-test':'user-filter-menu',className}, children) : Dummy}) : name === '@/lib/retention' ? { purgeScheduleLabel: () => 'Deletes on 2026-12-01 (20 days left)' } : orig(name);
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true} }).outputText, filename);
 const calls = [];
 let testLogs = [];
@@ -137,4 +137,21 @@ test('Head Engineer role cannot be duplicated and its edit form has no locked ch
   const form=document.querySelector('.user-account-modal');const headOption=[...form.querySelectorAll('button')].find(b=>b.textContent.trim()==='Head Engineer');
   assert.equal(headOption,undefined);
   global.fetch=originalFetch;
+});
+
+
+test('Head Engineer account filter matches displayed roles and combines with status', async () => {
+  const originalFetch=global.fetch;
+  global.fetch=async(url,options)=>{const response=await originalFetch(url,options);const payload=await response.json();return {...response,json:async()=>({...payload,users:[{userId:'head',name:'Current Chief',email:'chief@example.test',username:'chief',role:'Head Engineer',status:'Active'},{userId:'legacy',name:'Legacy Chief',email:'legacy@example.test',username:'legacy',role:'Admin',status:'Inactive'},...payload.users]})};};
+  try {
+    await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(mod.exports.UserManagementModule,{currentUserEmail:'chief@example.test'})));
+    const role=document.querySelector('[aria-label="Filter users by role"]'); const status=document.querySelector('[aria-label="Filter users by status"]');
+    const change=async(el,value)=>act(async()=>{el.value=value;el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+    await change(role,'Head Engineer'); let rows=[...document.querySelectorAll('tbody tr')].map(row=>row.textContent).join(' ');
+    assert.match(rows,/Current Chief/);assert.match(rows,/Legacy Chief/);assert.doesNotMatch(rows,/Alice Encoder|Bob Inspector/);
+    await change(status,'Active');rows=[...document.querySelectorAll('tbody tr')].map(row=>row.textContent).join(' ');
+    assert.match(rows,/Current Chief/);assert.doesNotMatch(rows,/Legacy Chief/);
+    await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Activity Logs')).click());
+    const userFilter=document.querySelector('[aria-label="Filter by user"]');assert.ok(userFilter.classList.contains('w-40'));assert.ok(userFilter.querySelector('span').classList.contains('truncate')); const menu=document.querySelector('[data-test="user-filter-menu"]');assert.ok(menu.classList.contains('w-[var(--radix-dropdown-menu-trigger-width)]'));assert.ok(menu.classList.contains('min-w-0'));
+  } finally {global.fetch=originalFetch;}
 });

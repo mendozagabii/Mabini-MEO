@@ -78,6 +78,20 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Fit activity user filter menu
+- **Type:** Modified
+- **Files:** `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified)
+- **What & why:** Align the activity user filter menu width with its trigger while retaining room for user names in submenus.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-14 — [mine] Fix Head Engineer account filtering
+- **Type:** Modified
+- **Files:** `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified)
+- **What & why:** Match the displayed role when filtering accounts and keep the Activity Logs user filter compact with long-name truncation.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-14 — [mine] Compact the date calendar
 - **Type:** Modified
 - **Files:** `src/app/components/FilterControls.tsx` (modified), `tests/filter-controls.test.cjs` (modified)
