@@ -315,7 +315,7 @@ body {
   background-color: #304f88;
 }
 
-.form-modal-fields :is(input:not([type="file"]):not([type="radio"]):not([type="checkbox"]), select, textarea) {
+.form-modal-fields :is(input:not([type="file"]):not([type="radio"]):not([type="checkbox"]), select, textarea, .user-account-select) {
   border-color: #cbd5e1;
   border-radius: 0.75rem;
   background-color: #f8fafc;
@@ -514,3 +514,6 @@ body {
       border: 0;
     }
 }
+
+/* Date filters use the styled accessible calendar; typed dates remain available. */
+.date-filter-input::-webkit-calendar-picker-indicator { opacity: 0; pointer-events: none; width: 0; margin: 0; }

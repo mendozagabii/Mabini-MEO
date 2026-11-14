@@ -1,3 +1,4 @@
+import { DateCalendarButton, StyledFilterSelect } from './FilterControls';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { ClipboardCheck, Calendar, X, Search, FileText, AlertCircle, Pencil, Trash2, Printer, Table2 } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
@@ -1349,13 +1350,14 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             />
           </label>
             <div className="flex w-full items-center gap-2 sm:w-auto">
-              <label className="relative w-[190px] max-w-full shrink-0">
+              <div className="relative w-[190px] max-w-full shrink-0">
                 <Calendar aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input type="date" aria-label="Filter by inspection date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
                   onChange={event => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterDate(event.currentTarget.value); }}
                   onBlur={event => { if (!event.currentTarget.value) setFilterDate(''); }}
-                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
-              </label>
+                  className="date-filter-input h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-8 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
+              <DateCalendarButton inputRef={filterDateRef} value={filterDate} onChange={setFilterDate} label="Open inspection date calendar" />
+              </div>
               {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
             </div>
 
@@ -1370,7 +1372,7 @@ export function InspectionModule({ inspections, localRoadList, onAddInspection, 
             <span className="text-sm text-slate-500">{filteredInspections.length} {filteredInspections.length === 1 ? 'record' : 'records'} listed</span>
           </div>
           {inspectionView === 'overview' ? <div role="tabpanel" aria-label="Inspection Overview" className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-left"><colgroup><col style={{width: '30%'}} /><col style={{width: '15%'}} /><col style={{width: '16%'}} /><col />{canPrintOverview && <col style={{width: 210}} />}</colgroup><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Date</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Contracted Amount</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Findings</th>{canPrintOverview && <th className="w-px whitespace-nowrap px-6 py-3 text-right"><span className="inline-flex items-center gap-2"><select aria-label="Print inspection overview year" value={overviewPrintYear} onChange={event => setOverviewPrintYear(event.currentTarget.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium normal-case text-slate-700"><option value="all">All years</option>{overviewYears.map(year => <option key={year} value={year}>{year}</option>)}</select><button type="button" aria-label="Print inspection overview" onClick={() => printOverview(overviewPrintYear)} className="inline-flex items-center rounded-lg p-2 text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" title="Print overview"><Printer className="h-5 w-5" aria-hidden="true" /></button></span></th>}</tr></thead>
+            <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-left"><colgroup><col style={{width: '30%'}} /><col style={{width: '15%'}} /><col style={{width: '16%'}} /><col />{canPrintOverview && <col style={{width: 210}} />}</colgroup><thead className="border-b bg-gray-50"><tr><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Inspection Date</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Contracted Amount</th><th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Findings</th>{canPrintOverview && <th className="w-px whitespace-nowrap px-6 py-3 text-right"><span className="inline-flex items-center gap-2"><StyledFilterSelect label="Print inspection overview year" value={overviewPrintYear} onChange={setOverviewPrintYear} options={[{value: 'all', label: 'All years'}, ...overviewYears.map(year => ({value: year, label: year}))]} /><button type="button" aria-label="Print inspection overview" onClick={() => printOverview(overviewPrintYear)} className="inline-flex items-center rounded-lg p-2 text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" title="Print overview"><Printer className="h-5 w-5" aria-hidden="true" /></button></span></th>}</tr></thead>
               <tbody className="divide-y divide-gray-200">{filteredInspections.map(({inspection, referenceId}) => {
                 const road = localRoadList.find(item => item.id === inspection.localRoadId);
                 const name = road?.projectName || road?.name || inspection.projectName || inspection.localRoadName;

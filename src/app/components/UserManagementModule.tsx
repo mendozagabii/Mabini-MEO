@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Plus, Edit, Trash2, Shield, X, Save, Users, Activity, Archive, Search, Lock, Unlock, CheckCircle2, Award, UserX, KeyRound, Eye, EyeOff, CalendarDays, RotateCcw, ChevronDown, Check } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { DateCalendarButton, StyledFilterSelect } from './FilterControls';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 // @mine — step 8: the 30-day archive retention, shown per archived record.
 import { purgeScheduleLabel } from '@/lib/retention';
@@ -377,6 +378,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
       return;
     }
 
+    if (formData.password.length < 8 || formData.password.length > 64) { setDialog({ isOpen: true, type: 'error', title: 'Validation Error', message: 'Password must be between 8 and 64 characters.' }); return; }
     setSavingUser(true);
     fetch('/api/auth/status', {
       method: 'POST',
@@ -419,6 +421,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
 
   const handleSaveEdit = async () => {
     if (!editingUser || savingUser) return;
+    if (formData.password && (formData.password.length < 8 || formData.password.length > 64)) { setDialog({ isOpen: true, type: 'error', title: 'Validation Error', message: 'Password must be between 8 and 64 characters.' }); return; }
     setSavingUser(true);
 
     try {
@@ -929,8 +932,8 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   className="h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
-              <select aria-label="Filter users by role" value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{['All Roles', 'Head Engineer', 'Staff - Encoder', 'Staff - Inspector', 'Staff - Validator'].map(role => <option key={role}>{role}</option>)}</select>
-              <select aria-label="Filter users by status" value={userStatusFilter} onChange={e => setUserStatusFilter(e.target.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{['All Status', 'Active', 'Inactive'].map(status => <option key={status}>{status}</option>)}</select>
+              <StyledFilterSelect label="Filter users by role" value={userRoleFilter} onChange={setUserRoleFilter} options={['All Roles', 'Head Engineer', 'Staff - Encoder', 'Staff - Inspector', 'Staff - Validator'].map(value => ({value, label: value}))} />
+              <StyledFilterSelect label="Filter users by status" value={userStatusFilter} onChange={setUserStatusFilter} options={['All Status', 'Active', 'Inactive'].map(value => ({value, label: value}))} />
             </div>
             </div>
           </div>
@@ -1019,24 +1022,25 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                 <DropdownMenuTrigger asChild>
                   <button type="button" aria-label="Filter by user" className="inline-flex min-w-44 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700">{selectedActivityAccount?.name || 'All Users'}<ChevronDown className="h-4 w-4" /></button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-52 bg-white text-slate-700">
-                  <DropdownMenuItem onSelect={() => setActivityUserFilter('All Users')} className="justify-between">All Users {activityUserFilter === 'All Users' && <Check className="h-4 w-4 text-blue-600" />}</DropdownMenuItem>
+                <DropdownMenuContent align="start" className="z-[9999] min-w-52 rounded-[22px] border-blue-100 bg-white p-2 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
+                  <DropdownMenuItem onSelect={() => setActivityUserFilter('All Users')} className={`justify-between rounded-2xl px-4 py-3 text-xs ${activityUserFilter === 'All Users' ? 'bg-blue-600 text-white focus:bg-blue-600 focus:text-white' : 'focus:bg-blue-50'}`}>All Users {activityUserFilter === 'All Users' && <Check className="h-4 w-4 text-white" />}</DropdownMenuItem>
                   {activityRoleGroups.map(({role, accounts}) => <DropdownMenuSub key={role}>
-                    <DropdownMenuSubTrigger>{role}</DropdownMenuSubTrigger>
-                    <DropdownMenuPortal><DropdownMenuSubContent className="min-w-52 bg-white text-slate-700">
-                      {accounts.length ? accounts.map(user => <DropdownMenuItem key={user.id} onSelect={() => setActivityUserFilter(user.id)}>{user.name}{activityUserFilter === user.id && <Check className="ml-auto h-4 w-4 text-blue-600" />}</DropdownMenuItem>) : <DropdownMenuItem disabled>No registered users</DropdownMenuItem>}
+                    <DropdownMenuSubTrigger className="rounded-2xl px-4 py-3 text-xs focus:bg-blue-50 focus:text-blue-700">{role}</DropdownMenuSubTrigger>
+                    <DropdownMenuPortal><DropdownMenuSubContent className="z-[9999] min-w-52 rounded-[22px] border-blue-100 bg-white p-2 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
+                      {accounts.length ? accounts.map(user => <DropdownMenuItem className={`rounded-2xl px-4 py-3 text-xs ${activityUserFilter === user.id ? 'bg-blue-600 text-white focus:bg-blue-600 focus:text-white' : 'focus:bg-blue-50'}`} key={user.id} onSelect={() => setActivityUserFilter(user.id)}>{user.name}{activityUserFilter === user.id && <Check className="ml-auto h-4 w-4 text-white" />}</DropdownMenuItem>) : <DropdownMenuItem disabled>No registered users</DropdownMenuItem>}
                     </DropdownMenuSubContent></DropdownMenuPortal>
                   </DropdownMenuSub>)}
                 </DropdownMenuContent>
               </DropdownMenu>
               <div className="flex w-full items-center gap-2 sm:w-auto">
-                <label className="relative w-[190px] max-w-full shrink-0">
+                <div className="relative w-[190px] max-w-full shrink-0">
                   <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                   <input type="date" ref={activityDateRef} min="1000-01-01" max="9999-12-31" aria-label="Filter activity logs by date"
                     onChange={event => { if (event.currentTarget.value && event.currentTarget.validity.valid) setActivityDateFilter(event.currentTarget.value); }}
                     onBlur={event => { if (!event.currentTarget.value) setActivityDateFilter(''); }}
-                    className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
-                </label>
+                    className="date-filter-input h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-8 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
+                <DateCalendarButton inputRef={activityDateRef} value={activityDateFilter} onChange={setActivityDateFilter} label="Open activity date calendar" />
+              </div>
                 {activityDateFilter && <button type="button" onClick={() => { if (activityDateRef.current) activityDateRef.current.value = ''; setActivityDateFilter(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
               </div>
             </div>
@@ -1335,11 +1339,12 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                     {showUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {!editingUser && <p className="mt-1 text-xs text-slate-500">Password must be between 8 and 64 characters.</p>}
                 {editingUser && (
                   // @mine — editing used to ignore this field entirely; the server now
                   // writes it to auth.users, so say so (and that blank keeps the old one).
                   <p className="mt-1 text-xs text-slate-500">
-                    Leave blank to keep the current password. If you set one, it must be at least 8 characters.
+                    Leave blank to keep the current password. A new password must be between 8 and 64 characters.
                   </p>
                 )}
               </div>
@@ -1351,7 +1356,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   value={formData.role}
                   onValueChange={(value) => setFormData({ ...formData, role: value as UserData['role'] })}
                 >
-                  <SelectTrigger aria-label="Role" className="h-10 rounded-md border-slate-300 px-4 text-sm text-slate-700">
+                  <SelectTrigger aria-label="Role" className="user-account-select h-10 w-full rounded-md border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 shadow-none">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1370,7 +1375,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   value={formData.status}
                   onValueChange={(value) => setFormData({ ...formData, status: value as UserData['status'] })}
                 >
-                  <SelectTrigger aria-label="Status" className="h-10 rounded-md border-slate-300 px-4 text-sm text-slate-700">
+                  <SelectTrigger aria-label="Status" className="user-account-select h-10 w-full rounded-md border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 shadow-none">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>

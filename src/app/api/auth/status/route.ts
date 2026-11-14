@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: `Unknown role: ${String(role)}.` }, { status: 400 });
   }
   const cred = String(password ?? '');
+  if (cred.length < 8 || cred.length > 64) return NextResponse.json({ message: 'Password must be between 8 and 64 characters.' }, { status: 400 });
   // @mine — the handle follows the displayed name (no more e-mail-prefix handles).
   const cleanUsername = deriveUsername(name);
   if (!cleanUsername) {
@@ -121,8 +122,8 @@ export async function PATCH(request: Request) {
       const userId = String(payload.id);
       const nextEmail = String(payload.email).trim().toLowerCase();
       const nextPassword = String(payload.password ?? '');
-      if (nextPassword && nextPassword.length < 8) {
-        return NextResponse.json({ message: 'The password must be at least 8 characters long.' }, { status: 400 });
+      if (nextPassword && (nextPassword.length < 8 || nextPassword.length > 64)) {
+        return NextResponse.json({ message: 'Password must be between 8 and 64 characters.' }, { status: 400 });
       }
       // @mine — same tolerant resolution as create; an unknown value is an error,
       // not a silent fallback to encoder.

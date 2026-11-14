@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Refine filters, inspection findings and password limits
+- **Type:** Modified
+- **Files:** `docs/EMAIL-TEMPLATES.md` (modified), `src/app/api/auth/reset-password/route.ts` (modified), `src/app/api/auth/status/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/app/globals.css` (modified), `src/app/reset-password/page.tsx` (modified), `src/lib/inspection-selection.ts` (modified), `src/lib/notifications.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/notifications.test.cjs` (modified), `tests/project-form.test.cjs` (modified), `tests/retired-fields.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified), `src/app/components/FilterControls.tsx` (new), `tests/filter-controls.test.cjs` (new), `tests/password-boundaries.test.cjs` (new)
+- **What & why:** Use matching dropdown and calendar styling, summarize entered component remarks, label notification emails, and enforce 8–64 character account passwords.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-14 — [mine] Update email template office branding
 - **Type:** Modified
 - **Files:** `docs/EMAIL-TEMPLATES.md` (modified), `src/lib/notifications.ts` (modified), `tests/notifications.test.cjs` (modified)

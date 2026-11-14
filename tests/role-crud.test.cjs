@@ -17,7 +17,7 @@ function loadTs(relative, mocks) {
   m.filename = filename;
   m.paths = Module._nodeModulePaths(path.dirname(filename));
   const originalRequire = m.require.bind(m);
-  m.require = (name) => Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
+  m.require = (name) => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: () => null } : Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
   m._compile(code, filename);
   return m.exports;
 }

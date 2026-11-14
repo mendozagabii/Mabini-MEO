@@ -1,3 +1,4 @@
+import { DateCalendarButton } from './FilterControls';
 import { useRef, useState } from 'react';
 import { Plus, Edit, Trash2, Search, MapPin, Download, Paperclip, Printer, ClipboardCheck, CalendarDays } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
@@ -554,7 +555,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
           </label>
           {usesDateFilter ? (
             <div className="flex w-full items-center gap-2 sm:w-auto">
-              <label className="relative w-[190px] max-w-full shrink-0">
+              <div className="relative w-[190px] max-w-full shrink-0">
                 <span className="sr-only">Filter by project completion date</span>
                 <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input
@@ -565,9 +566,10 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                   max="9999-12-31"
                   onChange={(event) => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterCompletionDate(event.currentTarget.value); }}
                   onBlur={(event) => { if (!event.currentTarget.value) setFilterCompletionDate(''); }}
-                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]"
+                  className="date-filter-input h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-8 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]"
                 />
-              </label>
+              <DateCalendarButton inputRef={filterDateRef} value={filterCompletionDate} onChange={setFilterCompletionDate} label="Open project date calendar" />
+              </div>
               {filterCompletionDate && (
                 <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterCompletionDate(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>
               )}

@@ -88,7 +88,7 @@ Sent by the system itself through the office mailbox (nodemailer, SMTP). They ar
 `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` are set in the hosting
 environment; until then every workflow keeps working and simply sends nothing.
 
-All six share one shell — the same office header, a bold **Notification**, the paragraph below,
+All six share one shell — the same office header, a bold **Email Notification**, the paragraph below,
 the project name as the headline, and the same footer:
 
 > Good day!

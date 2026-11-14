@@ -10,7 +10,7 @@ function load(relative, mocks = {}) {
   const filename = path.resolve(__dirname, '..', relative);
   const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const mod = new Module(filename, module); mod.filename = filename; mod.paths = Module._nodeModulePaths(path.dirname(filename));
-  const original = mod.require.bind(mod); mod.require = name => Object.hasOwn(mocks, name) ? mocks[name] : original(name);
+  const original = mod.require.bind(mod); mod.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: () => null } : Object.hasOwn(mocks, name) ? mocks[name] : original(name);
   mod._compile(code, filename); return mod.exports;
 }
 const workflow = load('src/lib/project-validation-workflow.ts');

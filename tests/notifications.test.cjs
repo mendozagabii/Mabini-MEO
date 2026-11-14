@@ -74,7 +74,7 @@ test('every email carries the same paragraph, headline and footer', () => {
   assert.match(html, /OFFICE OF THE MUNICIPAL ENGINEER/);
   assert.doesNotMatch(html, /MUNICIPAL ENGINEERING OFFICE|Mabini MEO|Local Road Management System|WBLRMS/i);
   assert.doesNotMatch(text, /Mabini MEO|Local Road Management System|WBLRMS/i);
-  assert.match(html, /Notification/);
+  assert.match(html, /Email Notification/);
   assert.match(html, /Poblacion &lt;Road&gt;/);
   assert.doesNotMatch(html, /<Road>/);
 });

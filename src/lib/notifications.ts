@@ -133,7 +133,7 @@ export function notificationHtml(projectName: string, note = ''): string {
           <p style="margin:6px 0 0;color:#bfdbfe;font-size:13px;">Municipality of Mabini, Batangas</p>
         </td></tr>
         <tr><td style="padding:36px 40px 8px;">
-          <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:bold;">Notification</p>${headingRow}
+          <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:bold;">Email Notification</p>${headingRow}
           <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6;">Good day!</p>
           <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6;">${PARAGRAPH}</p>
           <p style="margin:0 0 8px;color:#0f172a;font-size:16px;font-weight:bold;">${name}</p>

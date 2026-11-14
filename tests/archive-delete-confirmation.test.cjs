@@ -22,7 +22,7 @@ const select = {
 const filename = path.resolve(__dirname, '../src/app/components/UserManagementModule.tsx');
 const mod = new Module(filename, module); mod.filename = filename; mod.paths = Module._nodeModulePaths(path.dirname(filename));
 const orig = mod.require.bind(mod);
-mod.require = name => name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: () => Dummy}) : name === '@/lib/retention' ? { purgeScheduleLabel: () => 'Deletes on 2026-12-01 (20 days left)' } : orig(name);
+mod.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options}) => React.createElement('select', {'aria-label':label,value,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: () => Dummy}) : name === '@/lib/retention' ? { purgeScheduleLabel: () => 'Deletes on 2026-12-01 (20 days left)' } : orig(name);
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true} }).outputText, filename);
 const calls = [];
 let testLogs = [];

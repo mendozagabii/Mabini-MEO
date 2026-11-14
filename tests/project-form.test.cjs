@@ -18,7 +18,7 @@ function loadTs(relative, mocks = {}) {
   const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const m = new Module(filename, module); m.filename = filename; m.paths = Module._nodeModulePaths(path.dirname(filename));
   const originalRequire = m.require.bind(m);
-  m.require = name => Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
+  m.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options}) => React.createElement('select', {'aria-label':label,value,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
   m._compile(code, filename); return m.exports;
 }
 const validation = loadTs('src/lib/project-form-validation.ts');
