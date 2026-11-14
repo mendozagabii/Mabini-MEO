@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Align assignment menus and calendar placement
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/filter-controls.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Use the archived dropdown design for inspector assignment, remove Head Engineer from new-user roles, and keep date calendars away from viewport edges.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-14 — [mine] Restrict Head Engineer accounts and compact filters
 - **Type:** Modified
 - **Files:** `src/app/api/auth/status/route.ts` (modified), `src/app/components/FilterControls.tsx` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/filter-controls.test.cjs` (modified), `supabase/migrations/20261117_single_head_engineer.sql` (new), `tests/single-head-engineer.test.cjs` (new)

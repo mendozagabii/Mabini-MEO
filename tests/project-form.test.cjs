@@ -18,7 +18,7 @@ function loadTs(relative, mocks = {}) {
   const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const m = new Module(filename, module); m.filename = filename; m.paths = Module._nodeModulePaths(path.dirname(filename));
   const originalRequire = m.require.bind(m);
-  m.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options}) => React.createElement('select', {'aria-label':label,value,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
+  m.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options,disabled,title}) => React.createElement('select', {'aria-label':label,value,disabled,title,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
   m._compile(code, filename); return m.exports;
 }
 const validation = loadTs('src/lib/project-form-validation.ts');
@@ -735,7 +735,8 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   const item = { id: 'p', name: 'Road', projectName: 'Poblacion Road', location: 'Anilao East', barangay: 'Anilao East',
     contractedAmount: '1250000', actualCompletionDate: '2025-03-31', dateBuilt: '2020-01-01', condition: 'Good',
     annualValidationEntries: [{ year: 2026, dueDate: '2026-03-01', result: 'Validated', remarks: 'Complete' }] };
-  const props = { data: [item], inspectors: [{ id: 'i1', name: 'Juan Dela Cruz' }], onAssignInspector() {}, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} };
+  const assignments = [];
+  const props = { data: [item], inspectors: [{ id: 'i1', name: 'Juan Dela Cruz' }], onAssignInspector(id, value) { assignments.push([id, value]); }, currentUser: 'User', onAdd() {}, onEdit() {}, onDelete() {} };
 
   await reset();
   await act(async () => root.render(React.createElement(LocalRoadList, { ...props, userRole: 'Head Engineer' })));
@@ -751,6 +752,12 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   assert.match(select.textContent, /Juan Dela Cruz/);
   assert.equal(container.querySelector('[aria-label="Delete Poblacion Road"]') !== null, true);
   assert.equal(select.disabled, false);
+  await act(async()=>{select.value='i1';select.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  assert.deepEqual(assignments.at(-1),['p','i1']);
+  await act(async()=>{select.value='__unassigned__';select.dispatchEvent(new window.Event('change',{bubbles:true}));});
+  assert.deepEqual(assignments.at(-1),['p','']);
+  await act(async()=>select.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
+  assert.equal(container.querySelector('.card-details-dialog'),null);
 
   // @mine — the officer's flow: a project that is not validated yet cannot be assigned.
   await reset();

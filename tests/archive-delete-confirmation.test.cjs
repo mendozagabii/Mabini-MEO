@@ -135,6 +135,6 @@ test('Head Engineer role cannot be duplicated and its edit form has no locked ch
   await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(mod.exports.UserManagementModule,{currentUserEmail:'chief@example.test'})));
   await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Create User Account')).click());
   const form=document.querySelector('.user-account-modal');const headOption=[...form.querySelectorAll('button')].find(b=>b.textContent.trim()==='Head Engineer');
-  assert.equal(headOption.disabled,true);
+  assert.equal(headOption,undefined);
   global.fetch=originalFetch;
 });

@@ -1,4 +1,4 @@
-import { DateCalendarButton } from './FilterControls';
+import { DateCalendarButton, StyledFilterSelect } from './FilterControls';
 import { useRef, useState } from 'react';
 import { Plus, Edit, Trash2, Search, MapPin, Download, Paperclip, Printer, ClipboardCheck, CalendarDays } from 'lucide-react';
 import { AutoGrowTextarea } from './ui/textarea';
@@ -715,26 +715,23 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                           {item.actualCompletionDate || item.completionDate || 'N/A'}
                         </td>
-                        <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
-                          <select
-                            aria-label={`Assign inspector for ${item.projectName || item.name}`}
-                            value={item.inspectorId || ''}
-                            // @mine — the officer's flow: only a validated project can take an inspector.
+                        <td className="px-6 py-4" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                          <StyledFilterSelect
+                            label={`Assign inspector for ${item.projectName || item.name}`}
+                            value={item.inspectorId || '__unassigned__'}
                             disabled={!onAssignInspector || assigningId === item.id || !hasPassedValidation(item)}
                             title={hasPassedValidation(item) ? undefined : 'Assign an inspector once the project is validated'}
-                            onChange={async (event) => {
+                            onChange={async (value) => {
                               if (!onAssignInspector) return;
                               setAssigningId(item.id);
-                              try { await onAssignInspector(item.id, event.target.value); }
+                              try { await onAssignInspector(item.id, value === '__unassigned__' ? '' : value); }
                               finally { setAssigningId(null); }
                             }}
-                            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700 disabled:bg-gray-100"
-                          >
-                            <option value="">{hasPassedValidation(item) ? 'Not Assigned' : 'Awaiting Validation'}</option>
-                            {inspectors.map(inspector => (
-                              <option key={inspector.id} value={inspector.id}>{inspector.name}</option>
-                            ))}
-                          </select>
+                            options={[
+                              {value: '__unassigned__', label: hasPassedValidation(item) ? 'Not Assigned' : 'Awaiting Validation'},
+                              ...inspectors.map(inspector => ({value: inspector.id, label: inspector.name})),
+                            ]}
+                          />
                         </td>
                         <td className="w-12 px-2 py-4 text-right" onClick={(event) => event.stopPropagation()}>
                           {['Admin', 'Head Engineer'].includes(userRole) && (

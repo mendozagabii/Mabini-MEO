@@ -8,14 +8,14 @@ const root = createRoot(document.getElementById('root')); after(()=>{act(()=>roo
 const Dummy=({children})=>React.createElement(React.Fragment,null,children);
 const mocks={
  './ui/select':{Select:Dummy,SelectTrigger:Dummy,SelectValue:Dummy,SelectContent:Dummy,SelectItem:Dummy},
- './ui/popover':{Popover:Dummy,PopoverTrigger:Dummy,PopoverContent:({children,className})=>React.createElement('div',{className},children)},
+ './ui/popover':{Popover:Dummy,PopoverTrigger:Dummy,PopoverContent:({children,className,align,collisionPadding})=>React.createElement('div',{className,'data-align':align,'data-collision-padding':collisionPadding},children)},
  './ui/calendar':{Calendar:({onSelect})=>React.createElement('button',{onClick:()=>onSelect(new Date(2026,10,14))},'Choose date')},
 };
 const filename=path.resolve(__dirname,'../src/app/components/FilterControls.tsx'); const mod=new Module(filename,module);mod.filename=filename;mod.paths=Module._nodeModulePaths(path.dirname(filename));const original=mod.require.bind(mod);mod.require=name=>Object.hasOwn(mocks,name)?mocks[name]:original(name);mod._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,filename);
 test('styled calendar selection and clear update the date input and filter together', async()=>{
   const input=document.createElement('input'); input.type='date';let selected='';
   await act(async()=>root.render(React.createElement(mod.exports.DateCalendarButton,{inputRef:{current:input},value:'',onChange:value=>{selected=value;},label:'Choose filter date'})));
-  assert.ok(document.querySelector('[aria-label="Choose filter date"]'));assert.ok(document.querySelector('.rounded-\\[18px\\]'));
+  assert.ok(document.querySelector('[aria-label="Choose filter date"]'));const panel=document.querySelector('.rounded-\\[18px\\]');assert.ok(panel);assert.equal(panel.dataset.align,'end');assert.equal(panel.dataset.collisionPadding,'16');
   await act(async()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Choose date').click());
   assert.equal(input.value,'2026-11-14');assert.equal(selected,'2026-11-14');
   await act(async()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Clear').click());

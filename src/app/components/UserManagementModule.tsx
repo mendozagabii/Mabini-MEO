@@ -1360,7 +1360,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {AVAILABLE_ROLES.map((role) => (
+                    {AVAILABLE_ROLES.filter(role => editingUser || role !== 'Head Engineer').map((role) => (
                       <SelectItem key={role} value={role} disabled={role === 'Head Engineer' && users.some(user => user.role === 'Head Engineer' && user.id !== editingUser?.id)}>
                       {role}
                       </SelectItem>
