@@ -129,9 +129,8 @@ export function notificationHtml(projectName: string, note = ''): string {
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
         <tr><td style="background-color:#1e3a5f;padding:28px 40px;text-align:center;">
-          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.5px;">MUNICIPAL ENGINEERING OFFICE</p>
+          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.5px;">OFFICE OF THE MUNICIPAL ENGINEER</p>
           <p style="margin:6px 0 0;color:#bfdbfe;font-size:13px;">Municipality of Mabini, Batangas</p>
-          <p style="margin:2px 0 0;color:#93c5fd;font-size:11px;">Local Road Management System (WBLRMS)</p>
         </td></tr>
         <tr><td style="padding:36px 40px 8px;">
           <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:bold;">Notification</p>${headingRow}

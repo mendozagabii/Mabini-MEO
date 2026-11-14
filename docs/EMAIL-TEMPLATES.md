@@ -1,14 +1,16 @@
-<!-- @mine — created 2026-11-09. Custom Supabase Auth email templates for Mabini MEO.
+<!-- @mine — created 2026-11-09. Custom Supabase Auth email templates for the Office of the Municipal Engineer.
      Paste into: Supabase Dashboard → Authentication → Email Templates.
      Variables available: {{ .ConfirmationURL }}, {{ .Email }}, {{ .SiteURL }}, {{ .Token }} -->
 
-# 📧 Email Templates — Mabini MEO (WBLRMS)
+# 📧 Email Templates — Office of the Municipal Engineer
 
 ## 1. Reset Password (the one the system actually sends)
 
+The reset template is configured in Supabase Auth; changes to this file do not update it automatically. Paste the subject and HTML below into Authentication → Email Templates → Reset Password.
+
 **Subject:**
 ```
-Reset your Mabini MEO (WBLRMS) password
+Reset your Office of the Municipal Engineer password
 ```
 
 **Body (HTML):**
@@ -22,9 +24,8 @@ Reset your Mabini MEO (WBLRMS) password
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
         <!-- Header -->
         <tr><td style="background-color:#1e3a5f;padding:28px 40px;text-align:center;">
-          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.5px;">MUNICIPAL ENGINEERING OFFICE</p>
+          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.5px;">OFFICE OF THE MUNICIPAL ENGINEER</p>
           <p style="margin:6px 0 0;color:#bfdbfe;font-size:13px;">Municipality of Mabini, Batangas</p>
-          <p style="margin:2px 0 0;color:#93c5fd;font-size:11px;">Local Road Management System (WBLRMS)</p>
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:36px 40px 8px;">
@@ -32,7 +33,7 @@ Reset your Mabini MEO (WBLRMS) password
           <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6;">
             Hello,</p>
           <p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6;">
-            We received a request to reset the password for your Mabini MEO account
+            We received a request to reset the password for your Office of the Municipal Engineer account
             (<strong>{{ .Email }}</strong>). Click the button below to choose a new password.</p>
         </td></tr>
         <tr><td align="center" style="padding:8px 40px 8px;">
@@ -51,8 +52,8 @@ Reset your Mabini MEO (WBLRMS) password
         <!-- Footer -->
         <tr><td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;">
           <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;">
-            Municipal Engineering Office · Mabini, Batangas<br>
-            This is an automated message from the Local Road Management System. Please do not reply to this email.</p>
+            Office of the Municipal Engineer · Mabini, Batangas<br>
+            This is an automated message. Please do not reply to this email.</p>
         </td></tr>
       </table>
     </td></tr>
@@ -70,11 +71,11 @@ consistency, update the subjects of the built-in templates to:
 
 | Template | Suggested subject |
 |---|---|
-| Confirm sign up | `Confirm your Mabini MEO (WBLRMS) account` |
-| Invite user | `You've been invited to Mabini MEO (WBLRMS)` |
-| Magic link | `Your Mabini MEO (WBLRMS) sign-in link` |
-| Change email address | `Confirm your new email address — Mabini MEO` |
-| Password changed (notification) | `Your Mabini MEO password was changed` |
+| Confirm sign up | `Confirm your Office of the Municipal Engineer account` |
+| Invite user | `You've been invited to Office of the Municipal Engineer` |
+| Magic link | `Your Office of the Municipal Engineer sign-in link` |
+| Change email address | `Confirm your new email address — Office of the Municipal Engineer` |
+| Password changed (notification) | `Your Office of the Municipal Engineer password was changed` |
 
 For their bodies, you can reuse the same header/footer shell above and swap the
 middle text + button label, keeping the `{{ .ConfirmationURL }}` link.

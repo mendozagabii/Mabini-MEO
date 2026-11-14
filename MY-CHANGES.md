@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Update email template office branding
+- **Type:** Modified
+- **Files:** `docs/EMAIL-TEMPLATES.md` (modified), `src/lib/notifications.ts` (modified), `tests/notifications.test.cjs` (modified)
+- **What & why:** Use Office of the Municipal Engineer and remove the former system name in workflow and documented password-reset email templates.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-13 — [mine] Adjust project and overview table columns
 - **Type:** Modified
 - **Files:** `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)

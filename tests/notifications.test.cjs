@@ -71,7 +71,9 @@ test('every email carries the same paragraph, headline and footer', () => {
   assert.match(text, /Office of the Municipal Engineer · Mabini, Batangas/);
   assert.match(text, /This is an automated message\. Please do not reply to this email\./);
   const html = notifications.notificationHtml('Poblacion <Road>');
-  assert.match(html, /MUNICIPAL ENGINEERING OFFICE/);
+  assert.match(html, /OFFICE OF THE MUNICIPAL ENGINEER/);
+  assert.doesNotMatch(html, /MUNICIPAL ENGINEERING OFFICE|Mabini MEO|Local Road Management System|WBLRMS/i);
+  assert.doesNotMatch(text, /Mabini MEO|Local Road Management System|WBLRMS/i);
   assert.match(html, /Notification/);
   assert.match(html, /Poblacion &lt;Road&gt;/);
   assert.doesNotMatch(html, /<Road>/);
@@ -157,4 +159,13 @@ test('without a mailbox, or without a project or recipients, nothing is sent and
   assert.deepEqual(await notifications.notifyWorkflow(brokenDb, { kind: 'validated', projectName: 'Poblacion Road' }),
     { sent: 0, recipients: [] });
   assert.equal(sent.length, 0);
+});
+
+
+test('the documented password reset template uses the requested office name', () => {
+  const template = fs.readFileSync(path.resolve(__dirname, '../docs/EMAIL-TEMPLATES.md'), 'utf8');
+  assert.match(template, /Reset your Office of the Municipal Engineer password/);
+  assert.match(template, /OFFICE OF THE MUNICIPAL ENGINEER/);
+  assert.doesNotMatch(template, /Mabini MEO|MUNICIPAL ENGINEERING OFFICE|Local Road Management System|WBLRMS/i);
+  assert.match(template, /{{ \.ConfirmationURL }}/);
 });
