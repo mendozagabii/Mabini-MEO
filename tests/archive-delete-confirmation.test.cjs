@@ -138,3 +138,20 @@ test('Head Engineer role cannot be duplicated and its edit form has no locked ch
   assert.equal(headOption,undefined);
   global.fetch=originalFetch;
 });
+
+
+test('Head Engineer account filter matches displayed roles and combines with status', async () => {
+  const originalFetch=global.fetch;
+  global.fetch=async(url,options)=>{const response=await originalFetch(url,options);const payload=await response.json();return {...response,json:async()=>({...payload,users:[{userId:'head',name:'Current Chief',email:'chief@example.test',username:'chief',role:'Head Engineer',status:'Active'},{userId:'legacy',name:'Legacy Chief',email:'legacy@example.test',username:'legacy',role:'Admin',status:'Inactive'},...payload.users]})};};
+  try {
+    await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(mod.exports.UserManagementModule,{currentUserEmail:'chief@example.test'})));
+    const role=document.querySelector('[aria-label="Filter users by role"]'); const status=document.querySelector('[aria-label="Filter users by status"]');
+    const change=async(el,value)=>act(async()=>{el.value=value;el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+    await change(role,'Head Engineer'); let rows=[...document.querySelectorAll('tbody tr')].map(row=>row.textContent).join(' ');
+    assert.match(rows,/Current Chief/);assert.match(rows,/Legacy Chief/);assert.doesNotMatch(rows,/Alice Encoder|Bob Inspector/);
+    await change(status,'Active');rows=[...document.querySelectorAll('tbody tr')].map(row=>row.textContent).join(' ');
+    assert.match(rows,/Current Chief/);assert.doesNotMatch(rows,/Legacy Chief/);
+    await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Activity Logs')).click());
+    const userFilter=document.querySelector('[aria-label="Filter by user"]');assert.ok(userFilter.classList.contains('w-40'));assert.ok(userFilter.querySelector('span').classList.contains('truncate'));
+  } finally {global.fetch=originalFetch;}
+});
