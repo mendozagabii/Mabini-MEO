@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Enlarge calendar date choices
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `tests/filter-controls.test.cjs` (modified)
+- **What & why:** Make each date choice easier to see and select in all shared date-filter calendars while retaining viewport margins.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-14 — [mine] Align assignment menus and calendar placement
 - **Type:** Modified
 - **Files:** `src/app/components/FilterControls.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/filter-controls.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
