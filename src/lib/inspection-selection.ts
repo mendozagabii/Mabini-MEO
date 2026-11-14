@@ -62,7 +62,7 @@ export function findingsSummary(ratings: Record<string, string>, remarks: Record
   // a category-by-category list. Full remarks remain stored under each component.
   const seen = new Set<string>();
   const observations = assessmentComponents.flatMap(label => {
-    if (ratings[label] === 'N/A' || !remarks[label]?.trim()) return [];
+    if (!remarks[label]?.trim()) return [];
     const text = remarks[label].trim().replace(/\s+/g, ' ').replace(/[.;]+$/, '');
     const key = text.toLowerCase();
     if (seen.has(key)) return [];
@@ -70,7 +70,7 @@ export function findingsSummary(ratings: Record<string, string>, remarks: Record
     return [text];
   });
   const combined = observations.join('; ');
-  return combined.length > 320 ? `${combined.slice(0, 317).trimEnd()}...` : combined ? `${combined}.` : '';
+  return combined ? `${combined}.` : '';
 }
 export function validateAssessment(ratings: Record<string, string>, remarks: Record<string, string>, attachments: Record<string, unknown[]>): boolean {
   const allowed = ['Good', 'Fair', 'Poor', 'Bad', 'N/A'];

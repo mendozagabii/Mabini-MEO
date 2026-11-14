@@ -1,3 +1,4 @@
+import { DateCalendarButton, StyledFilterSelect } from './FilterControls';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Wrench, Calendar, Search, MapPin, Pencil, Trash2, X, Printer, ClipboardCheck, Play, Table2, Pause, CheckCircle2 } from 'lucide-react';
@@ -389,13 +390,14 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
             />
           </label>
           <div className="flex w-full items-center gap-2 sm:w-auto">
-              <label className="relative w-[190px] max-w-full shrink-0">
+              <div className="relative w-[190px] max-w-full shrink-0">
                 <Calendar aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input type="date" aria-label="Filter by maintenance completion date" min="1000-01-01" max="9999-12-31" ref={filterDateRef}
                   onChange={event => { if (event.currentTarget.value && event.currentTarget.validity.valid) setFilterDate(event.currentTarget.value); }}
                   onBlur={event => { if (!event.currentTarget.value) setFilterDate(''); }}
-                  className="h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-2 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
-              </label>
+                  className="date-filter-input h-auto min-h-[46px] w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-8 text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 sm:w-[190px]" />
+              <DateCalendarButton inputRef={filterDateRef} value={filterDate} onChange={setFilterDate} label="Open maintenance date calendar" />
+              </div>
               {filterDate && <button type="button" onClick={() => { if (filterDateRef.current) filterDateRef.current.value = ''; setFilterDate(''); }} className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900">Clear</button>}
             </div>
         </div>
@@ -721,13 +723,13 @@ export function MaintenanceModule({ maintenanceRecords, scheduledInspectionIds =
       {maintenanceView === 'overview' ? (
         <div role="tabpanel" aria-label="Maintenance Overview" className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-left">
-            <colgroup><col style={{width: '33%'}} /><col style={{width: '16%'}} /><col style={{width: '14%'}} /><col />{canPrintOverview && <col style={{width: 210}} />}</colgroup>
+            <colgroup><col style={{width: '33%'}} /><col style={{width: '16%'}} /><col style={{width: '14%'}} /><col />{canPrintOverview && <col style={{width: 224}} />}</colgroup>
             <thead className="border-b border-gray-200 bg-gray-50"><tr>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Project Name</th>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Maintenance Date</th>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Status</th>
               <th className="px-6 py-3 text-xs font-semibold uppercase text-slate-600">Remarks</th>
-              {canPrintOverview && <th className="w-px whitespace-nowrap px-6 py-3 text-right"><span className="inline-flex items-center gap-2"><select aria-label="Print maintenance overview year" value={overviewPrintYear} onChange={event => setOverviewPrintYear(event.currentTarget.value)} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium normal-case text-slate-700"><option value="all">All years</option>{overviewYears.map(year => <option key={year} value={year}>{year}</option>)}</select><button type="button" aria-label="Print maintenance overview" onClick={() => printOverview(overviewPrintYear)} className="inline-flex items-center rounded-lg p-2 text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" title="Print overview"><Printer className="h-5 w-5" aria-hidden="true" /></button></span></th>}
+              {canPrintOverview && <th className="w-px whitespace-nowrap pl-4 pr-8 py-3 text-right"><span className="inline-flex items-center gap-2"><StyledFilterSelect compact label="Print maintenance overview year" value={overviewPrintYear} onChange={setOverviewPrintYear} options={[{value: 'all', label: 'All years'}, ...overviewYears.map(year => ({value: year, label: year}))]} /><button type="button" aria-label="Print maintenance overview" onClick={() => printOverview(overviewPrintYear)} className="inline-flex items-center rounded-lg p-2 text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" title="Print overview"><Printer className="h-5 w-5" aria-hidden="true" /></button></span></th>}
             </tr></thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {visibleRecords.map(({record, referenceId}) => {

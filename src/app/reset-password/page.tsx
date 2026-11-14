@@ -28,6 +28,7 @@ function ResetPasswordForm() {
     event.preventDefault();
     setError('');
     setMessage('');
+    if (password.length < 8 || password.length > 64) { setError('Password must be between 8 and 64 characters.'); return; }
     setSaving(true);
     try {
       const response = await fetch('/api/auth/reset-password', {
@@ -63,8 +64,9 @@ function ResetPasswordForm() {
         <form onSubmit={submit} className="mt-6 space-y-4">
           {shownError && <p role="alert" className="rounded-lg bg-red-950/30 p-3 text-sm text-red-100">{shownError}</p>}
           {message && <p role="status" className="rounded-lg bg-emerald-950/30 p-3 text-sm text-emerald-100">{message}</p>}
+          <p id="password-requirements" className="text-sm text-blue-100">Password must be between 8 and 64 characters.</p>
           <div className="relative">
-            <input type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="New password" className="h-12 w-full rounded-lg border border-white/80 bg-white px-3 pr-12 text-slate-900 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-300/25" />
+            <input type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="New password" aria-describedby="password-requirements" className="h-12 w-full rounded-lg border border-white/80 bg-white px-3 pr-12 text-slate-900 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-300/25" />
             <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-blue-600">
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>

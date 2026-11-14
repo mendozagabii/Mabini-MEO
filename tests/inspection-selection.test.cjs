@@ -33,7 +33,7 @@ test('maintenance eligibility requires a completed result and any component belo
   assert.equal(maintenanceEligible({...base, conditionRating:7}), true);
 });
 
-test('required components have remarks and files except N/A; findings summarize only applicable remarks', () => {
+test('required components have remarks and files except N/A; findings summarize entered remarks', () => {
   const {assessmentComponents, findingsSummary, validateAssessment} = load('src/lib/inspection-selection.ts');
   const ratings = Object.fromEntries(assessmentComponents.map(label => [label, 'N/A']));
   const remarks = {Concrete:' Cracks   near\n the bridge ', Asphalt:'not applicable'};
@@ -41,7 +41,7 @@ test('required components have remarks and files except N/A; findings summarize 
   assert.equal(validateAssessment(ratings, remarks, files), false);
   ratings.Concrete = 'Fair';
   assert.equal(validateAssessment(ratings, remarks, files), true);
-  assert.equal(findingsSummary(ratings, remarks), 'Cracks near the bridge.');
+  assert.equal(findingsSummary(ratings, remarks), 'Cracks near the bridge; not applicable.');
   assert.equal(validateAssessment(ratings, {}, files), false);
   assert.equal(validateAssessment(ratings, remarks, {}), false);
   ratings.Concrete = 'Good';
@@ -50,7 +50,8 @@ test('required components have remarks and files except N/A; findings summarize 
   assert.equal(validateAssessment(ratings, {}, {}), false);
   ratings.Concrete = 'Fair';
   const long = findingsSummary(ratings, {Concrete:'x'.repeat(300)});
-  assert.ok(long.length <= 320);
+  assert.equal(long, 'x'.repeat(300) + '.');
+  assert.equal(findingsSummary(ratings, {Concrete:'a'.repeat(400)}), 'a'.repeat(400) + '.');
 });
 
 test('findings combine component remarks into one concise summary without category prefixes', () => {

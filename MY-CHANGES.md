@@ -78,6 +78,55 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Compact the date calendar
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `tests/filter-controls.test.cjs` (modified)
+- **What & why:** Reduce the calendar panel and proportionately size its text while preserving consistent spacing and screen margins.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-14 — [mine] Align calendar text and spacing
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `tests/filter-controls.test.cjs` (modified)
+- **What & why:** Use consistent calendar typography and add inner margins while preserving the screen-edge collision padding.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-14 — [mine] Enlarge calendar date choices
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `tests/filter-controls.test.cjs` (modified)
+- **What & why:** Make each date choice easier to see and select in all shared date-filter calendars while retaining viewport margins.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-14 — [mine] Align assignment menus and calendar placement
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/filter-controls.test.cjs` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Use the archived dropdown design for inspector assignment, remove Head Engineer from new-user roles, and keep date calendars away from viewport edges.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-14 — [mine] Restrict Head Engineer accounts and compact filters
+- **Type:** Modified
+- **Files:** `src/app/api/auth/status/route.ts` (modified), `src/app/components/FilterControls.tsx` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/filter-controls.test.cjs` (modified), `supabase/migrations/20261117_single_head_engineer.sql` (new), `tests/single-head-engineer.test.cjs` (new)
+- **What & why:** Prevent duplicate current Head Engineers across account operations, hide the locked option for Head Engineer edits, and reduce calendar and overview controls. Database uniqueness migration is prepared but not applied.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-14 — [mine] Refine filters, inspection findings and password limits
+- **Type:** Modified
+- **Files:** `docs/EMAIL-TEMPLATES.md` (modified), `src/app/api/auth/reset-password/route.ts` (modified), `src/app/api/auth/status/route.ts` (modified), `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `src/app/components/UserManagementModule.tsx` (modified), `src/app/globals.css` (modified), `src/app/reset-password/page.tsx` (modified), `src/lib/inspection-selection.ts` (modified), `src/lib/notifications.ts` (modified), `tests/archive-delete-confirmation.test.cjs` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/inspection-selection.test.cjs` (modified), `tests/notifications.test.cjs` (modified), `tests/project-form.test.cjs` (modified), `tests/retired-fields.test.cjs` (modified), `tests/role-crud.test.cjs` (modified), `tests/validation-workflow.test.cjs` (modified), `src/app/components/FilterControls.tsx` (new), `tests/filter-controls.test.cjs` (new), `tests/password-boundaries.test.cjs` (new)
+- **What & why:** Use matching dropdown and calendar styling, summarize entered component remarks, label notification emails, and enforce 8–64 character account passwords.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
+### 2026-11-14 — [mine] Update email template office branding
+- **Type:** Modified
+- **Files:** `docs/EMAIL-TEMPLATES.md` (modified), `src/lib/notifications.ts` (modified), `tests/notifications.test.cjs` (modified)
+- **What & why:** Use Office of the Municipal Engineer and remove the former system name in workflow and documented password-reset email templates.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-13 — [mine] Adjust project and overview table columns
 - **Type:** Modified
 - **Files:** `src/app/components/InspectionModule.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `src/app/components/MaintenanceModule.tsx` (modified), `tests/inspection-categories.test.cjs` (modified), `tests/project-form.test.cjs` (modified)

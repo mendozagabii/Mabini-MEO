@@ -16,13 +16,13 @@ const context = React.createContext(() => {});
 const Dummy = ({ children }) => React.createElement(React.Fragment, null, children);
 const select = {
   Select: ({ children, onValueChange }) => React.createElement(context.Provider, { value: onValueChange }, children),
-  SelectItem: ({ children, value }) => { const change = React.useContext(context); return React.createElement('button', { onClick: () => change(value) }, children); },
+  SelectItem: ({ children, value, disabled }) => { const change = React.useContext(context); return React.createElement('button', { disabled, onClick: () => change(value) }, children); },
   SelectContent: Dummy, SelectTrigger: Dummy, SelectValue: () => null,
 };
 const filename = path.resolve(__dirname, '../src/app/components/UserManagementModule.tsx');
 const mod = new Module(filename, module); mod.filename = filename; mod.paths = Module._nodeModulePaths(path.dirname(filename));
 const orig = mod.require.bind(mod);
-mod.require = name => name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: () => Dummy}) : name === '@/lib/retention' ? { purgeScheduleLabel: () => 'Deletes on 2026-12-01 (20 days left)' } : orig(name);
+mod.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options}) => React.createElement('select', {'aria-label':label,value,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : name === './ui/select' ? select : name === './ui/dropdown-menu' ? new Proxy({}, {get: () => Dummy}) : name === '@/lib/retention' ? { purgeScheduleLabel: () => 'Deletes on 2026-12-01 (20 days left)' } : orig(name);
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true} }).outputText, filename);
 const calls = [];
 let testLogs = [];
@@ -121,5 +121,20 @@ test('empty archive categories show an icon', async () => {
   for(const [type,text] of [['Project (0)','No archived project records'],['Inspections (0)','No archived inspections'],['Maintenance (0)','No archived maintenance records']]) {
     await act(async()=>button(type).click());const p=[...document.querySelectorAll('p')].find(e=>e.textContent===text);assert.ok(p);assert.ok(p.parentElement.querySelector('svg'));
   }
+  global.fetch=originalFetch;
+});
+
+
+test('Head Engineer role cannot be duplicated and its edit form has no locked choice', async () => {
+  const originalFetch=global.fetch;
+  global.fetch=async(url,options)=>{const response=await originalFetch(url,options);const payload=await response.json();return {...response,json:async()=>({...payload,users:[{userId:'head',name:'Chief',email:'chief@example.test',username:'chief',role:'Head Engineer',status:'Active'}, ...payload.users]})};};
+  await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(mod.exports.UserManagementModule,{currentUserEmail:'chief@example.test'})));
+  const rows=[...document.querySelectorAll('tbody tr')];const head=rows.find(row=>row.textContent.includes('Chief'));
+  await act(async()=>head.querySelector('td:last-child button').click());
+  assert.doesNotMatch(document.querySelector('.user-account-modal').textContent,/Locked \(Pending Approval\)/);
+  await act(async()=>root.render(null));await act(async()=>root.render(React.createElement(mod.exports.UserManagementModule,{currentUserEmail:'chief@example.test'})));
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Create User Account')).click());
+  const form=document.querySelector('.user-account-modal');const headOption=[...form.querySelectorAll('button')].find(b=>b.textContent.trim()==='Head Engineer');
+  assert.equal(headOption,undefined);
   global.fetch=originalFetch;
 });
