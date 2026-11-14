@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Standardize inspector dropdown width
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `src/app/components/LocalRoadList.tsx` (modified), `tests/project-form.test.cjs` (modified)
+- **What & why:** Keep assigned, unassigned and awaiting-validation inspector controls the same width in the Head Engineer project table.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-14 — [mine] Fit activity user filter menu
 - **Type:** Modified
 - **Files:** `src/app/components/UserManagementModule.tsx` (modified), `tests/archive-delete-confirmation.test.cjs` (modified)

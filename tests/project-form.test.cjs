@@ -18,7 +18,7 @@ function loadTs(relative, mocks = {}) {
   const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const m = new Module(filename, module); m.filename = filename; m.paths = Module._nodeModulePaths(path.dirname(filename));
   const originalRequire = m.require.bind(m);
-  m.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options,disabled,title}) => React.createElement('select', {'aria-label':label,value,disabled,title,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
+  m.require = name => name === './FilterControls' ? { DateCalendarButton: () => null, StyledFilterSelect: ({label,value,onChange,options,disabled,title,triggerClassName}) => React.createElement('select', {'aria-label':label,value,disabled,title,className:triggerClassName,onChange:e=>onChange(e.target.value)}, options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label))) } : Object.hasOwn(mocks, name) ? mocks[name] : originalRequire(name);
   m._compile(code, filename); return m.exports;
 }
 const validation = loadTs('src/lib/project-form-validation.ts');
@@ -743,7 +743,7 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   for (const header of ['Project Name', 'Location', 'Contract Amount', 'Completion Date', 'Inspector']) {
     assert.match(container.textContent, new RegExp(header), header);
   }
-  assert.deepEqual([...container.querySelectorAll('colgroup col')].map(col=>col.style.width), ['300px','160px','165px','155px','200px','48px']);
+  assert.deepEqual([...container.querySelectorAll('colgroup col')].map(col=>col.style.width), ['300px','160px','165px','155px','240px','48px']);
   assert.match(container.textContent, /Php 1,250,000\.00/);
   assert.match(container.textContent, /2025-03-31/);
   const select = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
@@ -752,12 +752,16 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   assert.match(select.textContent, /Juan Dela Cruz/);
   assert.equal(container.querySelector('[aria-label="Delete Poblacion Road"]') !== null, true);
   assert.equal(select.disabled, false);
+  assert.ok(select.classList.contains('w-[192px]'));
   await act(async()=>{select.value='i1';select.dispatchEvent(new window.Event('change',{bubbles:true}));});
   assert.deepEqual(assignments.at(-1),['p','i1']);
   await act(async()=>{select.value='__unassigned__';select.dispatchEvent(new window.Event('change',{bubbles:true}));});
   assert.deepEqual(assignments.at(-1),['p','']);
   await act(async()=>select.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
   assert.equal(container.querySelector('.card-details-dialog'),null);
+  await act(async()=>root.render(React.createElement(LocalRoadList,{...props,data:[{...item,inspectorId:'i1'}],userRole:'Head Engineer'})));
+  const assignedSelect=container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
+  assert.equal(assignedSelect.value,'i1');assert.equal(assignedSelect.className,select.className);
 
   // @mine — the officer's flow: a project that is not validated yet cannot be assigned.
   await reset();
@@ -766,6 +770,7 @@ test('task 11: the Head Engineer project table carries the five columns and an i
   const pendingSelect = container.querySelector('select[aria-label="Assign inspector for Poblacion Road"]');
   assert.ok(pendingSelect);
   assert.equal(pendingSelect.disabled, true);
+  assert.equal(pendingSelect.className,select.className);
   assert.match(pendingSelect.textContent, /Awaiting Validation/);
 
   // task 13: both project lists filter by completion date instead of location
