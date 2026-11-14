@@ -15,8 +15,8 @@ const filename=path.resolve(__dirname,'../src/app/components/FilterControls.tsx'
 test('styled calendar selection and clear update the date input and filter together', async()=>{
   const input=document.createElement('input'); input.type='date';let selected='';
   await act(async()=>root.render(React.createElement(mod.exports.DateCalendarButton,{inputRef:{current:input},value:'',onChange:value=>{selected=value;},label:'Choose filter date'})));
-  assert.ok(document.querySelector('[aria-label="Choose filter date"]'));const panel=document.querySelector('.rounded-\\[18px\\]');assert.ok(panel);assert.equal(panel.dataset.align,'end');assert.equal(panel.dataset.collisionPadding,'16');assert.ok(panel.classList.contains('p-3'));assert.ok(panel.classList.contains('text-sm'));
-  const day=[...document.querySelectorAll('button')].find(e=>e.textContent==='Choose date');assert.match(day.dataset.dayClass,/h-9 w-9/);assert.match(day.dataset.cellClass,/w-9/);for(const key of ['dayClass','cellClass','headingClass','weekdayClass']) assert.match(day.dataset[key],/text-sm/);
+  assert.ok(document.querySelector('[aria-label="Choose filter date"]'));const panel=document.querySelector('.rounded-\\[18px\\]');assert.ok(panel);assert.equal(panel.dataset.align,'end');assert.equal(panel.dataset.collisionPadding,'16');assert.ok(panel.classList.contains('p-2'));assert.ok(panel.classList.contains('text-[13px]'));
+  const day=[...document.querySelectorAll('button')].find(e=>e.textContent==='Choose date');assert.match(day.dataset.dayClass,/h-8 w-8/);assert.match(day.dataset.cellClass,/w-8/);for(const key of ['dayClass','cellClass','headingClass','weekdayClass']) assert.match(day.dataset[key],/text-\[13px\]/);
   await act(async()=>day.click());
   assert.equal(input.value,'2026-11-14');assert.equal(selected,'2026-11-14');
   await act(async()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Clear').click());
