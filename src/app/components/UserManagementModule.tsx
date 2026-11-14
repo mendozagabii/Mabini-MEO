@@ -1361,7 +1361,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   </SelectTrigger>
                   <SelectContent>
                     {AVAILABLE_ROLES.map((role) => (
-                      <SelectItem key={role} value={role}>
+                      <SelectItem key={role} value={role} disabled={role === 'Head Engineer' && users.some(user => user.role === 'Head Engineer' && user.id !== editingUser?.id)}>
                       {role}
                       </SelectItem>
                     ))}
@@ -1380,7 +1380,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Active">Active (Login Enabled)</SelectItem>
-                    <SelectItem value="Locked">Locked (Pending Approval)</SelectItem>
+                    {editingUser?.role !== 'Head Engineer' && <SelectItem value="Locked">Locked (Pending Approval)</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>

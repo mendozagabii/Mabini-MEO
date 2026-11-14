@@ -15,7 +15,7 @@ const filename=path.resolve(__dirname,'../src/app/components/FilterControls.tsx'
 test('styled calendar selection and clear update the date input and filter together', async()=>{
   const input=document.createElement('input'); input.type='date';let selected='';
   await act(async()=>root.render(React.createElement(mod.exports.DateCalendarButton,{inputRef:{current:input},value:'',onChange:value=>{selected=value;},label:'Choose filter date'})));
-  assert.ok(document.querySelector('[aria-label="Choose filter date"]'));assert.ok(document.querySelector('.rounded-\\[22px\\]'));
+  assert.ok(document.querySelector('[aria-label="Choose filter date"]'));assert.ok(document.querySelector('.rounded-\\[18px\\]'));
   await act(async()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Choose date').click());
   assert.equal(input.value,'2026-11-14');assert.equal(selected,'2026-11-14');
   await act(async()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Clear').click());
