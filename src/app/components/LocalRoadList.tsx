@@ -678,8 +678,8 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
             {/* @mine — task 11: the Head Engineer sees a table and assigns an inspector per row. */}
             {showsAssignTable ? (
               <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full min-w-[1028px] table-fixed border-separate border-spacing-0">
-                  <colgroup><col style={{width: 300}} /><col style={{width: 160}} /><col style={{width: 165}} /><col style={{width: 155}} /><col style={{width: 200}} /><col style={{width: 48}} /></colgroup>
+                <table className="w-full min-w-[1068px] table-fixed border-separate border-spacing-0">
+                  <colgroup><col style={{width: 300}} /><col style={{width: 160}} /><col style={{width: 165}} /><col style={{width: 155}} /><col style={{width: 240}} /><col style={{width: 48}} /></colgroup>
                   <thead className="border-b border-gray-200 bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-600">Project Name</th>
@@ -718,6 +718,7 @@ export function LocalRoadList({ data, onAdd, onEdit, onDelete, validationMode = 
                         <td className="px-6 py-4" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                           <StyledFilterSelect
                             label={`Assign inspector for ${item.projectName || item.name}`}
+                            triggerClassName="w-[192px] min-w-0"
                             value={item.inspectorId || '__unassigned__'}
                             disabled={!onAssignInspector || assigningId === item.id || !hasPassedValidation(item)}
                             title={hasPassedValidation(item) ? undefined : 'Assign an inspector once the project is validated'}
