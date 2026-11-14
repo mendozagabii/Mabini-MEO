@@ -1021,7 +1021,7 @@ export function UserManagementModule({ currentUserEmail }: { currentUserEmail: s
                 <DropdownMenuTrigger asChild>
                   <button type="button" aria-label="Filter by user" title={selectedActivityAccount?.name || 'All Users'} className="inline-flex w-40 max-w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700"><span className="min-w-0 truncate">{selectedActivityAccount?.name || 'All Users'}</span><ChevronDown className="h-4 w-4 shrink-0" /></button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="z-[9999] min-w-52 rounded-[22px] border-blue-100 bg-white p-2 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
+                <DropdownMenuContent align="start" className="z-[9999] w-[var(--radix-dropdown-menu-trigger-width)] min-w-0 rounded-[22px] border-blue-100 bg-white p-2 text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.16)]">
                   <DropdownMenuItem onSelect={() => setActivityUserFilter('All Users')} className={`justify-between rounded-2xl px-4 py-3 text-xs ${activityUserFilter === 'All Users' ? 'bg-blue-600 text-white focus:bg-blue-600 focus:text-white' : 'focus:bg-blue-50'}`}>All Users {activityUserFilter === 'All Users' && <Check className="h-4 w-4 text-white" />}</DropdownMenuItem>
                   {activityRoleGroups.map(({role, accounts}) => <DropdownMenuSub key={role}>
                     <DropdownMenuSubTrigger className="rounded-2xl px-4 py-3 text-xs focus:bg-blue-50 focus:text-blue-700">{role}</DropdownMenuSubTrigger>
