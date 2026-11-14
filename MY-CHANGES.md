@@ -78,6 +78,13 @@ The hook can always be bypassed for a single commit with `git commit --no-verify
 
 <!-- NEW-ENTRY-MARKER — scripts/log-change.sh inserts new entries directly below this line, newest first. Do not delete this line. -->
 
+### 2026-11-14 — [mine] Align calendar text and spacing
+- **Type:** Modified
+- **Files:** `src/app/components/FilterControls.tsx` (modified), `tests/filter-controls.test.cjs` (modified)
+- **What & why:** Use consistent calendar typography and add inner margins while preserving the screen-edge collision padding.
+- **Status:** ✅ Kept
+- **Original code affected:** none
+
 ### 2026-11-14 — [mine] Enlarge calendar date choices
 - **Type:** Modified
 - **Files:** `src/app/components/FilterControls.tsx` (modified), `tests/filter-controls.test.cjs` (modified)
